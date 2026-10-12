@@ -2,3 +2,4 @@
   - Add a rule in agents.md to add documentation regarding any changes on the schema and explain the db schema.
 - Implement caddy on docker
 - Setup CICD for the project read nestjs cicd integration
+- Add observemodule to the project
