@@ -20,17 +20,16 @@ Use a currently supported Node LTS release that satisfies the selected stable Ne
 
 ## Approved production dependencies
 
-| Package                                                      | Purpose                                                                                             |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express` | Framework and Express HTTP adapter.                                                                 |
-| `reflect-metadata`, `rxjs`                                   | Required Nest runtime dependencies.                                                                 |
-| `@nestjs/config`, `zod`                                      | Approved in V1-003 for environment loading and typed startup validation.                            |
-| `@nestjs/terminus`                                           | Approved in V1-003 for readiness aggregation and future dependency checks.                          |
-| `@nestjs/typeorm`, `typeorm`, `pg`                           | PostgreSQL persistence and migrations.                                                              |
-| `@nestjs/cache-manager`, `cache-manager`                     | Per-process in-memory cache.                                                                        |
-| `slugify`                                                    | Immutable Carrier code creation with `{ lower: true, strict: true, replacement: '-', trim: true }`. |
-| `pino`                                                       | Structured JSON logging shared by the API and worker.                                               |
-| `pino-http`, `nestjs-pino`                                   | Request context/completion logging and the Nest logging bridge approved in V1-017.                  |
+| Package                                                      | Purpose                                                                            |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express` | Framework and Express HTTP adapter.                                                |
+| `reflect-metadata`, `rxjs`                                   | Required Nest runtime dependencies.                                                |
+| `@nestjs/config`, `zod`                                      | Approved in V1-003 for environment loading and typed startup validation.           |
+| `@nestjs/terminus`                                           | Approved in V1-003 for readiness aggregation and future dependency checks.         |
+| `@nestjs/typeorm`, `typeorm`, `pg`                           | PostgreSQL persistence and migrations.                                             |
+| `@nestjs/cache-manager`, `cache-manager`                     | Per-process in-memory cache.                                                       |
+| `pino`                                                       | Structured JSON logging shared by the API and worker.                              |
+| `pino-http`, `nestjs-pino`                                   | Request context/completion logging and the Nest logging bridge approved in V1-017. |
 
 ## Approved development dependencies
 
@@ -66,6 +65,10 @@ parameter logging remains disabled.
 
 ## Explicitly deferred
 
+- Automatic Carrier slug generation and installation of `slugify`, by the approved
+  V1-007 revision. Only migrations accompanying implemented adapters add Carriers,
+  using explicit stable codes. Carrier creation, deletion, and restoration APIs
+  are excluded from V1-007; administrators can update settings and enable/disable.
 - PostgreSQL TLS support, explicitly deferred during V1-004. Connections currently use plaintext; see `TODO.md` for verified TLS and optional provider CA support before use across an untrusted network or with a provider requiring TLS.
 - Nx, Turborepo, and pnpm workspaces.
 - Redis/shared cache, durable job queue, multi-worker leases, and distributed rate limiting.

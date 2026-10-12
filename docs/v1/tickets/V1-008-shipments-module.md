@@ -18,6 +18,10 @@ Implement Shipment CRUD through external UUIDs, repository contracts, soft delet
 
 - Implement Shipment entity mapping, repository contract, TypeORM implementation, service, request/response schemas, controller, and tests.
 - List, create, read, update notes, and soft-delete Shipments without exposing internal IDs.
+- Add manual pause/resume using the existing `monitoring_status` and
+  `monitoring_reason` columns, as agreed during V1-007. Do not add a duplicate
+  monitoring boolean. Settle permitted resume transitions and scheduling behavior
+  during this ticket's interview; V1-007 does not implement Shipment operations.
 - Generate verification URLs through the Carrier validation/interface seam.
 - Implement atomic bulk creation of 1-10 explicit Carrier/reference items.
 - Validate the entire bulk request before writing; deduplicate normalized pairs and return inserted versus already-active duplicates.

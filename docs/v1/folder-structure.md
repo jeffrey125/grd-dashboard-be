@@ -65,7 +65,6 @@ grd-dashboard-be/
 │       │   ├── carriers.service.ts
 │       │   ├── carrier.entity.ts
 │       │   ├── carriers.schemas.ts
-│       │   ├── carriers.repository.ts
 │       │   ├── typeorm-carriers.repository.ts
 │       │   ├── cache/
 │       │   │   └── carrier-cache.service.ts

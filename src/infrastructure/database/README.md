@@ -99,8 +99,13 @@ catalog assertions verify their exact definition. Schema-generation previews do
 not reproduce those indexes or the protection triggers; review generated SQL.
 
 `pnpm test:integration` builds production code and exercises the real CLI and
-schema against disposable PostgreSQL. The temporary Carrier contract/provider in
-`test/support/carrier-repository.ts` proves service DI, audit writes, generated
-UUIDs, and soft deletion using the real Carrier entity. It accepts explicit codes;
-slug creation and other Carrier behavior belong to V1-007, which must replace and
-remove this test adapter. The old proof schema and fixture build are removed.
+schema against disposable PostgreSQL. V1-007 replaced the temporary Carrier test
+adapter with the concrete production repository and service in `src/modules/carriers`.
+The service injects `TypeOrmCarriersRepository` directly by its class token; no
+separate Carrier contract file, Symbol, or provider factory remains.
+Coverage preserves service DI, audit writes, generated UUIDs, code uniqueness,
+and soft-deleted exclusions. Fixtures provision/retire rows directly; runtime
+Carrier operations are read/update only. Only reviewed migrations accompanying
+implemented adapters add Carriers with explicit stable codes. No automatic slug
+generation or deletion API is provided. The old proof schema and fixture build
+are removed.

@@ -17,6 +17,12 @@ They have no User foreign keys in the initial migration. Clients never supply th
 
 ## Ticket V1-009 decision gate
 
+The V1-007 interview settled Carrier permissions: regular authenticated users may
+list/read Carriers; only admins may update names, settings, or active state.
+There are no Carrier creation/deletion/restoration routes to authorize. Creation
+is migration-only and requires an implemented adapter. V1-010 must enforce this
+policy before public deployment; V1-007 does not implement role guards.
+
 Resolve these requirements before selecting auth dependencies or creating User tables:
 
 1. First-party browser only, machine clients, or both.

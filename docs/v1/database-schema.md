@@ -89,8 +89,9 @@ One row identifies a Carrier and selects its adapter.
 
 Rules:
 
-- Generate `code` from `name` only during creation with `slugify` and `{ lower: true, strict: true, replacement: '-', trim: true }`.
-- Reject an empty slug or a slug longer than 50 characters.
+- By the approved V1-007 scope, only reviewed migrations accompanying an implemented
+  adapter may create Carriers. Use explicit, nonempty stable adapter codes up to
+  50 characters. Automatic slug generation and application creation are deferred.
 - Keep `code` immutable when `name` changes.
 - Enforce unique `external_id` and unique `code`, including across soft-deleted rows.
 - Enforce `not_found_pause_threshold >= 2`; the initial value for every Carrier is `5`.
@@ -101,6 +102,9 @@ Rules:
 - The initial single-node worker may enforce this limit in process. If tracking workers later run on multiple nodes, they must share or partition the Carrier quota so each node does not independently spend the full limit.
 - Carrier credentials and endpoints remain configuration/secrets, not database columns.
 - Referenced Carriers use `ON DELETE NO ACTION`; normal removal is soft deletion or `is_active = false`.
+- V1-007 exposes reads and configuration updates only. Administrators use
+  `is_active` to disable/enable; no Carrier deletion or restoration API is exposed.
+  Existing soft-deleted Carriers are excluded from reads, updates, and active selection.
 
 ### Deferred Carrier configuration candidates
 

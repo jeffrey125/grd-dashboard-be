@@ -47,6 +47,9 @@ The scheduler is registered only in the worker composition root. Starting an API
 - Controllers translate HTTP and never construct TypeORM queries.
 - Application services own use-case orchestration and transaction intent.
 - Services depend on repository contracts defined inside the owning feature.
+- Carrier-specific V1-007 override: `CarriersService` injects the concrete
+  `TypeOrmCarriersRepository` directly. The user removed its separate contract
+  file and Symbol token; queries remain encapsulated in the feature repository.
 - TypeORM repository implementations own persistence queries.
 - Carrier adapters implement one small tracking interface and hide authentication, HTTP/browser behavior, mapping, retries, and provider-specific validation.
 - Feature cache services hide cache keys and invalidation behind `AbstractCacheService<TValue>`.

@@ -34,6 +34,8 @@ Evaluate current Nest scheduler capabilities and `@nestjs/schedule`. Obtain expl
 - One worker never overlaps its own scheduler ticks or two runs for the same Carrier.
 - The adapter receives work but owns no timer.
 - Due selection honors active/deleted status, Carrier active state, `next_check_at`, and adapter minimum.
+- Use the Carrier repository's active-selection policy from V1-007: disabled and
+  soft-deleted Carriers cannot receive new scheduled work. Keep existing Shipment relationships intact.
 - Worker startup validates enabled adapter configuration and exposes safe readiness/failure state.
 - Deterministic fake-clock tests cover due/not-due selection, long-running rounds, shutdown, startup recovery, and manual-work priority.
 
