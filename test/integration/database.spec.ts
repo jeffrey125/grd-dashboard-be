@@ -3,19 +3,28 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createConfiguration } from '@config/configuration.js';
 import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
-import { ProofEntity } from '@test/support/database-proof/proof.entity.js';
-import { ProofMigration1791800000000 } from '@test/support/database-proof/proof.migration.js';
+import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
+import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
+import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
+import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
 import {
-  ProofService,
-  proofRepositoryProvider,
-} from '@test/support/database-proof/proof.repository.js';
+  TrackingRunEntity,
+  TrackingRunTrigger,
+  TrackingRunStatus,
+} from '@modules/tracking/tracking-run.entity.js';
+import { TrackingAttemptEntity } from '@modules/tracking/tracking-attempt.entity.js';
+import {
+  CarrierTestService,
+  carrierRepositoryProvider,
+} from '@test/support/carrier-repository.js';
 import {
   startPostgresqlContainer,
   postgresqlEnvironment,
@@ -23,12 +32,24 @@ import {
 
 const require = createRequire(import.meta.url);
 const typeormCli = require.resolve('typeorm/cli.js');
+const productionSource = 'dist/infrastructure/database/data-source.js';
 
-describe('migrations and repository foundation', () => {
+describe('production migrations and repository foundation', () => {
   let container: StartedPostgreSqlContainer | undefined;
   let source: DataSource;
   let module: TestingModule;
-  let service: ProofService;
+  let service: CarrierTestService;
+
+  const environment = () => ({
+    PATH: process.env.PATH,
+    ...postgresqlEnvironment(container!),
+  });
+  const cli = (command: string, args: string[] = []) =>
+    promisify(execFile)(
+      process.execPath,
+      [typeormCli, command, ...args, '-d', productionSource],
+      { env: environment() },
+    );
 
   beforeAll(async () => {
     container = await startPostgresqlContainer();
@@ -36,19 +57,25 @@ describe('migrations and repository foundation', () => {
       ...createDatabaseOptions(
         createConfiguration(postgresqlEnvironment(container)),
       ),
-      entities: [ProofEntity],
-      migrations: [ProofMigration1791800000000],
+      entities: [
+        CarrierEntity,
+        ShipmentEntity,
+        ShipmentTrackingSnapshotEntity,
+        TrackingRunEntity,
+        TrackingAttemptEntity,
+      ],
+      migrations: [InitialSchema1791849600000],
     });
     await source.initialize();
     await source.runMigrations();
     module = await Test.createTestingModule({
       providers: [
         { provide: DataSource, useValue: source },
-        proofRepositoryProvider,
-        ProofService,
+        carrierRepositoryProvider,
+        CarrierTestService,
       ],
     }).compile();
-    service = module.get(ProofService);
+    service = module.get(CarrierTestService);
   });
 
   afterAll(async () => {
@@ -57,8 +84,8 @@ describe('migrations and repository foundation', () => {
     await container?.stop();
   });
 
-  it('creates and retrieves a database-generated identity through the repository contract', async () => {
-    const record = await service.create('first');
+  it('creates and retrieves a database-generated UUID through the repository contract without exposing internal IDs', async () => {
+    const record = await service.create('contract', 'Contract Carrier');
     expect(record.externalId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
@@ -69,14 +96,15 @@ describe('migrations and repository foundation', () => {
     ).toBeNull();
   });
 
-  it('maintains audit timestamps and excludes soft-deleted rows through the contract', async () => {
-    const created = await service.create('before');
+  it('maintains audit timestamps and excludes soft-deleted Carriers through the contract', async () => {
+    const created = await service.create('audit', 'Before');
     await new Promise((resolve) => setTimeout(resolve, 10));
-    await service.rename(created.externalId, 'after');
+    await service.rename(created.externalId, 'After');
     const updated = await service.find(created.externalId);
     expect(updated).toMatchObject({
       externalId: created.externalId,
-      label: 'after',
+      code: 'audit',
+      name: 'After',
       createdAt: created.createdAt,
     });
     expect(updated!.updatedAt.getTime()).toBeGreaterThan(
@@ -84,175 +112,193 @@ describe('migrations and repository foundation', () => {
     );
     await service.remove(created.externalId);
     expect(await service.find(created.externalId)).toBeNull();
-    const deleted = await source.getRepository(ProofEntity).findOne({
+    const deleted = await source.getRepository(CarrierEntity).findOne({
       where: { externalId: created.externalId },
       withDeleted: true,
     });
     expect(deleted!.deletedAt).toBeInstanceOf(Date);
-    await expect(
-      source.query(
-        "INSERT INTO repository_proof (external_id, label) VALUES ($1, 'deleted duplicate')",
-        [created.externalId],
-      ),
-    ).rejects.toMatchObject({ driverError: { code: '23505' } });
+    expect(deleted).toMatchObject({
+      createdById: null,
+      updatedById: null,
+      deletedById: null,
+    });
+    await expect(service.create('audit', 'Duplicate')).rejects.toMatchObject({
+      driverError: { code: '23505' },
+    });
   });
 
-  it('enforces generated identity, UUID uniqueness, and immutable identifiers at the SQL boundary', async () => {
-    const created = await service.create('protected');
-    const [row] = await source.query(
-      'SELECT * FROM repository_proof WHERE external_id = $1',
-      [created.externalId],
+  it('ignores application-supplied UUIDs and maps generated IDs, dates, audit times and versions', async () => {
+    const carriers = source.getRepository(CarrierEntity);
+    const supplied = '00000000-0000-4000-8000-000000000000';
+    const carrier = await carriers.save(
+      carriers.create({
+        code: 'orm-identities',
+        name: 'ORM Carrier',
+        pollIntervalMinutes: 5,
+        externalId: supplied,
+      }),
     );
-    expect(Number.isInteger(row.id)).toBe(true);
-    expect(row.created_by_id).toBeNull();
-    expect(row.updated_by_id).toBeNull();
-    expect(row.deleted_by_id).toBeNull();
-    await expect(
-      source.query(
-        "INSERT INTO repository_proof (id, label) VALUES (99999, 'manual')",
-      ),
-    ).rejects.toMatchObject({ driverError: { code: '428C9' } });
-    await expect(
-      source.query(
-        "INSERT INTO repository_proof (external_id, label) VALUES ($1, 'duplicate')",
-        [created.externalId],
-      ),
-    ).rejects.toMatchObject({ driverError: { code: '23505' } });
-    await expect(
-      source.query(
-        'UPDATE repository_proof SET id = id + 1000 WHERE external_id = $1',
-        [created.externalId],
-      ),
-    ).rejects.toMatchObject({ driverError: { code: '428C9' } });
-    await expect(
-      source.query(
-        'UPDATE repository_proof SET id = DEFAULT WHERE external_id = $1',
-        [created.externalId],
-      ),
-    ).rejects.toMatchObject({ driverError: { code: '23514' } });
-    await expect(
-      source.query(
-        'UPDATE repository_proof SET external_id = gen_random_uuid() WHERE external_id = $1',
-        [created.externalId],
-      ),
-    ).rejects.toMatchObject({ driverError: { code: '23514' } });
-    await source.query(
-      'UPDATE repository_proof SET external_id = external_id WHERE external_id = $1',
-      [created.externalId],
+    expect(carrier.externalId).not.toBe(supplied);
+    const shipments = source.getRepository(ShipmentEntity);
+    const shipment = await shipments.save(
+      shipments.create({
+        carrierId: carrier.id,
+        trackingReference: 'ORM-1',
+        externalId: supplied,
+      }),
     );
-    expect(await service.find(created.externalId)).toEqual(created);
+    expect(shipment.externalId).not.toBe(supplied);
+    expect(shipment.lockVersion).toBe(1);
+    await shipments.update({ id: shipment.id }, { notes: 'Updated' });
+    expect(await shipments.findOneByOrFail({ id: shipment.id })).toMatchObject({
+      lockVersion: 2,
+    });
+    const snapshots = source.getRepository(ShipmentTrackingSnapshotEntity);
+    const snapshot = await snapshots.save(
+      snapshots.create({ shipmentId: shipment.id, deliveredOn: '2026-10-13' }),
+    );
+    expect(typeof snapshot.id).toBe('string');
+    expect(
+      (await snapshots.findOneByOrFail({ id: snapshot.id })).deliveredOn,
+    ).toBe('2026-10-13');
+    const runs = source.getRepository(TrackingRunEntity);
+    const run = await runs.save(
+      runs.create({
+        carrierId: carrier.id,
+        trigger: TrackingRunTrigger.Manual,
+        externalId: supplied,
+      }),
+    );
+    expect(run.externalId).not.toBe(supplied);
+    expect(run.externalId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(typeof run.id).toBe('string');
+    expect(run.requestedById).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await runs.update(
+      { id: run.id },
+      { status: TrackingRunStatus.Running, startedAt: new Date() },
+    );
+    expect(
+      (await runs.findOneByOrFail({ id: run.id })).updatedAt.getTime(),
+    ).toBeGreaterThan(run.updatedAt.getTime());
+    const attempts = source.getRepository(TrackingAttemptEntity);
+    const attempt = await attempts.save(
+      attempts.create({ trackingRunId: run.id, shipmentId: shipment.id }),
+    );
+    expect(typeof attempt.id).toBe('string');
+    await carriers.update(
+      { id: carrier.id },
+      { name: 'Updated', externalId: supplied },
+    );
+    expect(
+      (await carriers.findOneByOrFail({ id: carrier.id })).externalId,
+    ).toBe(carrier.externalId);
   });
 
-  it('agrees with migrated column metadata and does not add User foreign keys', async () => {
-    const runner = source.createQueryRunner();
+  it('runs the shipped CLI show/run/revert/run sequence and leaves no migration drift', async () => {
+    await source.undoLastMigration();
+    expect((await cli('migration:show')).stdout).toContain(
+      '[ ] InitialSchema1791849600000',
+    );
+    const firstRun = await cli('migration:run');
+    expect(firstRun.stdout).toContain('CREATE TABLE carriers');
+    expect((await cli('migration:show')).stdout).toContain('[X]');
+    await cli('migration:revert');
+    expect(
+      await source.query(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'migrations'",
+      ),
+    ).toEqual([]);
+    expect(
+      await source.query(
+        "SELECT typname FROM pg_type WHERE typtype = 'e' AND typnamespace = 'public'::regnamespace",
+      ),
+    ).toEqual([]);
+    expect(
+      await source.query(
+        "SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace",
+      ),
+    ).toEqual([]);
+    const directory = await mkdtemp(join(tmpdir(), 'grd-v1005-generation-'));
     try {
-      const table = await runner.getTable('repository_proof');
-      expect(table!.foreignKeys).toHaveLength(0);
       expect(
-        table!.columns.find((column) => column.name === 'id'),
-      ).toMatchObject({
-        type: 'integer',
-        generationStrategy: 'identity',
-        generatedIdentity: 'ALWAYS',
-      });
-      const changes = await source.driver.createSchemaBuilder().log();
-      expect(changes.upQueries).toEqual([]);
+        (
+          await cli('migration:generate', [
+            join(directory, 'Preview'),
+            '--dryrun',
+          ])
+        ).stdout,
+      ).toContain('CREATE TABLE');
+      await cli('migration:run');
+      expect(await source.showMigrations()).toBe(false);
+      await expect(
+        service.create('second-migration', 'After second migration'),
+      ).resolves.toMatchObject({ name: 'After second migration' });
+      expect(await source.getRepository(CarrierEntity).count()).toBe(4);
+      await cli('migration:generate', [join(directory, 'Check'), '--check']);
     } finally {
-      await runner.release();
+      await rm(directory, { recursive: true, force: true });
     }
   });
 
-  it('runs the shipped CLI show/run/revert/run sequence on a fresh database', async () => {
-    await source.undoLastMigration();
-    const env = {
-      PATH: process.env.PATH,
-      ...postgresqlEnvironment(container!),
-      LOG_LEVEL: 'info',
-    };
-    const cli = (command: string, args: string[] = []) =>
-      promisify(execFile)(
-        process.execPath,
-        [
-          typeormCli,
-          command,
-          ...args,
-          '-d',
-          '.test-dist/test/support/database-proof/data-source.js',
-        ],
-        { env },
+  it('rolls back a failed migration against real tables and preserves full CLI diagnostics', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'grd-v1005-rollback-'));
+    try {
+      const failingSource = join(directory, 'failing-source.mjs');
+      // Reuse the production source; no fixture build or fake table is needed.
+      await writeFile(
+        failingSource,
+        `import source from ${JSON.stringify(pathToFileURL(join(process.cwd(), productionSource)).href)};
+        class FailingMigration1791849600001 {
+          async up(runner) {
+            await runner.query("INSERT INTO carriers (code, name, poll_interval_minutes) VALUES ('rollback-canary', 'Rollback', 5)");
+            await runner.query('SELECT $1::integer', ['CANARY_MIGRATION_PARAMETER']);
+          }
+          async down() {}
+        }
+        export default source.setOptions({migrations: [FailingMigration1791849600001]});`,
       );
-    expect((await cli('migration:show')).stdout).toContain(
-      '[ ] ProofMigration1791800000000',
-    );
-    const firstRun = await cli('migration:run');
-    expect(firstRun.stdout).toContain('CREATE TABLE repository_proof');
-    expect((await cli('migration:show')).stdout).toContain(
-      'ProofMigration1791800000000',
-    );
-    await cli('migration:revert');
-    expect(
-      await source.query("SELECT to_regclass('repository_proof') AS name"),
-    ).toEqual([{ name: null }]);
-    const generated = await cli('migration:generate', [
-      '/tmp/grd-proof-preview',
-      '--dryrun',
-    ]);
-    expect(generated.stdout).toContain('CREATE TABLE');
-    await cli('migration:run');
-    expect(await source.showMigrations()).toBe(false);
-    await expect(
-      service.create('after second migration'),
-    ).resolves.toMatchObject({ label: 'after second migration' });
-    await cli('migration:generate', ['/tmp/grd-proof-check', '--check']);
-  });
-
-  it('rolls back failed migrations and preserves full TypeORM CLI diagnostics', async () => {
-    const result = await promisify(execFile)(
-      process.execPath,
-      [
-        typeormCli,
-        'migration:run',
-        '-d',
-        '.test-dist/test/support/database-proof/failing-data-source.js',
-      ],
-      {
-        env: { PATH: process.env.PATH, ...postgresqlEnvironment(container!) },
-      },
-    ).catch((error: { code: number; stdout: string; stderr: string }) => error);
-    expect(result).toHaveProperty('code', 1);
-    expect(result.stdout + result.stderr).toContain(
-      'CANARY_MIGRATION_PARAMETER',
-    );
-    expect(result.stdout + result.stderr).toContain('Migration');
-    expect(
-      await source.query("SELECT to_regclass('rollback_proof') AS name"),
-    ).toEqual([{ name: null }]);
+      const result = await promisify(execFile)(
+        process.execPath,
+        [typeormCli, 'migration:run', '-d', failingSource],
+        { env: environment() },
+      ).catch(
+        (error: { code: number; stdout: string; stderr: string }) => error,
+      );
+      expect(result).toHaveProperty('code', 1);
+      expect(result.stdout + result.stderr).toContain(
+        'CANARY_MIGRATION_PARAMETER',
+      );
+      expect(
+        await source.query(
+          "SELECT id FROM carriers WHERE code = 'rollback-canary'",
+        ),
+      ).toEqual([]);
+      expect(
+        await source.query(
+          "SELECT id FROM migrations WHERE name = 'FailingMigration1791849600001'",
+        ),
+      ).toEqual([]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('preserves TypeORM CLI connection diagnostics', async () => {
     const missingDatabase = 'CANARY_MISSING_DATABASE';
     const result = await promisify(execFile)(
       process.execPath,
-      [
-        typeormCli,
-        'migration:show',
-        '-d',
-        '.test-dist/test/support/database-proof/data-source.js',
-      ],
-      {
-        env: {
-          PATH: process.env.PATH,
-          ...postgresqlEnvironment(container!),
-          DB_NAME: missingDatabase,
-        },
-      },
+      [typeormCli, 'migration:show', '-d', productionSource],
+      { env: { ...environment(), DB_NAME: missingDatabase } },
     ).catch((error: { code: number; stdout: string; stderr: string }) => error);
     expect(result).toHaveProperty('code', 1);
     expect(result.stdout + result.stderr).toContain(missingDatabase);
   });
 
   it('creates a reviewable TypeScript migration without connecting to PostgreSQL', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'grd-v1004-migration-'));
+    const directory = await mkdtemp(join(tmpdir(), 'grd-v1005-migration-'));
     try {
       await promisify(execFile)(
         process.execPath,

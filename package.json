@@ -27,7 +27,7 @@
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
     "test:cov": "vitest run --project unit --coverage",
-    "test:integration": "pnpm build && nest build --path test/tsconfig.fixtures.json && vitest run --project integration",
+    "test:integration": "pnpm build && vitest run --project integration",
     "typeorm": "typeorm",
     "entity:create": "typeorm entity:create",
     "subscriber:create": "typeorm subscriber:create",
