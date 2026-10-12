@@ -114,9 +114,16 @@ Check the summary's formatting and the final diff after writing it.
 
 End with a concise handoff using those same headings and link the summary.
 Propose the smallest coherent Conventional Commits, listing each commit's files
-and behavioral purpose. Obtain explicit final approval before staging and
-committing. Publishing, merging, and tagging require their applicable authorization;
-creating the summary does not perform any of those actions.
+and behavioral purpose. For work implementing a ticket under a versioned
+`docs/v*/tickets` directory, derive its `V*-***` ID from the selected ticket and
+format every commit subject as `feat(<scope>): <ticket-id> <description>`, for
+example `feat(runtime): V1-003 add validated health checks`. Apply the same rule to
+future ticket versions, such as `docs/v2/tickets` and `V2-001`, and use the approved
+messages when creating the commits. For work without a ticket, use ordinary
+Conventional Commit subjects without a ticket ID. Obtain explicit final approval
+before staging and committing. Publishing, merging, and tagging require their
+applicable authorization; creating the summary does not perform any of those
+actions.
 
 Completion: each acceptance criterion has supporting evidence or an explicit
 remaining issue, the summary reflects the actual diff and verification, and the
