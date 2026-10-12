@@ -21,10 +21,8 @@ import {
   TrackingRunStatus,
 } from '@modules/tracking/tracking-run.entity.js';
 import { TrackingAttemptEntity } from '@modules/tracking/tracking-attempt.entity.js';
-import {
-  CarrierTestService,
-  carrierRepositoryProvider,
-} from '@test/support/carrier-repository.js';
+import { CarriersService } from '@modules/carriers/carriers.service.js';
+import { TypeOrmCarriersRepository } from '@modules/carriers/typeorm-carriers.repository.js';
 import {
   startPostgresqlContainer,
   postgresqlEnvironment,
@@ -38,7 +36,13 @@ describe('production migrations and repository foundation', () => {
   let container: StartedPostgreSqlContainer | undefined;
   let source: DataSource;
   let module: TestingModule;
-  let service: CarrierTestService;
+  let service: CarriersService;
+
+  // Provision test records like migrations; the runtime API cannot create them.
+  const provision = (code: string, name: string) =>
+    source
+      .getRepository(CarrierEntity)
+      .save({ code, name, pollIntervalMinutes: 5 });
 
   const environment = () => ({
     PATH: process.env.PATH,
@@ -71,11 +75,11 @@ describe('production migrations and repository foundation', () => {
     module = await Test.createTestingModule({
       providers: [
         { provide: DataSource, useValue: source },
-        carrierRepositoryProvider,
-        CarrierTestService,
+        TypeOrmCarriersRepository,
+        CarriersService,
       ],
     }).compile();
-    service = module.get(CarrierTestService);
+    service = module.get(CarriersService);
   });
 
   afterAll(async () => {
@@ -84,22 +88,23 @@ describe('production migrations and repository foundation', () => {
     await container?.stop();
   });
 
-  it('creates and retrieves a database-generated UUID through the repository contract without exposing internal IDs', async () => {
-    const record = await service.create('contract', 'Contract Carrier');
+  it('retrieves a provisioned database-generated UUID through the production repository without exposing internal IDs', async () => {
+    const seeded = await provision('contract', 'Contract Carrier');
+    const record = await service.find(seeded.externalId);
     expect(record.externalId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(record).not.toHaveProperty('id');
     expect(await service.find(record.externalId)).toEqual(record);
-    expect(
-      await service.find('00000000-0000-4000-8000-000000000000'),
-    ).toBeNull();
+    await expect(
+      service.find('00000000-0000-4000-8000-000000000000'),
+    ).rejects.toMatchObject({ status: 404 });
   });
 
-  it('maintains audit timestamps and excludes soft-deleted Carriers through the contract', async () => {
-    const created = await service.create('audit', 'Before');
+  it('maintains audit timestamps and excludes soft-deleted Carriers through the production repository', async () => {
+    const created = await provision('audit', 'Before');
     await new Promise((resolve) => setTimeout(resolve, 10));
-    await service.rename(created.externalId, 'After');
+    await service.update(created.externalId, { name: 'After' });
     const updated = await service.find(created.externalId);
     expect(updated).toMatchObject({
       externalId: created.externalId,
@@ -110,8 +115,25 @@ describe('production migrations and repository foundation', () => {
     expect(updated!.updatedAt.getTime()).toBeGreaterThan(
       created.updatedAt.getTime(),
     );
-    await service.remove(created.externalId);
-    expect(await service.find(created.externalId)).toBeNull();
+    await source
+      .getRepository(CarrierEntity)
+      .softDelete({ externalId: created.externalId });
+    await expect(service.find(created.externalId)).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(
+      service.update(created.externalId, { name: 'Cannot revive' }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(
+      (await service.list()).some(
+        (row) => row.externalId === created.externalId,
+      ),
+    ).toBe(false);
+    expect(
+      (await service.listActive()).some(
+        (row) => row.externalId === created.externalId,
+      ),
+    ).toBe(false);
     const deleted = await source.getRepository(CarrierEntity).findOne({
       where: { externalId: created.externalId },
       withDeleted: true,
@@ -122,8 +144,80 @@ describe('production migrations and repository foundation', () => {
       updatedById: null,
       deletedById: null,
     });
-    await expect(service.create('audit', 'Duplicate')).rejects.toMatchObject({
+    expect(deleted!.name).toBe('After');
+    await expect(provision('audit', 'Duplicate')).rejects.toMatchObject({
       driverError: { code: '23505' },
+    });
+  });
+
+  it('excludes disabled Carriers from scheduled eligibility without changing their Shipments', async () => {
+    const created = await provision('eligibility', 'Eligibility');
+    const shipments = source.getRepository(ShipmentEntity);
+    const shipment = await shipments.save({
+      carrierId: created.id,
+      trackingReference: 'KEEP-RELATIONSHIP',
+    });
+    expect(
+      (await service.listActive()).some(
+        (row) => row.externalId === created.externalId,
+      ),
+    ).toBe(true);
+    const updated = await service.update(created.externalId, {
+      isActive: false,
+      name: 'Renamed',
+      notFoundPauseThreshold: 2,
+      pollIntervalMinutes: 32767,
+      rateLimitPerMinute: 1,
+    });
+    expect(updated).toMatchObject({
+      code: 'eligibility',
+      isActive: false,
+      name: 'Renamed',
+      notFoundPauseThreshold: 2,
+      pollIntervalMinutes: 32767,
+      rateLimitPerMinute: 1,
+    });
+    expect(
+      (await service.listActive()).some(
+        (row) => row.externalId === created.externalId,
+      ),
+    ).toBe(false);
+    expect(await service.list()).toContainEqual(updated);
+    expect(await shipments.findOneByOrFail({ id: shipment.id })).toEqual(
+      shipment,
+    );
+    const enabled = await service.update(created.externalId, {
+      isActive: true,
+      rateLimitPerMinute: null,
+    });
+    expect(enabled).toMatchObject({
+      isActive: true,
+      rateLimitPerMinute: null,
+      pollIntervalMinutes: 32767,
+    });
+    expect(await service.listActive()).toContainEqual(enabled);
+  });
+
+  it('preserves independent concurrent setting updates and does not change codes through ORM writes', async () => {
+    const created = await provision('concurrent-settings', 'Concurrent');
+    await Promise.all([
+      service.update(created.externalId, { name: 'New display' }),
+      service.update(created.externalId, { pollIntervalMinutes: 15 }),
+    ]);
+    expect(await service.find(created.externalId)).toMatchObject({
+      name: 'New display',
+      pollIntervalMinutes: 15,
+      code: 'concurrent-settings',
+    });
+    await source
+      .getRepository(CarrierEntity)
+      .update(
+        { externalId: created.externalId },
+        { code: 'changed-code', name: 'ORM display' },
+      );
+    expect(await service.find(created.externalId)).toMatchObject({
+      code: 'concurrent-settings',
+      name: 'ORM display',
     });
   });
 
@@ -234,7 +328,9 @@ describe('production migrations and repository foundation', () => {
       await cli('migration:run');
       expect(await source.showMigrations()).toBe(false);
       await expect(
-        service.create('second-migration', 'After second migration'),
+        provision('second-migration', 'After second migration').then((row) =>
+          service.find(row.externalId),
+        ),
       ).resolves.toMatchObject({ name: 'After second migration' });
       expect(await source.getRepository(CarrierEntity).count()).toBe(4);
       await cli('migration:generate', [join(directory, 'Check'), '--check']);

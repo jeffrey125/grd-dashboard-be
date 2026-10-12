@@ -10,8 +10,8 @@ import { ExternallyIdentifiedEntity } from '@infrastructure/database/entities/ex
   'rate_limit_per_minute IS NULL OR rate_limit_per_minute >= 1',
 )
 export class CarrierEntity extends ExternallyIdentifiedEntity {
-  @Column({ type: 'varchar', length: 50 })
-  code: string;
+  @Column({ type: 'varchar', length: 50, update: false })
+  readonly code: string;
 
   @Column({ type: 'varchar', length: 100 })
   name: string;

@@ -4,6 +4,7 @@ import { ApplicationCacheModule } from '@infrastructure/cache/application-cache.
 import { DatabaseModule } from '@infrastructure/database/database.module.js';
 import { LoggingModule } from '@infrastructure/logging/logging.module.js';
 import { HealthModule } from '@modules/health/health.module.js';
+import { CarriersModule } from '@modules/carriers/carriers.module.js';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { HealthModule } from '@modules/health/health.module.js';
     ApplicationCacheModule,
     DatabaseModule,
     HealthModule,
+    CarriersModule,
   ],
 })
 export class AppModule {}
