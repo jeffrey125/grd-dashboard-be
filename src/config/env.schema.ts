@@ -7,10 +7,14 @@ const port = z
   .pipe(z.int().min(1).max(65535));
 const requiredText = z.string().trim().min(1);
 
+export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'silent'] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
 const environmentSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
     .default('development'),
+  LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
   PORT: port.default(3000),
   DB_HOST: requiredText,
   DB_PORT: port.default(5432),
@@ -22,6 +26,7 @@ const environmentSchema = z.object({
 
 const guidance: Record<keyof z.infer<typeof environmentSchema>, string> = {
   NODE_ENV: 'must be development, test, or production',
+  LOG_LEVEL: 'must be debug, info, warn, error, or silent',
   PORT: 'must be an integer from 1 to 65535',
   DB_HOST: 'is required and must not be blank',
   DB_PORT: 'must be an integer from 1 to 65535',

@@ -1,10 +1,18 @@
 import { registerAs } from '@nestjs/config';
-import { validateEnvironment } from './env.schema.js';
+import { validateEnvironment, type LogLevel } from './env.schema.js';
+
+const defaultLogLevel: Record<'development' | 'test' | 'production', LogLevel> =
+  {
+    development: 'debug',
+    test: 'silent',
+    production: 'info',
+  };
 
 export function createConfiguration(environment: Record<string, unknown>) {
   const env = validateEnvironment(environment);
   return {
     environment: env.NODE_ENV,
+    logLevel: env.LOG_LEVEL ?? defaultLogLevel[env.NODE_ENV],
     port: env.PORT,
     database: {
       host: env.DB_HOST,

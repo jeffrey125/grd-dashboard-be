@@ -3,7 +3,6 @@ import {
   Injectable,
   type OnApplicationBootstrap,
   type BeforeApplicationShutdown,
-  type OnApplicationShutdown,
 } from '@nestjs/common';
 import { HealthCheckService, HealthIndicatorService } from '@nestjs/terminus';
 
@@ -17,10 +16,7 @@ export const READINESS_DEPENDENCIES = Symbol('READINESS_DEPENDENCIES');
 
 @Injectable()
 export class ReadinessService
-  implements
-    OnApplicationBootstrap,
-    BeforeApplicationShutdown,
-    OnApplicationShutdown
+  implements OnApplicationBootstrap, BeforeApplicationShutdown
 {
   private ready = false;
 
@@ -38,10 +34,6 @@ export class ReadinessService
   beforeApplicationShutdown() {
     this.ready = false;
   }
-  onApplicationShutdown() {
-    console.info('Application stopped');
-  }
-
   check() {
     return this.health.check([
       () =>

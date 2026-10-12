@@ -13,6 +13,7 @@ describe('runtime configuration', () => {
       }),
     ).toEqual({
       environment: 'test',
+      logLevel: 'silent',
       port: 3137,
       database: {
         host: '127.0.0.1',
@@ -37,6 +38,36 @@ describe('runtime configuration', () => {
       DB_PORT: 5432,
     });
     expect(env).not.toHaveProperty('ECHOSHIP_PASSWORD');
+  });
+
+  it.each([
+    { environment: 'development', expected: 'debug' },
+    { environment: 'test', expected: 'silent' },
+    { environment: 'production', expected: 'info' },
+  ] as const)(
+    'defaults LOG_LEVEL to $expected in $environment',
+    ({ environment, expected }) => {
+      expect(
+        createConfiguration({
+          ...testEnvironment,
+          NODE_ENV: environment,
+          LOG_LEVEL: undefined,
+        }).logLevel,
+      ).toBe(expected);
+    },
+  );
+
+  it('accepts a valid LOG_LEVEL override and rejects invalid values safely', () => {
+    expect(
+      createConfiguration({ ...testEnvironment, LOG_LEVEL: 'warn' }).logLevel,
+    ).toBe('warn');
+
+    expect(() =>
+      createConfiguration({
+        ...testEnvironment,
+        LOG_LEVEL: 'CANARY_LOG_LEVEL_SECRET',
+      }),
+    ).toThrow('LOG_LEVEL must be debug, info, warn, error, or silent');
   });
 
   it.each(['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'])(

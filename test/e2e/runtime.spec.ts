@@ -9,6 +9,11 @@ import { testEnvironment } from '../support/environment.js';
 type Runtime = { child: ChildProcessWithoutNullStreams; output: () => string };
 const children: Runtime[] = [];
 const directories: string[] = [];
+const runtimeEnvironment = {
+  ...testEnvironment,
+  NODE_ENV: 'production',
+  LOG_LEVEL: 'debug',
+};
 
 function start(
   entry: 'main' | 'worker',
@@ -55,6 +60,15 @@ async function waitForReady(runtime: Runtime, label: string) {
   );
 }
 
+function jsonRecords(runtime: Runtime) {
+  return runtime
+    .output()
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
 async function availablePort() {
   const server = createServer();
   await new Promise<void>((resolve, reject) => {
@@ -89,7 +103,7 @@ describe.each([
     'executes application shutdown hooks on %s',
     async (signal) => {
       const runtime = start(entry, {
-        ...testEnvironment,
+        ...runtimeEnvironment,
         PORT: await availablePort(),
       });
       await waitForReady(runtime, label);
@@ -99,12 +113,40 @@ describe.each([
       // Nest completes shutdown hooks, removes its listener, then re-sends the signal.
       expect(runtime.child.signalCode).toBe(signal);
       expect(runtime.output()).not.toContain('startup failed');
+      const records = jsonRecords(runtime);
+      expect(
+        records.filter(
+          (record) =>
+            record.event === 'application.ready' &&
+            record.message === `${label} ready`,
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          level: 'info',
+          service: 'grd-dashboard-be',
+          environment: 'production',
+          runtime: entry === 'main' ? 'api' : 'worker',
+          component: 'application',
+          event: 'application.ready',
+          message: `${label} ready`,
+        }),
+      ]);
+      expect(records).toContainEqual(
+        expect.objectContaining({
+          component: 'nest',
+          event: 'nest.lifecycle',
+        }),
+      );
+      expect(
+        records.filter((record) => record.event === 'application.stopped'),
+      ).toHaveLength(1);
     },
   );
 
   it('fails for missing database configuration before reporting ready', async () => {
     const runtime = start(entry, {
       NODE_ENV: 'test',
+      LOG_LEVEL: 'debug',
       PORT: await availablePort(),
     });
     await waitForExit(runtime);
@@ -112,12 +154,18 @@ describe.each([
     expect(runtime.output()).toContain('DB_PASSWORD is required');
     expect(runtime.output()).toContain('DB_HOST is required');
     expect(runtime.output()).not.toContain(`${label} ready`);
+    expect(jsonRecords(runtime)).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        event: 'application.startup.failed',
+      }),
+    );
   });
 
   it('rejects invalid configuration without printing any supplied secrets', async () => {
     const canary = 'CANARY_PROCESS_SECRET';
     const runtime = start(entry, {
-      ...testEnvironment,
+      ...runtimeEnvironment,
       NODE_ENV: canary,
       PORT: canary,
       DB_PASSWORD: canary,
@@ -128,13 +176,14 @@ describe.each([
     expect(runtime.output()).toContain('Invalid configuration');
     expect(runtime.output()).not.toContain(canary);
     expect(runtime.output()).not.toContain(`${label} ready`);
+    jsonRecords(runtime);
   });
 });
 
 describe('runtime boundaries', () => {
   it('keeps API readiness healthy with no worker, while sharing a configured port, and after worker shutdown', async () => {
     const port = await availablePort();
-    const env = { ...testEnvironment, PORT: port };
+    const env = { ...runtimeEnvironment, PORT: port };
     const api = start('main', env);
     await waitForReady(api, 'API');
     const url = `http://127.0.0.1:${port}/health/ready`;
@@ -174,10 +223,10 @@ describe('runtime boundaries', () => {
 
   it('reports an occupied API port safely and exits without leaving its context open', async () => {
     const port = await availablePort();
-    const first = start('main', { ...testEnvironment, PORT: port });
+    const first = start('main', { ...runtimeEnvironment, PORT: port });
     await waitForReady(first, 'API');
     const second = start('main', {
-      ...testEnvironment,
+      ...runtimeEnvironment,
       PORT: port,
       DB_PASSWORD: 'CANARY_PORT_SECRET',
     });
@@ -188,6 +237,7 @@ describe('runtime boundaries', () => {
       'Check runtime configuration and port availability',
     );
     expect(second.output()).not.toContain('CANARY_PORT_SECRET');
+    jsonRecords(second);
     expect((await fetch(`http://127.0.0.1:${port}/health/live`)).status).toBe(
       200,
     );
