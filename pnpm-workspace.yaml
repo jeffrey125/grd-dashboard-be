@@ -1,0 +1,6 @@
+# Package-manager settings only; this remains a single-package repository.
+# These transitive scripts provide optional native acceleration or version warnings.
+allowBuilds:
+  cpu-features: false
+  protobufjs: false
+  ssh2: false

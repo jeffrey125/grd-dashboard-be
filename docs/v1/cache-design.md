@@ -53,7 +53,7 @@ Create a feature cache service only when that feature has a concrete cache use c
 ### `cache.config.ts`
 
 ```ts
-import type { CacheModuleOptions } from "@nestjs/cache-manager";
+import type { CacheModuleOptions } from '@nestjs/cache-manager';
 
 export const APPLICATION_CACHE_DEFAULT_TTL_MS = 60_000;
 
@@ -67,10 +67,10 @@ TTL values are milliseconds. Features should override the default per entry when
 ### `application-cache.module.ts`
 
 ```ts
-import { CacheModule } from "@nestjs/cache-manager";
-import { Global, Module } from "@nestjs/common";
+import { CacheModule } from '@nestjs/cache-manager';
+import { Global, Module } from '@nestjs/common';
 
-import { applicationCacheOptions } from "./cache.config";
+import { applicationCacheOptions } from './cache.config';
 
 @Global()
 @Module({
@@ -85,13 +85,13 @@ Import `ApplicationCacheModule` once in `AppModule` and once in `WorkerModule`. 
 ### `application-cache.module.spec.ts`
 
 ```ts
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import { Test, type TestingModule } from "@nestjs/testing";
-import type { Cache } from "cache-manager";
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Test, type TestingModule } from '@nestjs/testing';
+import type { Cache } from 'cache-manager';
 
-import { ApplicationCacheModule } from "./application-cache.module";
+import { ApplicationCacheModule } from './application-cache.module';
 
-describe("ApplicationCacheModule", () => {
+describe('ApplicationCacheModule', () => {
   let testingModule: TestingModule;
   let cache: Cache;
 
@@ -108,11 +108,11 @@ describe("ApplicationCacheModule", () => {
     await testingModule.close();
   });
 
-  it("provides an in-memory cache", async () => {
-    await cache.set("test:key", { value: "cached" }, 60_000);
+  it('provides an in-memory cache', async () => {
+    await cache.set('test:key', { value: 'cached' }, 60_000);
 
-    await expect(cache.get("test:key")).resolves.toEqual({
-      value: "cached",
+    await expect(cache.get('test:key')).resolves.toEqual({
+      value: 'cached',
     });
   });
 });
@@ -121,7 +121,7 @@ describe("ApplicationCacheModule", () => {
 ### `abstract-cache.service.ts`
 
 ```ts
-import type { Cache } from "cache-manager";
+import type { Cache } from 'cache-manager';
 
 export abstract class AbstractCacheService<TValue> {
   protected abstract readonly namespace: string;
@@ -152,11 +152,11 @@ export abstract class AbstractCacheService<TValue> {
     const normalizedIdentifier = identifier.trim();
 
     if (!namespace) {
-      throw new Error("Cache namespace must not be empty.");
+      throw new Error('Cache namespace must not be empty.');
     }
 
     if (!normalizedIdentifier) {
-      throw new Error("Cache identifier must not be empty.");
+      throw new Error('Cache identifier must not be empty.');
     }
 
     return `${namespace}:${encodeURIComponent(normalizedIdentifier)}`;
@@ -165,7 +165,7 @@ export abstract class AbstractCacheService<TValue> {
   private assertValidTtl(ttlMs: number): void {
     if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
       throw new RangeError(
-        "Cache TTL must be a positive integer in milliseconds.",
+        'Cache TTL must be a positive integer in milliseconds.',
       );
     }
   }
@@ -181,21 +181,21 @@ The abstract class does not implement source loading or concurrent-refresh suppr
 ### `shipment-cache.service.ts`
 
 ```ts
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import { Inject, Injectable } from "@nestjs/common";
-import type { Cache } from "cache-manager";
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
+import type { Cache } from 'cache-manager';
 
-import { AbstractCacheService } from "../../../infrastructure/cache/abstract-cache.service";
+import { AbstractCacheService } from '../../../infrastructure/cache/abstract-cache.service';
 
 export interface CachedShipment {
   externalId: string;
   trackingReference: string;
-  monitoringStatus: "active" | "paused" | "completed";
+  monitoringStatus: 'active' | 'paused' | 'completed';
 }
 
 @Injectable()
 export class ShipmentCacheService extends AbstractCacheService<CachedShipment> {
-  protected readonly namespace = "shipments:shipment";
+  protected readonly namespace = 'shipments:shipment';
   protected readonly defaultTtlMs = 60_000;
 
   constructor(@Inject(CACHE_MANAGER) cache: Cache) {
@@ -219,12 +219,12 @@ Use the cache-aside pattern: read the cache, load from the repository on a miss,
 ### `abstract-cache.service.spec.ts`
 
 ```ts
-import { CACHE_MANAGER, CacheModule } from "@nestjs/cache-manager";
-import { Inject, Injectable } from "@nestjs/common";
-import { Test, type TestingModule } from "@nestjs/testing";
-import type { Cache } from "cache-manager";
+import { CACHE_MANAGER, CacheModule } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
+import { Test, type TestingModule } from '@nestjs/testing';
+import type { Cache } from 'cache-manager';
 
-import { AbstractCacheService } from "./abstract-cache.service";
+import { AbstractCacheService } from './abstract-cache.service';
 
 interface TestValue {
   value: string;
@@ -232,7 +232,7 @@ interface TestValue {
 
 @Injectable()
 class TestCacheService extends AbstractCacheService<TestValue> {
-  protected readonly namespace = "test:item";
+  protected readonly namespace = 'test:item';
   protected readonly defaultTtlMs = 60_000;
 
   constructor(@Inject(CACHE_MANAGER) cache: Cache) {
@@ -240,7 +240,7 @@ class TestCacheService extends AbstractCacheService<TestValue> {
   }
 }
 
-describe("AbstractCacheService", () => {
+describe('AbstractCacheService', () => {
   let testingModule: TestingModule;
   let service: TestCacheService;
 
@@ -259,23 +259,23 @@ describe("AbstractCacheService", () => {
     await testingModule.close();
   });
 
-  it("stores, reads, and invalidates one namespaced entry", async () => {
-    await service.set("123", { value: "cached" });
-    await expect(service.get("123")).resolves.toEqual({ value: "cached" });
+  it('stores, reads, and invalidates one namespaced entry', async () => {
+    await service.set('123', { value: 'cached' });
+    await expect(service.get('123')).resolves.toEqual({ value: 'cached' });
 
-    await service.invalidate("123");
-    await expect(service.get("123")).resolves.toBeUndefined();
+    await service.invalidate('123');
+    await expect(service.get('123')).resolves.toBeUndefined();
   });
 
-  it("rejects an empty identifier", async () => {
-    await expect(service.get("  ")).rejects.toThrow(
-      "Cache identifier must not be empty.",
+  it('rejects an empty identifier', async () => {
+    await expect(service.get('  ')).rejects.toThrow(
+      'Cache identifier must not be empty.',
     );
   });
 
-  it("rejects a non-positive TTL", async () => {
-    await expect(service.set("123", { value: "cached" }, 0)).rejects.toThrow(
-      "Cache TTL must be a positive integer in milliseconds.",
+  it('rejects a non-positive TTL', async () => {
+    await expect(service.set('123', { value: 'cached' }, 0)).rejects.toThrow(
+      'Cache TTL must be a positive integer in milliseconds.',
     );
   });
 });

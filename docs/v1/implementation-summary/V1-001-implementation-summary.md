@@ -12,15 +12,15 @@ service, and test.
 
 ## Selected versions
 
-| Component | Version | Rationale |
-| --- | --- | --- |
-| Node.js | 24.21.0 | Active LTS and satisfies the Nest runtime, CLI, and schematics requirements. |
-| pnpm | 12.11.2 | Current stable pnpm release, pinned through `packageManager`. |
-| Nest packages | 12.1.2 | Current stable framework packages, pinned consistently. |
-| Nest CLI | 12.0.8 | Current stable CLI compatible with the selected Node and TypeScript versions. |
-| Nest schematics | 12.0.6 | Current stable schematics package compatible with Node 24.21.0. |
-| TypeScript | 6.0.2 | Supported by Nest CLI 12; TypeScript 7.0 lacks the programmatic compiler API required by `nest build` and `nest start`. |
-| Vitest | 5.0.3 | Current ESM scaffold test runner. |
+| Component       | Version | Rationale                                                                                                               |
+| --------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Node.js         | 24.21.0 | Active LTS and satisfies the Nest runtime, CLI, and schematics requirements.                                            |
+| pnpm            | 12.11.2 | Current stable pnpm release, pinned through `packageManager`.                                                           |
+| Nest packages   | 12.1.2  | Current stable framework packages, pinned consistently.                                                                 |
+| Nest CLI        | 12.0.8  | Current stable CLI compatible with the selected Node and TypeScript versions.                                           |
+| Nest schematics | 12.0.6  | Current stable schematics package compatible with Node 24.21.0.                                                         |
+| TypeScript      | 6.0.2   | Supported by Nest CLI 12; TypeScript 7.0 lacks the programmatic compiler API required by `nest build` and `nest start`. |
+| Vitest          | 5.0.3   | Current ESM scaffold test runner.                                                                                       |
 
 ## Generated scaffold
 
