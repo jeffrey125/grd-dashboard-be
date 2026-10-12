@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HUSKY: '0'
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          node-version-file: .nvmrc
+          install: false
+          cache: true
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Format
+        run: pnpm format:check
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit tests and V8 coverage
+        run: pnpm test:cov
+      - name: HTTP e2e tests
+        run: pnpm test:e2e
+      - name: Build
+        run: pnpm build
+
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          node-version-file: .nvmrc
+          install: false
+          cache: true
+      - name: Frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Require Docker runtime
+        run: docker info
+      - name: PostgreSQL integration tests
+        run: pnpm test:integration
