@@ -14,6 +14,9 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
+    "start:worker": "nest start --entryFile worker",
+    "start:worker:dev": "nest start --entryFile worker --watch",
+    "start:worker:prod": "node dist/worker.js",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -23,7 +26,7 @@
     "test:watch": "vitest --project unit",
     "test:cov": "vitest run --project unit --coverage",
     "test:integration": "vitest run --project integration",
-    "test:e2e": "vitest run --project e2e",
+    "test:e2e": "pnpm build && vitest run --project e2e",
     "prepare": "husky",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
@@ -32,10 +35,13 @@
   "license": "ISC",
   "dependencies": {
     "@nestjs/common": "12.1.2",
+    "@nestjs/config": "12.0.1",
     "@nestjs/core": "12.1.2",
     "@nestjs/platform-express": "12.1.2",
+    "@nestjs/terminus": "12.1.0",
     "reflect-metadata": "0.2.2",
-    "rxjs": "7.8.2"
+    "rxjs": "7.8.2",
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@nestjs/cli": "12.0.8",

@@ -4,3 +4,5 @@ allowBuilds:
   cpu-features: false
   protobufjs: false
   ssh2: false
+minimumReleaseAgeExclude:
+  - zod@4.6.6
