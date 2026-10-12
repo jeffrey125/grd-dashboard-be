@@ -6,6 +6,18 @@ Approved v1 design for `grd-dashboard-be`. This document contains implementation
 
 Use `@nestjs/cache-manager` with `cache-manager` and its default in-memory store. Do not configure Redis or another external store in v1.
 
+Implemented in V1-006 with `@nestjs/cache-manager@12.0.1`,
+`cache-manager@7.2.9`, and their resolved `keyv@5.6.0` dependency. See the
+[implementation summary](implementation-summary/V1-006-implementation-summary.md).
+
+The selected cache-manager default store disables Keyv serialization and retains
+object references; it does not clone values. Treat cached objects as immutable.
+The JSON-serializable-only rule below remains a feature contract, not runtime
+serialization or validation. The underlying manager returns `undefined` for a
+miss; the approved abstract service also normalizes a stored `null` to
+`undefined`, while preserving `false`, `0`, and empty strings. Features needing
+negative-result caching must define that behavior in their own ticket.
+
 ## Responsibilities
 
 - `ApplicationCacheModule` configures one cache instance per Nest application context.

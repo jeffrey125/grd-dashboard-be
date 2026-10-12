@@ -4,6 +4,9 @@
 
 Depends on V1-003.
 
+Implemented; see [implementation summary](../implementation-summary/V1-006-implementation-summary.md)
+for verification and review notes.
+
 ## Objective
 
 Implement the approved process-local Nest cache module and abstract feature cache service without Redis or cross-process assumptions.
