@@ -2,10 +2,14 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { CarriersService } from './carriers.service.js';
-import { TypeOrmCarriersRepository } from './typeorm-carriers.repository.js';
+import {
+  CARRIERS_REPOSITORY,
+  type CarrierRecord,
+  type CarriersRepository,
+} from './carriers.repository.js';
 
 const externalId = 'c3bdfc02-24bb-4001-8c71-c5848b6ac3d5';
-const carrier = {
+const carrier: CarrierRecord = {
   externalId,
   code: 'ups',
   name: 'UPS',
@@ -19,15 +23,15 @@ const carrier = {
 
 async function setup() {
   const repository = {
-    list: vi.fn<TypeOrmCarriersRepository['list']>(),
-    listActive: vi.fn<TypeOrmCarriersRepository['listActive']>(),
-    find: vi.fn<TypeOrmCarriersRepository['find']>(),
-    update: vi.fn<TypeOrmCarriersRepository['update']>(),
+    list: vi.fn<CarriersRepository['list']>(),
+    listActive: vi.fn<CarriersRepository['listActive']>(),
+    find: vi.fn<CarriersRepository['find']>(),
+    update: vi.fn<CarriersRepository['update']>(),
   };
   const module = await Test.createTestingModule({
     providers: [
       CarriersService,
-      { provide: TypeOrmCarriersRepository, useValue: repository },
+      { provide: CARRIERS_REPOSITORY, useValue: repository },
     ],
   }).compile();
   return { repository, service: module.get(CarriersService) };

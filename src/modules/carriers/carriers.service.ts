@@ -1,5 +1,8 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { TypeOrmCarriersRepository } from './typeorm-carriers.repository.js';
+import {
+  CARRIERS_REPOSITORY,
+  type CarriersRepository,
+} from './carriers.repository.js';
 import {
   carrierExternalIdSchema,
   parseCarrierInput,
@@ -9,8 +12,8 @@ import {
 @Injectable()
 export class CarriersService {
   constructor(
-    @Inject(TypeOrmCarriersRepository)
-    private readonly repository: TypeOrmCarriersRepository,
+    @Inject(CARRIERS_REPOSITORY)
+    private readonly repository: CarriersRepository,
   ) {}
 
   list() {

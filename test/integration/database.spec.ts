@@ -22,7 +22,7 @@ import {
 } from '@modules/tracking/tracking-run.entity.js';
 import { TrackingAttemptEntity } from '@modules/tracking/tracking-attempt.entity.js';
 import { CarriersService } from '@modules/carriers/carriers.service.js';
-import { TypeOrmCarriersRepository } from '@modules/carriers/typeorm-carriers.repository.js';
+import { carriersRepositoryProvider } from '@modules/carriers/typeorm-carriers.repository.js';
 import {
   startPostgresqlContainer,
   postgresqlEnvironment,
@@ -75,7 +75,7 @@ describe('production migrations and repository foundation', () => {
     module = await Test.createTestingModule({
       providers: [
         { provide: DataSource, useValue: source },
-        TypeOrmCarriersRepository,
+        carriersRepositoryProvider,
         CarriersService,
       ],
     }).compile();

@@ -3,13 +3,14 @@
 ## Status
 
 Depends on V1-005. Scope revised by explicit user approval during implementation:
-Carrier creation is migration-only, deletion APIs are deferred, and the user
-subsequently requested removal of the separate `carriers.repository.ts` contract.
+Carrier creation is migration-only, and deletion APIs are deferred.
+The user confirmed that `carriers.repository.ts` should be restored after its
+removal resulted from a misunderstood clarification.
 
 ## Objective
 
 Implement Carrier reads and safe configuration updates through external UUIDs,
-with immutable adapter codes and one concrete production repository.
+with immutable adapter codes and a production repository contract.
 
 ## Required reading
 
@@ -23,11 +24,10 @@ with immutable adapter codes and one concrete production repository.
   contract, provider, and consuming service with the production Carrier repository.
   Preserve repository-DI, UUID, audit, uniqueness, and soft-deletion assertions
   against that production seam. Test fixtures provision rows directly, as migrations do.
-- Implement the Carrier entity mapping, concrete TypeORM repository,
+- Implement the Carrier entity mapping, repository contract, TypeORM adapter,
   service, validation schemas, controller, and tests.
-- Inject `TypeOrmCarriersRepository` directly by its class token. Keep its public
-  record type alongside the implementation. Do not add a separate repository
-  interface/abstract class, Symbol token, or provider factory for Carriers.
+- Keep `CarrierRecord`, `CarriersRepository`, and the `CARRIERS_REPOSITORY` Symbol
+  in `carriers.repository.ts`. Bind the TypeORM implementation through the provider.
 - Expose `GET /carriers`, `GET /carriers/:externalId`, and
   `PATCH /carriers/:externalId`. Use UUIDv4 identifiers and camelCase JSON fields.
 - List all non-deleted Carriers, including disabled ones, ordered by code.
@@ -49,9 +49,7 @@ with immutable adapter codes and one concrete production repository.
 
 ## Acceptance criteria
 
-- The service depends on the feature's concrete `TypeOrmCarriersRepository`;
-  TypeORM queries stay inside that class. This user-approved simplification
-  supersedes the earlier separate-contract requirement for Carriers only.
+- Services depend on the Carrier repository contract, not TypeORM repositories.
 - Internal IDs and audit actor IDs never appear in responses or request schemas.
 - Configuration validation enforces numeric database checks and the `smallint`
   upper bound before persistence; PostgreSQL remains the final guard.

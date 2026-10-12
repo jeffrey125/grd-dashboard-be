@@ -1,19 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
 import { DataSource, IsNull } from 'typeorm';
 import { CarrierEntity } from './carrier.entity.js';
+import {
+  CARRIERS_REPOSITORY,
+  type CarrierRecord,
+  type CarriersRepository,
+} from './carriers.repository.js';
 import type { CarrierUpdate } from './carriers.schemas.js';
-
-export interface CarrierRecord {
-  externalId: string;
-  code: string;
-  name: string;
-  isActive: boolean;
-  notFoundPauseThreshold: number;
-  pollIntervalMinutes: number;
-  rateLimitPerMinute: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 function record(row: CarrierEntity): CarrierRecord {
   return {
@@ -29,9 +21,8 @@ function record(row: CarrierEntity): CarrierRecord {
   };
 }
 
-@Injectable()
-export class TypeOrmCarriersRepository {
-  constructor(@Inject(DataSource) private readonly source: DataSource) {}
+export class TypeOrmCarriersRepository implements CarriersRepository {
+  constructor(private readonly source: DataSource) {}
 
   async list(): Promise<CarrierRecord[]> {
     const rows = await this.source
@@ -40,7 +31,6 @@ export class TypeOrmCarriersRepository {
     return rows.map(record);
   }
 
-  /** Eligible Carriers for future scheduled work; excludes deleted rows. */
   async listActive(): Promise<CarrierRecord[]> {
     const rows = await this.source.getRepository(CarrierEntity).find({
       where: { isActive: true },
@@ -73,3 +63,10 @@ export class TypeOrmCarriersRepository {
     });
   }
 }
+
+export const carriersRepositoryProvider = {
+  provide: CARRIERS_REPOSITORY,
+  inject: [DataSource],
+  useFactory: (source: DataSource): CarriersRepository =>
+    new TypeOrmCarriersRepository(source),
+};

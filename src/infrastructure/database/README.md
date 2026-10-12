@@ -100,9 +100,9 @@ not reproduce those indexes or the protection triggers; review generated SQL.
 
 `pnpm test:integration` builds production code and exercises the real CLI and
 schema against disposable PostgreSQL. V1-007 replaced the temporary Carrier test
-adapter with the concrete production repository and service in `src/modules/carriers`.
-The service injects `TypeOrmCarriersRepository` directly by its class token; no
-separate Carrier contract file, Symbol, or provider factory remains.
+adapter with the production contract and service in `src/modules/carriers`.
+The service injects the `CarriersRepository` interface through the
+`CARRIERS_REPOSITORY` Symbol; its provider supplies `TypeOrmCarriersRepository`.
 Coverage preserves service DI, audit writes, generated UUIDs, code uniqueness,
 and soft-deleted exclusions. Fixtures provision/retire rows directly; runtime
 Carrier operations are read/update only. Only reviewed migrations accompanying

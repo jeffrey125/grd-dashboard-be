@@ -6,19 +6,19 @@ Implemented the approved Carrier read/update API and production repository seam.
 The revised ticket is complete: formatting, lint, typecheck,
 unit, real PostgreSQL integration, HTTP e2e, and build checks pass. Independent
 standards and specification reviews found no actionable issues. Following explicit
-final approval, implementation commit `b983f53` was created; this summary accompanies
-the separately approved documentation commit. No production database was accessed.
+final approval, implementation commit `b983f53` and documentation commit `b039d1f`
+were created. The repository-contract restoration requested afterward is complete
+and received separate final commit approval; this summary accompanies that
+restoration commit. No production database was accessed.
 
 ## Changes Made
 
 ### Settled scope and dependency approach
 
-- Follow-up simplification: the user requested removal of
-  `carriers.repository.ts`, keeping `typeorm-carriers.repository.ts` as the single
-  repository. The service and tests use its concrete class token. No replacement
-  abstract class or separate interface/Symbol is introduced. The original
-  separate-contract approach is superseded for Carriers only.
-
+- Restoration: the assistant misinterpreted a clarification as a request to
+  remove `carriers.repository.ts`. The user subsequently asked for it back. The
+  original interface, public record type, Symbol, and provider wiring are restored;
+  the temporary direct-injection exception is removed from the documentation.
 - Only reviewed migrations accompanying an implemented adapter may add Carriers.
   Existing migration seed codes remain intact. Automatic slug generation,
   `slugify` installation, and runtime creation are deferred by explicit approval.
@@ -55,11 +55,9 @@ interval/rate at 1. Explicit null clears the rate limit; omissions preserve it.
 Unknown fields, immutable fields, client actor IDs, empty updates, and coercion
 are rejected with a safe 400 response before persistence. Invalid UUIDs return 400. Error responses do not echo request values or unknown field names.
 
-By the user’s follow-up request, the separate `carriers.repository.ts` file and
-Symbol token are removed. The service injects the concrete
-`TypeOrmCarriersRepository` directly; Nest registers/exports that class without a
-custom provider factory. `CarrierRecord` lives alongside its implementation.
-The concrete repository projects explicit public fields and performs partial updates with an explicit
+The service injects the `CarriersRepository` interface using the
+`CARRIERS_REPOSITORY` Symbol. A provider factory supplies `TypeOrmCarriersRepository`;
+`CarrierRecord` remains in the restored contract file. The TypeORM adapter projects explicit public fields and performs partial updates with an explicit
 `deleted_at IS NULL` predicate. A transaction retains the update's row lock until
 the response is read, preserving independent concurrent changes and preventing
 another write/deletion from replacing that response. Same-field concurrent
@@ -82,13 +80,14 @@ soft-delete rows directly to model migration-managed lifecycle operations.
 | File                                                              | Review purpose                                                                                                    |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `src/modules/carriers/carrier.entity.ts`                          | Protect adapter code from ORM updates.                                                                            |
-| `src/modules/carriers/typeorm-carriers.repository.ts`             | Injectable concrete repository, public record type, filtering, projection, transactional partial updates.         |
+| `src/modules/carriers/carriers.repository.ts`                     | Restore the public record, repository interface, and Symbol injection token.                                      |
+| `src/modules/carriers/typeorm-carriers.repository.ts`             | Contract implementation/provider, filtering, projection, transactional partial updates.                           |
 | `src/modules/carriers/carriers.schemas.ts`                        | Strict UUID/configuration validation and safe validation errors.                                                  |
-| `src/modules/carriers/carriers.service.ts`                        | Direct concrete-repository injection, read/update operations, application validation.                             |
+| `src/modules/carriers/carriers.service.ts`                        | Contract/Symbol injection, read/update operations, application validation.                                        |
 | `src/modules/carriers/carriers.controller.ts`                     | List/detail/PATCH HTTP routes using UUIDs.                                                                        |
-| `src/modules/carriers/carriers.module.ts`                         | Direct class-token DI registration and exports.                                                                   |
+| `src/modules/carriers/carriers.module.ts`                         | Repository provider registration and Symbol export.                                                               |
 | `src/app.module.ts`                                               | Register Carrier HTTP feature in the API.                                                                         |
-| `src/modules/carriers/carriers.service.spec.ts`                   | 27 behavior cases using Nest class-token substitution for the repository.                                         |
+| `src/modules/carriers/carriers.service.spec.ts`                   | 27 behavior cases using Nest Symbol-token substitution for the repository.                                        |
 | `test/integration/database.spec.ts`                               | Replace temporary seam; preserve audit/UUID/uniqueness assertions and add eligibility/concurrent update coverage. |
 | `test/e2e/carriers.spec.ts`                                       | 18 real PostgreSQL HTTP cases, including forbidden lifecycle endpoints.                                           |
 | `test/support/carrier-repository.ts` (deleted)                    | Remove the superseded temporary contract, adapter, and service.                                                   |
@@ -96,8 +95,8 @@ soft-delete rows directly to model migration-managed lifecycle operations.
 | `docs/v1/tickets/V1-007-carriers-module.md`                       | Record approved scope and testable revised acceptance criteria.                                                   |
 | `docs/v1/database-schema.md`                                      | Record explicit migration codes and read/update-only lifecycle.                                                   |
 | `docs/v1/decisions.md`                                            | Defer slugify/automatic creation and record the approved lifecycle.                                               |
-| `docs/v1/architecture.md`                                         | Record the user-approved direct-injection exception for Carriers.                                                 |
-| `docs/v1/folder-structure.md`                                     | Remove the separate Carrier repository contract from the target layout.                                           |
+| `docs/v1/architecture.md`                                         | Restore the shared repository-contract rule by removing the temporary exception.                                  |
+| `docs/v1/folder-structure.md`                                     | Restore the Carrier repository contract in the target layout.                                                     |
 | `docs/v1/auth-plan.md`                                            | Preserve regular-user read/admin update policy for auth work.                                                     |
 | `docs/v1/tickets/V1-008-shipments-module.md`                      | Record manual pause/resume using existing monitoring columns.                                                     |
 | `docs/v1/tickets/V1-012-worker-scheduler.md`                      | Record Carrier eligibility integration obligation.                                                                |
@@ -119,12 +118,12 @@ soft-delete rows directly to model migration-managed lifecycle operations.
 | `pnpm format:check`                                                                                                    | Passed after final documentation changes.                                                                                                                                   |
 | `git diff --check`                                                                                                     | Passed after final documentation changes; tracked diff and new files reviewed against the revised acceptance criteria.                                                      |
 
-The follow-up wiring change was checked first with
+The restoration was checked first with
 `pnpm exec vitest run --project unit src/modules/carriers/carriers.service.spec.ts src/runtime/composition.spec.ts`
-(30 passing cases) and `pnpm typecheck` (passed). Before changing the wiring, the
-class-token tests failed on the old Symbol dependency, proving the regression
-check. The earlier test counts in development rows above describe the original
-implementation; final suite totals are unchanged after the follow-up.
+(30 passing cases) and `pnpm typecheck` (passed). Before restoring production
+wiring, the Symbol-token tests failed on the old concrete dependency, proving the
+regression check. Earlier development rows above record the initial implementation;
+final full-suite totals are unchanged after the restoration.
 
 The full PostgreSQL and HTTP suites ran sequentially with
 `pnpm test:integration && pnpm test:e2e`. Initial sandboxed PostgreSQL attempts
@@ -142,12 +141,13 @@ listeners.
 ## Review Notes
 
 - Initial working tree was clean at `80fe8f233a7b6f926ffd61168d43a400a59aa572`.
-  All listed changes belong to this task; no pre-existing user changes were mixed in.
+  The restoration began from clean commit `b039d1f`. All changes belong to this
+  task; no unrelated user changes were mixed in.
 - V1-005's schema is present and its required local checks were recorded complete.
   V1-004/V1-006 limitations were reconciled with actual code; TLS and scheduler
   deferrals do not block the approved read/update scope.
 - Field validation stays in the service, including for future non-HTTP callers.
-  The concrete repository does not expose lifecycle writes. Query projection
+  The repository contract does not expose lifecycle writes. Query projection
   prevents accidental exposure of entity fields added in later tickets.
 - The catalog is small and migration-managed, so list pagination is unnecessary.
   Disabled rows remain readable; deleted rows are uniformly hidden. A successful
@@ -159,17 +159,18 @@ listeners.
 
 Independent standards review inspected the baseline diff and every new source/test
 file. No actionable documented-standard violations or consequential baseline
-smells were found. Follow-up review also checked the direct class-token injection,
-test substitution, and Carrier-specific architecture exception with no findings.
-The final summary was checked by the lead.
+smells were found. Independent follow-up review checked the restoration against
+the shared repository-contract architecture and found no actionable issue. The
+final summary was checked by the lead.
 
 ### Spec
 
 Independent specification review found no missing requirements, scope creep, or
 incorrect behavior relative to the user-approved scope. It checked transactional
 updates, filtering, projection, validation, and preserved V1-005 assertions.
-Follow-up review confirmed consistent removal of the contract file, Symbol,
-factory, and old imports while preserving the behavior above.
+Independent follow-up review confirmed that the restoration preserves queries
+and routes while consistently reconnecting the contract, Symbol, provider factory,
+and test dependencies. No actionable issue was found.
 
 Standards: 0 findings. Spec: 0 findings. No outstanding review issue on either axis.
 
@@ -187,11 +188,11 @@ None for the approved V1-007 scope. Explicit cross-ticket deferrals remain:
 
 ## Suggested Review Order
 
-1. Revised V1-007 ticket, configuration schemas, and concrete repository.
+1. Restored repository contract, service injection, and provider/module wiring.
 2. TypeORM implementation, service, controller/module wiring, and entity mapping.
 3. Unit/integration/HTTP tests, follow-up documentation, and this summary.
 
-## Approved Commit Plan
+## Committed History
 
 1. `feat(carriers): V1-007 add carrier read and configuration APIs`
    - Created as `b983f53`. Pre-commit formatting/lint, typecheck, and all 75 unit
@@ -202,6 +203,7 @@ None for the approved V1-007 scope. Explicit cross-ticket deferrals remain:
    - Purpose: ship the read/update feature, replace the temporary seam, and verify
      validation, persistence, HTTP behavior, and relationship preservation together.
 2. `feat(docs): V1-007 record carrier lifecycle decisions and verification`
+   - Created as `b039d1f`.
    - Files: `src/infrastructure/database/README.md`; `docs/v1/auth-plan.md`;
      `docs/v1/database-schema.md`; `docs/v1/decisions.md`;
      `docs/v1/architecture.md`; `docs/v1/folder-structure.md`;
@@ -211,3 +213,22 @@ None for the approved V1-007 scope. Explicit cross-ticket deferrals remain:
 
 The user explicitly approved both commits. No merge, tag, push, or deployment was
 authorized or performed as part of this commit handoff.
+
+## Approved Restoration Commit
+
+`feat(carriers): V1-007 restore repository contract`
+
+One coherent correction contains:
+
+- `src/modules/carriers/carriers.repository.ts`, `typeorm-carriers.repository.ts`,
+  `carriers.service.ts`, and `carriers.module.ts`: restore the contract, Symbol,
+  implementation binding, and service injection.
+- `src/modules/carriers/carriers.service.spec.ts` and
+  `test/integration/database.spec.ts`: exercise the restored dependency wiring.
+- `docs/v1/architecture.md`, `docs/v1/folder-structure.md`,
+  `docs/v1/tickets/V1-007-carriers-module.md`,
+  `src/infrastructure/database/README.md`, and this summary: restore consistent
+  architecture guidance and record the correction.
+
+The user separately approved this restoration commit. No merge, tag, push, or
+deployment is included in that approval.
