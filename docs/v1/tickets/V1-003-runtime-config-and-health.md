@@ -4,6 +4,8 @@
 
 Depends on V1-002.
 
+Implemented; see the [implementation summary](../implementation-summary/V1-003-implementation-summary.md) for the configuration contract, verification, and deferred integrations.
+
 ## Objective
 
 Create independent API and worker composition roots with validated environment configuration, graceful shutdown, and health behavior.

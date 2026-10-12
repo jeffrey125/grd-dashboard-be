@@ -24,6 +24,8 @@ Use a currently supported Node LTS release that satisfies the selected stable Ne
 | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
 | `@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express` | Framework and Express HTTP adapter.                                                                 |
 | `reflect-metadata`, `rxjs`                                   | Required Nest runtime dependencies.                                                                 |
+| `@nestjs/config`, `zod`                                      | Approved in V1-003 for environment loading and typed startup validation.                            |
+| `@nestjs/terminus`                                           | Approved in V1-003 for readiness aggregation and future dependency checks.                          |
 | `@nestjs/typeorm`, `typeorm`, `pg`                           | PostgreSQL persistence and migrations.                                                              |
 | `@nestjs/cache-manager`, `cache-manager`                     | Per-process in-memory cache.                                                                        |
 | `slugify`                                                    | Immutable Carrier code creation with `{ lower: true, strict: true, replacement: '-', trim: true }`. |
@@ -42,16 +44,16 @@ Use a currently supported Node LTS release that satisfies the selected stable Ne
 
 The following are recommended but are not blanket-approved by this plan. The implementing ticket must inspect current project capabilities, verify current maintenance/compatibility from primary sources, explain material tradeoffs, and obtain explicit approval before installation:
 
-| Capability                     | Candidate                                                  |
-| ------------------------------ | ---------------------------------------------------------- |
-| Environment/request validation | `@nestjs/config`, Zod, and compatible Nest built-ins.      |
-| OpenAPI and health             | `@nestjs/swagger`, `@nestjs/terminus`.                     |
-| Scheduler                      | `@nestjs/schedule`.                                        |
-| UPS HTTP and retries           | `@nestjs/axios`, `axios`, `axios-retry`.                   |
-| Browser automation             | `playwright`.                                              |
-| FFE XML                        | `fast-xml-parser`.                                         |
-| Per-Carrier request throttling | `bottleneck`.                                              |
-| Authentication                 | Selected only after Ticket V1-009 resolves the auth model. |
+| Capability                     | Candidate                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Request validation integration | Evaluate compatible Nest built-ins with the installed Zod package; additional integrations require approval. |
+| OpenAPI                        | `@nestjs/swagger`.                                                                                           |
+| Scheduler                      | `@nestjs/schedule`.                                                                                          |
+| UPS HTTP and retries           | `@nestjs/axios`, `axios`, `axios-retry`.                                                                     |
+| Browser automation             | `playwright`.                                                                                                |
+| FFE XML                        | `fast-xml-parser`.                                                                                           |
+| Per-Carrier request throttling | `bottleneck`.                                                                                                |
+| Authentication                 | Selected only after Ticket V1-009 resolves the auth model.                                                   |
 
 Node built-in `fetch` is sufficient for simple ntfy calls. RxJS, already required by Nest, is sufficient for SSE. PostgreSQL generates UUIDv4-compatible random UUIDs with `gen_random_uuid()`.
 
