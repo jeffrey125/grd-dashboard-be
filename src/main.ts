@@ -1,5 +1,5 @@
-import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module.js';
 import {
   configuration,
   type RuntimeConfiguration,
@@ -7,23 +7,25 @@ import {
 import { reportStartupError } from './runtime/startup-error.js';
 
 async function bootstrap() {
-  let app: INestApplication | undefined;
+  // Suppress raw framework errors until V1-017 supplies the safe logging bridge.
+  const app = await NestFactory.create(AppModule, {
+    logger: false,
+    abortOnError: false,
+  });
 
   try {
-    const { AppModule } = await import('./app.module.js');
-    // Suppress raw framework errors until V1-017 supplies the safe logging bridge.
-    app = await NestFactory.create(AppModule, {
-      logger: false,
-      abortOnError: false,
-    });
     app.enableShutdownHooks(['SIGINT', 'SIGTERM']);
     const config = app.get<RuntimeConfiguration>(configuration.KEY);
     await app.listen(config.port);
     console.info('API ready');
   } catch (error) {
-    await app?.close().catch(() => undefined);
-    reportStartupError(error);
+    await app.close().catch(() => undefined);
+    throw error;
   }
 }
 
-await bootstrap();
+try {
+  await bootstrap();
+} catch (error) {
+  reportStartupError(error);
+}
