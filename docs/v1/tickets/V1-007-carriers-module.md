@@ -16,6 +16,7 @@ Implement Carrier persistence and application behavior, including immutable slug
 
 ## Scope
 
+- Replace and remove V1-005's temporary `test/support/carrier-repository.ts` contract, provider, and consuming service with the production Carrier repository. Preserve the repository-DI, UUID, audit, and soft-deletion assertions against that production seam.
 - Implement the Carrier entity mapping, repository contract, TypeORM adapter, service, schemas, controller behavior, and tests.
 - Generate `code` only on creation with `slugify` and the approved options.
 - Reject empty, overlength, or colliding codes and keep code immutable when the display name changes.

@@ -4,6 +4,10 @@
 
 Depends on V1-004.
 
+Implemented and verified locally. See the
+[implementation summary](../implementation-summary/V1-005-implementation-summary.md)
+for decisions, verification, limitations, and proposed commits. Commit approval is pending.
+
 ## Objective
 
 Implement the five authoritative tables, enums, constraints, indexes, ownership-safe foreign keys, and initial Carrier seeds through reviewed TypeORM migrations.
@@ -21,6 +25,7 @@ Implement the five authoritative tables, enums, constraints, indexes, ownership-
 - Write migrations in the exact dependency order from the schema document.
 - Seed UPS, EchoShip, and FFE with approved interval, threshold, and rate-limit values.
 - Add database checks, partial uniqueness, due-work indexes, and composite ownership-safe foreign keys.
+- Use explicit `ON DELETE NO ACTION` for every foreign key, as approved during implementation. Verify blocked parent deletion and explicit ordered transactional cleanup; this replaces the schema plan's earlier cascade/restrict policies.
 - Keep source/adapter version columns, raw artifacts, User foreign keys, notifications/outbox, and queue tables out of this migration.
 
 ## Acceptance criteria

@@ -68,8 +68,10 @@ create/generate/show/run/revert, schema logging, and arbitrary SQL queries.
 `schema:sync`, `schema:drop`, and `init` remain available through the general
 command but have no named shortcut because they bypass reviewed migrations or can
 destroy/replace project state. Do not use them against shared or production data.
-The empty production migration list in V1-004 is intentional; production tables
-arrive in V1-005.
+V1-005 supplies one atomic initial migration with five tables, enum types,
+constraints, indexes, identifier/snapshot protection triggers, and the three
+Carrier seeds. PostgreSQL's built-in `gen_random_uuid()` is verified before DDL;
+no extension installation is required.
 
 ## Entity and repository contract
 
@@ -79,9 +81,26 @@ database-generated UUID. Neither inherits TypeORM `BaseEntity`. The public UUID
 mapping forbids application insert/update values; PostgreSQL constraints and
 reviewed triggers enforce identity rules for all writers. No User relations exist.
 
-V1-004's proof lives only in `test/support/database-proof/`. Its service injects a
-symbol-token repository contract and returns a record without internal IDs.
-The migrated fixture proves audit behavior and rejects changes to either ID,
-including `SET id = DEFAULT`. `pnpm test:integration` compiles the fixture into
-ignored `.test-dist/` and verifies the actual CLI against disposable PostgreSQL.
-V1-005 must replace this fixture with real entity/repository tests and remove it.
+The five production entities live in their owning Carrier, Shipment, and tracking
+features. Bigint IDs and calendar dates map to strings to preserve precision and
+date-only semantics. TypeORM maintains mutable audit timestamps and the Shipment
+version on writes; direct SQL callers are responsible for those updates.
+
+Reviewed PostgreSQL triggers reject changes to generated IDs/public UUIDs and all
+snapshot fields, including identity resets through `SET id = DEFAULT`. No-op
+UUID and snapshot-fact assignments are allowed; identity columns retain PostgreSQL's
+`GENERATED ALWAYS` assignment restrictions. Snapshot history has no audit or soft-delete columns.
+All foreign keys explicitly use `ON DELETE NO ACTION`; permanent purges require
+explicit dependency cleanup as described in `docs/v1/database-schema.md`.
+
+Mixed ASC/DESC history indexes are marked `synchronize: false` in entity metadata
+because TypeORM cannot fully describe them. Reviewed migrations create them and
+catalog assertions verify their exact definition. Schema-generation previews do
+not reproduce those indexes or the protection triggers; review generated SQL.
+
+`pnpm test:integration` builds production code and exercises the real CLI and
+schema against disposable PostgreSQL. The temporary Carrier contract/provider in
+`test/support/carrier-repository.ts` proves service DI, audit writes, generated
+UUIDs, and soft deletion using the real Carrier entity. It accepts explicit codes;
+slug creation and other Carrier behavior belong to V1-007, which must replace and
+remove this test adapter. The old proof schema and fixture build are removed.
