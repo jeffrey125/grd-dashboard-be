@@ -24,6 +24,7 @@ Evaluate `@nestjs/config`, Zod with compatible Nest validation, and `@nestjs/ter
 - Replace the V1-001 sample `GET /` controller, service, and unit test with the
   health module, controller, and health tests. The `Hello World!` route must not
   remain after this ticket.
+- Replace V1-002's `test/e2e/app.spec.ts` greeting assertion with health HTTP coverage through the existing Supertest helper.
 - `worker.ts` starts a Nest standalone application context and `WorkerModule`; it does not expose the API controllers.
 - Validate required configuration at startup and report safe, actionable errors.
 - Add `.env.example` with PostgreSQL plus future Carrier variable names, including `ECHOSHIP_URL`, `ECHOSHIP_USERNAME`, and `ECHOSHIP_PASSWORD`, but no secrets.

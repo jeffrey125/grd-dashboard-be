@@ -19,7 +19,8 @@ Install the approved development tooling and make local/CI quality checks determ
 - Configure Vitest unit, integration, and e2e projects plus V8 coverage reporting.
 - Configure Supertest and PostgreSQL Testcontainers support.
 - Add Husky and lint-staged; staged JS/TS receives safe Oxlint fixes and Prettier-supported files are formatted.
-- Add GitHub Actions for pull requests and pushes to `main`: frozen install, format check, lint, typecheck, unit tests, PostgreSQL integration/migration tests, and build.
+- Add GitHub Actions for pull requests and pushes to `main`: frozen install, format check, lint, typecheck, unit tests, PostgreSQL container smoke tests, HTTP e2e tests, and build.
+- Establish the PostgreSQL integration test command and container support here. Actual migration/repository tests belong to V1-004; application schema migration tests belong to V1-005 and use the same CI command.
 
 ## Required scripts
 

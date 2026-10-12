@@ -27,6 +27,7 @@ Implement the five authoritative tables, enums, constraints, indexes, ownership-
 - UPS seed: 30-minute poll, not-found threshold 5, rate limit 10.
 - EchoShip and FFE seeds: 5-minute poll, threshold 5, null generic rate limit.
 - An empty database migrates up successfully; a full revert and second migrate also succeed.
+- Run application schema migration coverage through `pnpm test:integration` in the CI integration job established by V1-002 and extended by V1-004.
 - Integration tests prove active duplicate protection, soft-delete/re-add behavior, ownership-safe snapshot links, invalid enum/check rejection, and UUID generation.
 - TypeORM entity metadata and migrated PostgreSQL schema agree.
 

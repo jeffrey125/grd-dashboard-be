@@ -32,6 +32,7 @@ Connect Nest to PostgreSQL with TypeORM, establish reviewed migration commands, 
 - No entity extends TypeORM `BaseEntity`.
 - `synchronize` is false in committed configuration.
 - An integration test runs a minimal migration and repository operation against Testcontainers PostgreSQL.
+- Extend V1-002's PostgreSQL test support with actual TypeORM migration/repository coverage under `pnpm test:integration`, so the existing CI integration job runs it.
 
 ## Verification
 
