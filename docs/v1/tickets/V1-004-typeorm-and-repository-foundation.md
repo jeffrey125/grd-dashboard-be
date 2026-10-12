@@ -4,6 +4,10 @@
 
 Depends on V1-003 and V1-017.
 
+Implemented in the working tree. See the
+[implementation summary](../implementation-summary/V1-004-implementation-summary.md)
+for verification, agreed deferrals, and review guidance. Commit approval is pending.
+
 ## Objective
 
 Connect Nest to PostgreSQL with TypeORM, establish reviewed migration commands, implement shared entity bases, and prove the repository seam with real PostgreSQL.

@@ -38,6 +38,13 @@ grd-dashboard-be/
 │   │   │   ├── application-cache.module.ts
 │   │   │   ├── application-cache.module.spec.ts
 │   │   │   └── cache.config.ts
+│   │   ├── database/
+│   │   │   ├── database.module.ts
+│   │   │   ├── data-source.ts
+│   │   │   ├── entities/
+│   │   │   │   ├── auditable.entity.ts
+│   │   │   │   └── externally-identified.entity.ts
+│   │   │   └── migrations/
 │   │   └── logging/
 │   │       ├── index.ts
 │   │       ├── logging.module.ts
@@ -45,13 +52,6 @@ grd-dashboard-be/
 │   │       ├── pino-logger.service.spec.ts
 │   │       ├── request-logging.interceptor.ts
 │   │       └── safe-error-fields.ts
-│   ├── database/
-│   │   ├── database.module.ts
-│   │   ├── data-source.ts
-│   │   ├── entities/
-│   │   │   ├── auditable.entity.ts
-│   │   │   └── externally-identified.entity.ts
-│   │   └── migrations/
 │   └── modules/
 │       ├── health/
 │       │   ├── health.module.ts
@@ -153,7 +153,11 @@ grd-dashboard-be/
 ## Placement rules
 
 - Group HTTP, application behavior, entities, repository contracts/implementations, cache behavior, and tests by feature.
-- Keep shared TypeORM base entities in `database/entities`; ordinary business entities remain in their owning feature.
+- Keep shared TypeORM base entities in `infrastructure/database/entities`; ordinary business entities remain in their owning feature.
+- Use area-specific TypeScript aliases for imports crossing directories:
+  `@app/*` for files directly under `src/`, `@config/*`, `@infrastructure/*`,
+  `@modules/*`, `@runtime/*`, and `@test/*`. Keep relative imports for files in
+  the same directory.
 - Keep generic cache registration/base behavior in `infrastructure/cache`; feature keys and invalidation remain in the feature.
 - Keep application-wide compile-time constants in `src/constants.ts`. Do not put environment values, secrets, mutable state, or database-owned configuration there.
 - Keep protocol details used only by one feature next to that feature. Promote them to `src/constants.ts` only when they become a real cross-module contract; this prevents the root file from becoming an unrelated-value registry.

@@ -3,3 +3,7 @@
 - Implement caddy on docker
 - Setup CICD for the project read nestjs cicd integration
 - Add observemodule to the project
+- Add verified PostgreSQL TLS support (deferred from V1-004 by user decision).
+  - V1-004 uses plaintext database connections; add TLS before connecting over an untrusted network or to a database provider that requires it.
+  - Support server certificate verification and an optional provider CA certificate, with configuration validation and connection tests.
+- Implement MCP

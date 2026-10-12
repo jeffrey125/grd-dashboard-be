@@ -58,8 +58,15 @@ The following are recommended but are not blanket-approved by this plan. The imp
 
 Node built-in `fetch` is sufficient for simple ntfy calls. RxJS, already required by Nest, is sufficient for SSE. PostgreSQL generates UUIDv4-compatible random UUIDs with `gen_random_uuid()`.
 
+By explicit V1-004 user decision, operator-invoked TypeORM CLI commands preserve
+complete stdout and stderr for diagnostics. This can include SQL, parameters,
+connection metadata, and secrets embedded in driver errors, so output must be
+reviewed before it is shared or retained. Runtime API/worker database query and
+parameter logging remains disabled.
+
 ## Explicitly deferred
 
+- PostgreSQL TLS support, explicitly deferred during V1-004. Connections currently use plaintext; see `TODO.md` for verified TLS and optional provider CA support before use across an untrusted network or with a provider requiring TLS.
 - Nx, Turborepo, and pnpm workspaces.
 - Redis/shared cache, durable job queue, multi-worker leases, and distributed rate limiting.
 - Knip until the project has stable entry points and meaningful modules.

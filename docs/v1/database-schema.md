@@ -44,6 +44,12 @@ Mutable API-exposed business entities—initially Carrier and Shipment—extend 
 
 Append-only history and operational tables use purpose-specific timestamps instead of inheriting misleading soft-delete and actor-update fields.
 
+Both primary `id` and public `external_id` values are immutable after insertion.
+Reviewed migrations must reject changes at the PostgreSQL boundary, including
+direct SQL and resetting an identity with `SET id = DEFAULT`. TypeORM mapping
+restrictions alone are insufficient. V1-004 proves this with a disposable fixture;
+V1-005 applies it to the production tables.
+
 ## Database enums
 
 | Enum                         | Values                                                                         |
