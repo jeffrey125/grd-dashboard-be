@@ -30,6 +30,7 @@ Use a currently supported Node LTS release that satisfies the selected stable Ne
 | `@nestjs/cache-manager`, `cache-manager`                     | Per-process in-memory cache.                                                                        |
 | `slugify`                                                    | Immutable Carrier code creation with `{ lower: true, strict: true, replacement: '-', trim: true }`. |
 | `pino`                                                       | Structured JSON logging shared by the API and worker.                                               |
+| `pino-http`, `nestjs-pino`                                   | Request context/completion logging and the Nest logging bridge approved in V1-017.                  |
 
 ## Approved development dependencies
 

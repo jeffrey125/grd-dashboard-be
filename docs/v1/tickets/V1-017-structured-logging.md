@@ -2,7 +2,8 @@
 
 ## Status
 
-Depends on V1-003. Execute before V1-004 so database and feature work use the approved logger from the start.
+Implemented in the working tree. See
+[`../implementation-summary/V1-017-implementation-summary.md`](../implementation-summary/V1-017-implementation-summary.md).
 
 ## Objective
 
@@ -19,7 +20,7 @@ Provide one production-safe structured logger for the API and worker, patterned 
 
 Use the approved `pino` production dependency directly behind a project-owned logger interface. Do not add Winston or make application modules import Pino. `pino-pretty` is development-only and may be added for a dedicated local pretty-print script; production always emits newline-delimited JSON.
 
-Before installation, verify current Pino and Node compatibility from Pino's official documentation, pin a compatible version through pnpm, and record the selected versions. Adding `nestjs-pino` or another transport requires separate justification and explicit approval because it is not needed for the approved baseline.
+Before installation, verify current Pino and Node compatibility from Pino's official documentation, pin a compatible version through pnpm, and record the selected versions. `nestjs-pino` and `pino-http` were explicitly approved during implementation to supply Nest integration, request-scoped context, and one automatic completion record without a project-owned async-context implementation.
 
 ## Scope
 
