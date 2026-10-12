@@ -1,12 +1,41 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import {
+  spawn,
+  execFile,
+  type ChildProcessWithoutNullStreams,
+} from 'node:child_process';
+import { promisify } from 'node:util';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { testEnvironment } from '../support/environment.js';
+import {
+  afterAll,
+  beforeAll,
+  afterEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  startPostgresqlContainer,
+  postgresqlEnvironment,
+} from '@test/support/postgresql-container.js';
+import { AppModule } from '@app/app.module.js';
+import { DatabaseModule } from '@infrastructure/database/database.module.js';
+import { DatabaseReadiness } from '@infrastructure/database/database-readiness.js';
+import { ApplicationLifecycleLogger } from '@infrastructure/logging/application-lifecycle-logger.js';
+import { ReadinessService } from '@modules/health/readiness.service.js';
+import { testEnvironment } from '@test/support/environment.js';
+import { Test } from '@nestjs/testing';
+import { DataSource } from 'typeorm';
 
-type Runtime = { child: ChildProcessWithoutNullStreams; output: () => string };
+type Runtime = {
+  child: ChildProcessWithoutNullStreams;
+  output: () => string;
+  closed: () => boolean;
+};
 const children: Runtime[] = [];
 const directories: string[] = [];
 const runtimeEnvironment = {
@@ -14,6 +43,17 @@ const runtimeEnvironment = {
   NODE_ENV: 'production',
   LOG_LEVEL: 'debug',
 };
+let container: StartedPostgreSqlContainer | undefined;
+beforeAll(async () => {
+  container = await startPostgresqlContainer();
+  Object.assign(runtimeEnvironment, postgresqlEnvironment(container), {
+    NODE_ENV: 'production',
+    LOG_LEVEL: 'debug',
+  });
+});
+afterAll(async () => {
+  await container?.stop();
+});
 
 function start(
   entry: 'main' | 'worker',
@@ -33,7 +73,11 @@ function start(
   child.stderr.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
-  const runtime = { child, output: () => output };
+  let closed = false;
+  child.once('close', () => {
+    closed = true;
+  });
+  const runtime = { child, output: () => output, closed: () => closed };
   children.push(runtime);
   return runtime;
 }
@@ -41,11 +85,9 @@ function start(
 async function waitForExit(runtime: Runtime) {
   await vi.waitFor(
     () => {
-      expect(
-        runtime.child.exitCode !== null || runtime.child.signalCode !== null,
-      ).toBe(true);
+      expect(runtime.closed()).toBe(true);
     },
-    { timeout: 10000, interval: 25 },
+    { timeout: 25000, interval: 25 },
   );
 }
 
@@ -93,6 +135,7 @@ afterEach(async () => {
   }
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
+  vi.unstubAllEnvs();
 });
 
 describe.each([
@@ -109,11 +152,18 @@ describe.each([
       await waitForReady(runtime, label);
       runtime.child.kill(signal);
       await waitForExit(runtime);
+      expect({
+        exit: runtime.child.exitCode,
+        signal: runtime.child.signalCode,
+      }).toEqual({ exit: null, signal });
       expect(runtime.output()).toContain('Application stopped');
       // Nest completes shutdown hooks, removes its listener, then re-sends the signal.
       expect(runtime.child.signalCode).toBe(signal);
       expect(runtime.output()).not.toContain('startup failed');
       const records = jsonRecords(runtime);
+      expect(records.filter((record) => record.event === 'nest.error')).toEqual(
+        [],
+      );
       expect(
         records.filter(
           (record) =>
@@ -162,6 +212,26 @@ describe.each([
     );
   });
 
+  it('exits after three failed connection attempts without leaking credentials', async () => {
+    const runtime = start(entry, {
+      ...runtimeEnvironment,
+      DB_PORT: await availablePort(),
+      DB_PASSWORD: 'CANARY_DATABASE_SECRET',
+      PORT: await availablePort(),
+    });
+    await waitForExit(runtime);
+    expect(runtime.child.exitCode).toBe(1);
+    const records = jsonRecords(runtime);
+    expect(
+      records.filter((record) => record.event === 'database.connecting'),
+    ).toHaveLength(3);
+    expect(
+      records.filter((record) => record.event === 'database.connection.failed'),
+    ).toHaveLength(3);
+    expect(runtime.output()).not.toContain('CANARY_DATABASE_SECRET');
+    expect(runtime.output()).not.toContain(`${label} ready`);
+  });
+
   it('rejects invalid configuration without printing any supplied secrets', async () => {
     const canary = 'CANARY_PROCESS_SECRET';
     const runtime = start(entry, {
@@ -181,6 +251,41 @@ describe.each([
 });
 
 describe('runtime boundaries', () => {
+  it('reuses one DataSource across repeated imports and closes its pool with the context', async () => {
+    for (const [key, value] of Object.entries({
+      ...runtimeEnvironment,
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'silent',
+    }))
+      vi.stubEnv(key, value);
+    const module = await Test.createTestingModule({
+      imports: [AppModule, DatabaseModule],
+    }).compile();
+    const source = module.get(DataSource);
+    const lifecycle = vi.spyOn(
+      module.get(ApplicationLifecycleLogger),
+      'onApplicationShutdown',
+    );
+    try {
+      await module.init();
+      expect(module.select(DatabaseModule).get(DataSource)).toBe(source);
+      const [row] = await source.query(
+        "SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database() AND backend_type = 'client backend'",
+      );
+      expect(row.count).toBe(1);
+      await expect(module.get(ReadinessService).check()).resolves.toMatchObject(
+        { details: { database: { status: 'up' } } },
+      );
+      expect(() =>
+        module.get(DatabaseReadiness).check(AbortSignal.abort()),
+      ).toThrow();
+    } finally {
+      await module.close();
+    }
+    expect(source.isInitialized).toBe(false);
+    expect(lifecycle).toHaveBeenCalledOnce();
+  });
+
   it('keeps API readiness healthy with no worker, while sharing a configured port, and after worker shutdown', async () => {
     const port = await availablePort();
     const env = { ...runtimeEnvironment, PORT: port };
@@ -205,10 +310,10 @@ describe('runtime boundaries', () => {
       [
         'NODE_ENV=development',
         'PORT=invalid-file-port',
-        'DB_PORT=5432',
-        'DB_HOST=127.0.0.1',
-        'DB_NAME=runtime_test',
-        'DB_USER=runtime_test',
+        `DB_PORT=${runtimeEnvironment.DB_PORT}`,
+        `DB_HOST=${runtimeEnvironment.DB_HOST}`,
+        `DB_NAME=${runtimeEnvironment.DB_NAME}`,
+        `DB_USER=${runtimeEnvironment.DB_USER}`,
         'DB_PASSWORD="$UNSET_LITERAL_PASSWORD"',
       ].join('\n'),
     );
@@ -228,7 +333,7 @@ describe('runtime boundaries', () => {
     const second = start('main', {
       ...runtimeEnvironment,
       PORT: port,
-      DB_PASSWORD: 'CANARY_PORT_SECRET',
+      ECHOSHIP_PASSWORD: 'CANARY_PORT_SECRET',
     });
     await waitForExit(second);
     expect(second.child.exitCode).toBe(1);
@@ -240,6 +345,33 @@ describe('runtime boundaries', () => {
     jsonRecords(second);
     expect((await fetch(`http://127.0.0.1:${port}/health/live`)).status).toBe(
       200,
+    );
+  });
+
+  it('fails readiness but keeps liveness available during a database outage, then recovers', async () => {
+    const port = await availablePort();
+    const api = start('main', { ...runtimeEnvironment, PORT: port });
+    await waitForReady(api, 'API');
+    await promisify(execFile)('docker', ['pause', container!.getId()]);
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/health/ready`);
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        error: { database: { status: 'down' } },
+      });
+      expect((await fetch(`http://127.0.0.1:${port}/health/live`)).status).toBe(
+        200,
+      );
+    } finally {
+      await promisify(execFile)('docker', ['unpause', container!.getId()]);
+    }
+    await vi.waitFor(
+      async () => {
+        expect(
+          (await fetch(`http://127.0.0.1:${port}/health/ready`)).status,
+        ).toBe(200);
+      },
+      { timeout: 15000, interval: 250 },
     );
   });
 });

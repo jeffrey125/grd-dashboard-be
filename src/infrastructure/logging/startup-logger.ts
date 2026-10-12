@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { ConfigurationError } from '../../config/env.schema.js';
+import { ConfigurationError } from '@config/env.schema.js';
 import type { LogRuntime } from './logging.types.js';
 import { createBaseLoggingOptions } from './logging.options.js';
 import { safeErrorFields } from './safe-error-fields.js';

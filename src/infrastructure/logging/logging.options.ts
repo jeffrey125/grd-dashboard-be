@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { LoggerOptions } from 'pino';
 import type { Options } from 'pino-http';
-import type { RuntimeConfiguration } from '../../config/configuration.js';
-import type { LogLevel } from '../../config/env.schema.js';
-import { APPLICATION_NAME, REQUEST_ID_HEADER } from '../../constants.js';
+import type { RuntimeConfiguration } from '@config/configuration.js';
+import type { LogLevel } from '@config/env.schema.js';
+import { APPLICATION_NAME, REQUEST_ID_HEADER } from '@app/constants.js';
 import type { LogRuntime } from './logging.types.js';
 
 export const LOG_REDACTION_CENSOR = '[Redacted]';

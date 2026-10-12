@@ -1,6 +1,6 @@
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startPostgresqlContainer } from '../support/postgresql-container.js';
+import { startPostgresqlContainer } from '@test/support/postgresql-container.js';
 
 describe('PostgreSQL container support', () => {
   let container: StartedPostgreSqlContainer | undefined;
@@ -16,7 +16,7 @@ describe('PostgreSQL container support', () => {
   it('executes SQL against a real PostgreSQL server', async () => {
     if (!container) throw new Error('PostgreSQL container did not start');
 
-    // Use the image's client until V1-004 introduces the application pg driver.
+    // Keep the container smoke check independent of ORM migration coverage.
     const result = await container.exec([
       'psql',
       '-h',

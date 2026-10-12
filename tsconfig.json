@@ -2,6 +2,14 @@
   "compilerOptions": {
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "paths": {
+      "@app/*": ["./src/*"],
+      "@config/*": ["./src/config/*"],
+      "@infrastructure/*": ["./src/infrastructure/*"],
+      "@modules/*": ["./src/modules/*"],
+      "@runtime/*": ["./src/runtime/*"],
+      "@test/*": ["./test/*"]
+    },
     "resolvePackageJsonExports": true,
     "esModuleInterop": true,
     "isolatedModules": true,

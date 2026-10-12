@@ -1,11 +1,13 @@
 import { Test } from '@nestjs/testing';
+import { AppModule } from '@app/app.module.js';
+import { DatabaseModule } from '@infrastructure/database/database.module.js';
+import { HealthController } from '@modules/health/health.controller.js';
+import { ReadinessService } from '@modules/health/readiness.service.js';
+import { WorkerModule } from '@app/worker.module.js';
+import { TestDatabaseModule } from '@test/support/test-database.module.js';
+import { testEnvironment } from '@test/support/environment.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppModule } from '../app.module.js';
-import { WorkerModule } from '../worker.module.js';
-import { HealthController } from '../modules/health/health.controller.js';
-import { ReadinessService } from '../modules/health/readiness.service.js';
 import { WorkerLifetimeService } from './worker-lifetime.service.js';
-import { testEnvironment } from '../../test/support/environment.js';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -18,7 +20,10 @@ describe('composition roots', () => {
       vi.stubEnv(key, value);
     const module = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideModule(DatabaseModule)
+      .useModule(TestDatabaseModule)
+      .compile();
     try {
       expect(module.get(HealthController)).toBeDefined();
       expect(() => module.get(WorkerLifetimeService)).toThrow();
@@ -33,7 +38,10 @@ describe('composition roots', () => {
     vi.useFakeTimers();
     const module = await Test.createTestingModule({
       imports: [WorkerModule],
-    }).compile();
+    })
+      .overrideModule(DatabaseModule)
+      .useModule(TestDatabaseModule)
+      .compile();
     try {
       expect(() => module.get(HealthController)).toThrow();
       await module.init();

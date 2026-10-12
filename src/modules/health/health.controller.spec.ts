@@ -1,5 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { DatabaseModule } from '@infrastructure/database/database.module.js';
+import { TestDatabaseModule } from '@test/support/test-database.module.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HealthController } from './health.controller.js';
 import { HealthModule } from './health.module.js';
@@ -14,6 +16,8 @@ describe('health lifecycle and dependency checks', () => {
 
   async function create(dependencies: ReadinessDependency[] = []) {
     module = await Test.createTestingModule({ imports: [HealthModule] })
+      .overrideModule(DatabaseModule)
+      .useModule(TestDatabaseModule)
       .overrideProvider(READINESS_DEPENDENCIES)
       .useValue(dependencies)
       .compile();

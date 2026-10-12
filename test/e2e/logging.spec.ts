@@ -6,16 +6,18 @@ import {
   type INestApplication,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { RuntimeConfigModule } from '@config/config.module.js';
+import { DatabaseModule } from '@infrastructure/database/database.module.js';
+import { LoggingModule } from '@infrastructure/logging/logging.module.js';
+import { NestLoggerAdapter } from '@infrastructure/logging/nest-logger.adapter.js';
+import { ProjectLogger } from '@infrastructure/logging/logging.types.js';
+import { HealthModule } from '@modules/health/health.module.js';
+import { READINESS_DEPENDENCIES } from '@modules/health/readiness.service.js';
+import { TestDatabaseModule } from '@test/support/test-database.module.js';
+import { testEnvironment } from '@test/support/environment.js';
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RuntimeConfigModule } from '../../src/config/config.module.js';
-import { LoggingModule } from '../../src/infrastructure/logging/logging.module.js';
-import { NestLoggerAdapter } from '../../src/infrastructure/logging/nest-logger.adapter.js';
-import { ProjectLogger } from '../../src/infrastructure/logging/logging.types.js';
-import { HealthModule } from '../../src/modules/health/health.module.js';
-import { READINESS_DEPENDENCIES } from '../../src/modules/health/readiness.service.js';
-import { testEnvironment } from '../support/environment.js';
 
 @Controller('logging-test')
 class LoggingTestController {
@@ -39,7 +41,13 @@ class LoggingTestController {
 }
 
 @Module({
-  imports: [RuntimeConfigModule, LoggingModule.forRoot('api'), HealthModule],
+  imports: [
+    RuntimeConfigModule,
+    LoggingModule.forRoot('api', {
+      write: (chunk) => process.stdout.write(chunk),
+    }),
+    HealthModule,
+  ],
   controllers: [LoggingTestController],
 })
 class LoggingTestModule {}
@@ -71,6 +79,8 @@ describe('API structured request logging', () => {
     const module = await Test.createTestingModule({
       imports: [LoggingTestModule],
     })
+      .overrideModule(DatabaseModule)
+      .useModule(TestDatabaseModule)
       .overrideProvider(READINESS_DEPENDENCIES)
       .useValue([
         {

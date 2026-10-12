@@ -1,4 +1,4 @@
-import type { LogLevel } from '../../config/env.schema.js';
+import type { LogLevel } from '@config/env.schema.js';
 
 export type LogRuntime = 'api' | 'worker';
 export type LogEvent = `${string}.${string}`;

@@ -7,3 +7,4 @@
 .env.*
 !.env.example
 .DS_Store
+/.test-dist/

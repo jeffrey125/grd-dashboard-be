@@ -2,8 +2,8 @@ import type { INestApplication } from '@nestjs/common';
 import type { Server } from 'node:http';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestApp } from '../support/create-test-app.js';
-import { testEnvironment } from '../support/environment.js';
+import { createTestApp } from '@test/support/create-test-app.js';
+import { testEnvironment } from '@test/support/environment.js';
 
 describe('Application health HTTP endpoints', () => {
   let app: INestApplication | undefined;

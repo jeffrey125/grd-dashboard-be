@@ -1,14 +1,18 @@
 import { Test } from '@nestjs/testing';
-import { AppModule } from '../../src/app.module.js';
+import { AppModule } from '@app/app.module.js';
+import { DatabaseModule } from '@infrastructure/database/database.module.js';
 import {
   READINESS_DEPENDENCIES,
   type ReadinessDependency,
-} from '../../src/modules/health/readiness.service.js';
+} from '@modules/health/readiness.service.js';
+import { TestDatabaseModule } from './test-database.module.js';
 
 export async function createTestApp(dependencies: ReadinessDependency[] = []) {
   const module = await Test.createTestingModule({
     imports: [AppModule],
   })
+    .overrideModule(DatabaseModule)
+    .useModule(TestDatabaseModule)
     .overrideProvider(READINESS_DEPENDENCIES)
     .useValue(dependencies)
     .compile();

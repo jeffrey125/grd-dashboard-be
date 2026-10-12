@@ -2,7 +2,7 @@ import { Writable } from 'node:stream';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { LoggerModule } from 'nestjs-pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RuntimeConfiguration } from '../../config/configuration.js';
+import type { RuntimeConfiguration } from '@config/configuration.js';
 import { createPinoHttpOptions } from './logging.options.js';
 import type { LogFields } from './logging.types.js';
 import { PinoLoggerService } from './pino-logger.service.js';

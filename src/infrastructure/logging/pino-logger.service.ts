@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
-import type { LogLevel } from '../../config/env.schema.js';
+import type { LogLevel } from '@config/env.schema.js';
 import {
   ProjectLogger,
   type LogEvent,

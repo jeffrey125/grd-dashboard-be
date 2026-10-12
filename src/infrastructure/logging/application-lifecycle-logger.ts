@@ -6,12 +6,26 @@ import { ProjectLogger } from './logging.types.js';
 export class ApplicationLifecycleLogger implements OnApplicationShutdown {
   constructor(@Inject(ProjectLogger) private readonly logger: ProjectLogger) {}
 
-  onApplicationShutdown(signal?: string) {
+  async onApplicationShutdown(signal?: string) {
     this.logger.info(
       'application.stopped',
       'Application stopped',
       signal ? { signal } : {},
     );
-    PinoLogger.root.flush();
+    await new Promise<void>((resolve, reject) => {
+      PinoLogger.root.flush((error) => {
+        const streamError = error as NodeJS.ErrnoException | undefined;
+        // SonicBoom calls fsync after draining. stdout pipes cannot be synced,
+        // but their writes have already completed when this callback runs.
+        if (
+          !streamError ||
+          (streamError.code === 'EINVAL' && streamError.syscall === 'fsync')
+        ) {
+          resolve();
+          return;
+        }
+        reject(new Error('Application log flush failed'));
+      });
+    });
   }
 }

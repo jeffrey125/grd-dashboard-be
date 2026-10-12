@@ -3,7 +3,7 @@ import { Logger as NestPinoLogger } from 'nestjs-pino';
 import {
   configuration,
   type RuntimeConfiguration,
-} from '../../config/configuration.js';
+} from '@config/configuration.js';
 import { ProjectLogger, type LogFields } from './logging.types.js';
 import { safeErrorFields } from './safe-error-fields.js';
 

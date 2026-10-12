@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { testEnvironment } from '../../test/support/environment.js';
+import { testEnvironment } from '@test/support/environment.js';
 import { createConfiguration } from './configuration.js';
 import { ConfigurationError, validateEnvironment } from './env.schema.js';
 
