@@ -23,6 +23,7 @@ const carrier: CarrierRecord = {
   code: 'ups',
   name: 'UPS',
   isActive: true,
+  fetchMode: 'request',
   pollIntervalMinutes: 30,
   notFoundPauseThreshold: 5,
   rateLimitPerMinute: 10,

@@ -13,6 +13,7 @@ function record(row: CarrierEntity): CarrierRecord {
     code: row.code,
     name: row.name,
     isActive: row.isActive,
+    fetchMode: row.fetchMode,
     notFoundPauseThreshold: row.notFoundPauseThreshold,
     pollIntervalMinutes: row.pollIntervalMinutes,
     rateLimitPerMinute: row.rateLimitPerMinute,

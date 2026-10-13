@@ -4,6 +4,10 @@ import {
   type SafeErrorFields,
 } from '@infrastructure/logging/safe-error-fields.js';
 import { CARRIER_ADAPTERS, type CarrierAdapter } from './carrier-adapter.js';
+import {
+  supportsFetchMode,
+  type FetchMode,
+} from '@modules/carriers/carrier-fetch-mode.js';
 
 export class AdapterConfigurationError extends Error {
   constructor(
@@ -44,9 +48,11 @@ export class CarrierAdapterRegistry {
     return adapter;
   }
 
-  validate(code: string): CarrierAdapter {
+  validate(code: string, fetchMode?: FetchMode): CarrierAdapter {
     const adapter = this.require(code);
     try {
+      if (fetchMode && !supportsFetchMode(code, fetchMode))
+        throw new Error('Unsupported Carrier fetch mode');
       if (
         !Number.isSafeInteger(adapter.minimumIntervalMinutes) ||
         adapter.minimumIntervalMinutes < 0

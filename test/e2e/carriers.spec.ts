@@ -10,6 +10,7 @@ import { createConfiguration } from '@config/configuration.js';
 import { DatabaseModule } from '@infrastructure/database/database.module.js';
 import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
 import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
+import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
 import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
@@ -42,7 +43,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         TrackingRunEntity,
         TrackingAttemptEntity,
       ],
-      migrations: [InitialSchema1791849600000],
+      migrations: [InitialSchema1791849600000, CarrierFetchMode1791936000000],
     });
     await source.initialize();
     await source.runMigrations();
@@ -82,6 +83,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       code: 'ups',
       name: 'UPS',
       isActive: true,
+      fetchMode: 'request',
       notFoundPauseThreshold: 5,
       pollIntervalMinutes: 30,
       rateLimitPerMinute: 10,
@@ -113,6 +115,25 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       pollIntervalMinutes: 60,
       rateLimitPerMinute: null,
     });
+  });
+
+  it('switches EchoShip transport through the API and rejects unsupported modes', async () => {
+    const { body } = await http().get('/carriers').expect(200);
+    const echo = body.find((row: { code: string }) => row.code === 'echoship');
+    expect(echo.fetchMode).toBe('request');
+    const updated = await http()
+      .patch(`/carriers/${echo.externalId}`)
+      .send({ fetchMode: 'browser' })
+      .expect(200);
+    expect(updated.body.fetchMode).toBe('browser');
+    await http()
+      .patch(`/carriers/${upsId}`)
+      .send({ fetchMode: 'browser' })
+      .expect(400);
+    await http()
+      .patch(`/carriers/${echo.externalId}`)
+      .send({ fetchMode: 'automatic' })
+      .expect(400);
   });
 
   it.each([

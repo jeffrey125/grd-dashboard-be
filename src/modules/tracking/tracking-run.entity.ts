@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import type { FetchMode } from '@modules/carriers/carrier-fetch-mode.js';
 
 export enum TrackingRunTrigger {
   Scheduled = 'scheduled',
@@ -25,6 +26,7 @@ export enum TrackingRunStatus {
 }
 
 @Entity('tracking_runs')
+@Check('ck_runs_fetch_mode', "fetch_mode IN ('request', 'browser')")
 @ForeignKey('CarrierEntity', ['carrierId'], ['id'], {
   name: 'fk_runs_carrier',
   onDelete: 'NO ACTION',
@@ -58,6 +60,9 @@ export class TrackingRunEntity {
 
   @Column({ name: 'carrier_id', type: 'integer' })
   carrierId: number;
+
+  @Column({ name: 'fetch_mode', type: 'varchar', length: 10, nullable: true })
+  fetchMode: FetchMode | null;
 
   @Column({
     type: 'enum',

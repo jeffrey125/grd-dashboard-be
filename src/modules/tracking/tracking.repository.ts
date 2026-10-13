@@ -1,9 +1,11 @@
+import type { FetchMode } from '@modules/carriers/carrier-fetch-mode.js';
 import type {
   CreateTrackingRun,
   NormalizedTrackingState,
 } from './tracking.schemas.js';
 
 export interface TrackingRunRecord {
+  fetchMode: FetchMode | null;
   externalId: string;
   trigger: 'scheduled' | 'manual';
   status:
@@ -77,6 +79,7 @@ export class TrackingOperationError extends Error {
 }
 
 export interface LockedTrackingRun {
+  fetchMode: FetchMode | null;
   id: string;
   externalId: string;
   trigger: TrackingRunRecord['trigger'];
@@ -225,6 +228,7 @@ export function trackingRunRecord(
 ): TrackingRunRecord {
   return {
     externalId: run.externalId,
+    fetchMode: run.fetchMode,
     trigger: run.trigger,
     status: run.status,
     attemptCount,

@@ -33,6 +33,7 @@ import { DataSource } from 'typeorm';
 import { createConfiguration } from '@config/configuration.js';
 import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
 import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
+import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
 
 type Runtime = {
   child: ChildProcessWithoutNullStreams;
@@ -55,7 +56,7 @@ beforeAll(async () => {
   });
   const source = new DataSource({
     ...createDatabaseOptions(createConfiguration(runtimeEnvironment)),
-    migrations: [InitialSchema1791849600000],
+    migrations: [InitialSchema1791849600000, CarrierFetchMode1791936000000],
   });
   await source.initialize();
   try {

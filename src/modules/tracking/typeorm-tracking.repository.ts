@@ -15,6 +15,7 @@ import type {
 } from './tracking.schemas.js';
 
 interface RunRow {
+  fetch_mode: LockedTrackingRun['fetchMode'];
   id: string;
   external_id: string;
   trigger: LockedTrackingRun['trigger'];
@@ -30,6 +31,7 @@ interface RunRow {
 function lockedRun(row: RunRow): LockedTrackingRun {
   return {
     id: row.id,
+    fetchMode: row.fetch_mode,
     externalId: row.external_id,
     trigger: row.trigger,
     status: row.status,
@@ -104,7 +106,7 @@ class TypeOrmTrackingTransaction implements TrackingTransaction {
 
   async lockRun(externalId: string) {
     const rows: RunRow[] = await this.manager.query(
-      `SELECT run.id, run.external_id, run.trigger, run.status, run.created_at,
+      `SELECT run.id, run.external_id, run.trigger, run.status, run.created_at, run.fetch_mode,
               run.started_at, run.completed_at, carrier.code AS carrier_code,
               carrier.is_active AS carrier_is_active,
               carrier.deleted_at AS carrier_deleted_at
@@ -119,8 +121,13 @@ class TypeOrmTrackingTransaction implements TrackingTransaction {
 
   async markRunRunning(runId: string) {
     await this.manager.query(
-      `UPDATE tracking_runs
+      `WITH selected AS (
+         SELECT carrier.fetch_mode FROM carriers carrier
+         JOIN tracking_runs run ON run.carrier_id = carrier.id
+         WHERE run.id = $1 FOR SHARE OF carrier
+       ) UPDATE tracking_runs
           SET status = 'running',
+              fetch_mode = (SELECT fetch_mode FROM selected),
               started_at = clock_timestamp(),
               updated_at = clock_timestamp()
         WHERE id = $1`,

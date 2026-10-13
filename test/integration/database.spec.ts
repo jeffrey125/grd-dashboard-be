@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createConfiguration } from '@config/configuration.js';
 import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
 import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
+import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
 import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
@@ -68,7 +69,7 @@ describe('production migrations and repository foundation', () => {
         TrackingRunEntity,
         TrackingAttemptEntity,
       ],
-      migrations: [InitialSchema1791849600000],
+      migrations: [InitialSchema1791849600000, CarrierFetchMode1791936000000],
     });
     await source.initialize();
     await source.runMigrations();
@@ -293,12 +294,14 @@ describe('production migrations and repository foundation', () => {
 
   it('runs the shipped CLI show/run/revert/run sequence and leaves no migration drift', async () => {
     await source.undoLastMigration();
+    await source.undoLastMigration();
     expect((await cli('migration:show')).stdout).toContain(
       '[ ] InitialSchema1791849600000',
     );
     const firstRun = await cli('migration:run');
     expect(firstRun.stdout).toContain('CREATE TABLE carriers');
     expect((await cli('migration:show')).stdout).toContain('[X]');
+    await cli('migration:revert');
     await cli('migration:revert');
     expect(
       await source.query(

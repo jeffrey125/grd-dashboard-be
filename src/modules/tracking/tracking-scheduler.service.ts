@@ -48,7 +48,7 @@ export class TrackingSchedulerService implements OnModuleDestroy {
     this.state = 'starting';
     try {
       for (const carrier of await this.carriers.listActive())
-        this.adapters.validate(carrier.code);
+        this.adapters.validate(carrier.code, carrier.fetchMode);
       for (const runExternalId of await this.work.interruptedRuns())
         await this.tracking.interruptRun({
           runExternalId,
@@ -110,14 +110,15 @@ export class TrackingSchedulerService implements OnModuleDestroy {
   private async round() {
     const signal = this.controller.signal;
     const carriers = await this.carriers.listActive();
-    for (const carrier of carriers) this.adapters.validate(carrier.code);
+    for (const carrier of carriers)
+      this.adapters.validate(carrier.code, carrier.fetchMode);
     await this.manualWork();
     for (const selected of carriers) {
       signal.throwIfAborted();
       await this.manualWork();
       const carrier = await this.carriers.find(selected.externalId);
       if (!carrier?.isActive) continue;
-      const adapter = this.adapters.validate(carrier.code);
+      const adapter = this.adapters.validate(carrier.code, carrier.fetchMode);
       const targets = await this.work.findDue(
         carrier.externalId,
         adapter.minimumIntervalMinutes,

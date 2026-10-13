@@ -1,4 +1,10 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { supportsFetchMode } from './carrier-fetch-mode.js';
 import {
   CARRIERS_REPOSITORY,
   type CarriersRepository,
@@ -34,6 +40,13 @@ export class CarriersService {
   async update(externalId: string, input: unknown) {
     const id = parseCarrierInput(carrierExternalIdSchema, externalId);
     const changes = parseCarrierInput(updateCarrierSchema, input);
+    if (changes.fetchMode) {
+      const current = await this.find(id);
+      if (!supportsFetchMode(current.code, changes.fetchMode))
+        throw new BadRequestException(
+          'Fetch mode is not supported by this Carrier',
+        );
+    }
     const carrier = await this.repository.update(id, changes);
     if (!carrier) throw new NotFoundException('Carrier not found');
     return carrier;

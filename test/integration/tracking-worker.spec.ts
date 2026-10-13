@@ -140,6 +140,36 @@ describe('Tracking worker with PostgreSQL', () => {
     return module;
   }
 
+  it('captures mode at execution, not queue time, and keeps it through later Carrier edits', async () => {
+    const item = await shipment('69451086', 'echoship');
+    const tracking = new TrackingService(
+      new TypeOrmTrackingRepository(db.source),
+    );
+    const carriers = new TypeOrmCarriersRepository(db.source);
+    const run = await tracking.createRun({
+      carrierExternalId: item.carrier.externalId,
+      trigger: 'manual',
+      shipmentExternalIds: [item.externalId],
+      requestedById: null,
+    });
+    expect(run.fetchMode).toBeNull();
+    await carriers.update(item.carrier.externalId, { fetchMode: 'browser' });
+    const started = await tracking.startRun(run.externalId);
+    expect(started.fetchMode).toBe('browser');
+    await carriers.update(item.carrier.externalId, { fetchMode: 'request' });
+    await tracking.interruptRun({
+      runExternalId: run.externalId,
+      retryable: true,
+      reasonCode: 'TEST_INTERRUPTED',
+      message: 'Fixture interruption',
+    });
+    const [stored] = await db.source.query(
+      'SELECT fetch_mode FROM tracking_runs WHERE external_id = $1',
+      [run.externalId],
+    );
+    expect(stored.fetch_mode).toBe('browser');
+  });
+
   it('selects only due active Shipments belonging to an active non-deleted Carrier', async () => {
     const ups = await db.source
       .getRepository(CarrierEntity)

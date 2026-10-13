@@ -679,14 +679,14 @@ describe('initial application schema', () => {
     const expected = {
       carriers:
         audit +
-        ' code name is_active not_found_pause_threshold poll_interval_minutes rate_limit_per_minute',
+        ' code name is_active not_found_pause_threshold poll_interval_minutes rate_limit_per_minute fetch_mode',
       shipments:
         audit +
         ' carrier_id tracking_reference notes verification_url monitoring_status monitoring_reason current_tracking_snapshot_id last_attempted_at next_check_at consecutive_not_found_count lock_version',
       shipment_tracking_snapshots:
         'id shipment_id carrier_status carrier_status_detail picked_up_on estimated_delivery_on delivered_on observed_at',
       tracking_runs:
-        'id external_id carrier_id trigger status reason_code message requested_by_id created_at updated_at started_at completed_at',
+        'id external_id carrier_id trigger status reason_code message requested_by_id created_at updated_at started_at completed_at fetch_mode',
       tracking_attempts:
         'id tracking_run_id shipment_id outcome snapshot_id snapshot_changed source_data retryable reason_code message started_at completed_at',
     };

@@ -1,10 +1,12 @@
 import type { CarrierUpdate } from './carriers.schemas.js';
+import type { FetchMode } from './carrier-fetch-mode.js';
 
 export interface CarrierRecord {
   externalId: string;
   code: string;
   name: string;
   isActive: boolean;
+  fetchMode: FetchMode;
   notFoundPauseThreshold: number;
   pollIntervalMinutes: number;
   rateLimitPerMinute: number | null;

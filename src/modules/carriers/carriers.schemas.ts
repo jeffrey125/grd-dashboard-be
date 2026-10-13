@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
+import { fetchModeSchema } from './carrier-fetch-mode.js';
 
 export const carrierExternalIdSchema = z.uuidv4();
 
@@ -13,6 +14,7 @@ export const updateCarrierSchema = z
       .refine((value) => !value.includes('\u0000'), 'Name cannot contain NUL')
       .optional(),
     isActive: z.boolean().optional(),
+    fetchMode: fetchModeSchema.optional(),
     notFoundPauseThreshold: z.int().min(2).max(32767).optional(),
     pollIntervalMinutes: z.int().min(1).max(32767).optional(),
     rateLimitPerMinute: z.int().min(1).max(32767).nullable().optional(),

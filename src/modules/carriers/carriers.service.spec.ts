@@ -14,6 +14,7 @@ const carrier: CarrierRecord = {
   code: 'ups',
   name: 'UPS',
   isActive: true,
+  fetchMode: 'request',
   notFoundPauseThreshold: 5,
   pollIntervalMinutes: 30,
   rateLimitPerMinute: 10,
@@ -38,6 +39,18 @@ async function setup() {
 }
 
 describe('Carrier configuration', () => {
+  it('allows EchoShip browser mode but rejects unsupported UPS mode', async () => {
+    const { service, repository } = await setup();
+    repository.find.mockResolvedValue({ ...carrier, code: 'echoship' });
+    repository.update.mockResolvedValue({ ...carrier, code: 'echoship' });
+    await expect(
+      service.update(externalId, { fetchMode: 'browser' }),
+    ).resolves.toBeDefined();
+    repository.find.mockResolvedValue(carrier);
+    await expect(
+      service.update(externalId, { fetchMode: 'browser' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
   it.each([
     {},
     { name: '   ' },

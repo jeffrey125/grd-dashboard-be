@@ -2,6 +2,7 @@ import { DataSource } from 'typeorm';
 import { createConfiguration } from '@config/configuration.js';
 import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
 import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
+import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
 import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
@@ -24,7 +25,7 @@ export async function shipmentDatabase() {
       TrackingRunEntity,
       TrackingAttemptEntity,
     ],
-    migrations: [InitialSchema1791849600000],
+    migrations: [InitialSchema1791849600000, CarrierFetchMode1791936000000],
   });
   try {
     await source.initialize();

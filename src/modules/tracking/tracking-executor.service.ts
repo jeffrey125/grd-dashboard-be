@@ -68,7 +68,10 @@ export class TrackingExecutorService {
         return;
       }
       if (!carrier) throw new Error('Carrier unavailable');
-      const adapter = this.adapters.validate(run.carrierCode);
+      const adapter = this.adapters.validate(
+        run.carrierCode,
+        run.fetchMode ?? undefined,
+      );
       const interval = Math.max(
         carrier.pollIntervalMinutes,
         adapter.minimumIntervalMinutes,
@@ -102,6 +105,7 @@ export class TrackingExecutorService {
       }
       const opening = Promise.resolve().then(() =>
         adapter.openSession({
+          fetchMode: run.fetchMode ?? undefined,
           signal,
           rateLimitPerMinute: carrier.rateLimitPerMinute,
         }),
