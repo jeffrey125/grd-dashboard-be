@@ -30,6 +30,9 @@ import { ReadinessService } from '@modules/health/readiness.service.js';
 import { testEnvironment } from '@test/support/environment.js';
 import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
+import { createConfiguration } from '@config/configuration.js';
+import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
+import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
 
 type Runtime = {
   child: ChildProcessWithoutNullStreams;
@@ -50,6 +53,18 @@ beforeAll(async () => {
     NODE_ENV: 'production',
     LOG_LEVEL: 'debug',
   });
+  const source = new DataSource({
+    ...createDatabaseOptions(createConfiguration(runtimeEnvironment)),
+    migrations: [InitialSchema1791849600000],
+  });
+  await source.initialize();
+  try {
+    await source.runMigrations();
+    // V1-012 ships the scheduler; real adapters arrive in V1-013 through V1-015.
+    await source.query('UPDATE carriers SET is_active = false');
+  } finally {
+    await source.destroy();
+  }
 });
 afterAll(async () => {
   await container?.stop();
@@ -251,6 +266,37 @@ describe.each([
 });
 
 describe('runtime boundaries', () => {
+  it('refuses worker startup for an enabled missing adapter without affecting API startup', async () => {
+    const source = new DataSource(
+      createDatabaseOptions(createConfiguration(runtimeEnvironment)),
+    );
+    await source.initialize();
+    try {
+      await source.query(
+        "UPDATE carriers SET is_active = true WHERE code = 'ups'",
+      );
+      const worker = start('worker', runtimeEnvironment);
+      await waitForExit(worker);
+      expect(worker.child.exitCode).toBe(1);
+      expect(worker.output()).not.toContain('Worker ready');
+      expect(jsonRecords(worker)).toContainEqual(
+        expect.objectContaining({
+          event: 'tracking.worker.failed',
+          reasonCode: 'ADAPTER_MISSING',
+          carrierCode: 'ups',
+        }),
+      );
+      const api = start('main', {
+        ...runtimeEnvironment,
+        PORT: await availablePort(),
+      });
+      await waitForReady(api, 'API');
+    } finally {
+      await source.query('UPDATE carriers SET is_active = false');
+      await source.destroy();
+    }
+  });
+
   it('reuses one DataSource across repeated imports and closes its pool with the context', async () => {
     for (const [key, value] of Object.entries({
       ...runtimeEnvironment,

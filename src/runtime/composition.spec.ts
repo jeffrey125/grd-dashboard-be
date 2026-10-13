@@ -9,7 +9,7 @@ import { WorkerModule } from '@app/worker.module.js';
 import { TestDatabaseModule } from '@test/support/test-database.module.js';
 import { testEnvironment } from '@test/support/environment.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WorkerLifetimeService } from './worker-lifetime.service.js';
+import { TrackingSchedulerService } from '@modules/tracking/tracking-scheduler.service.js';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -57,13 +57,13 @@ describe('composition roots', () => {
       .compile();
     try {
       expect(module.get(HealthController)).toBeDefined();
-      expect(() => module.get(WorkerLifetimeService)).toThrow();
+      expect(() => module.get(TrackingSchedulerService)).toThrow();
     } finally {
       await module.close();
     }
   });
 
-  it('starts a controller-free worker and releases its keepalive on close', async () => {
+  it('starts a controller-free worker and releases its scheduler timer on close', async () => {
     for (const [key, value] of Object.entries(testEnvironment))
       vi.stubEnv(key, value);
     vi.useFakeTimers();

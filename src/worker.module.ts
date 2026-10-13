@@ -4,7 +4,7 @@ import { ApplicationCacheModule } from '@infrastructure/cache/application-cache.
 import { DatabaseModule } from '@infrastructure/database/database.module.js';
 import { LoggingModule } from '@infrastructure/logging/logging.module.js';
 import { ReadinessModule } from '@modules/health/readiness.module.js';
-import { WorkerLifetimeService } from '@runtime/worker-lifetime.service.js';
+import { TrackingWorkerModule } from '@modules/tracking/tracking-worker.module.js';
 
 @Module({
   imports: [
@@ -13,7 +13,7 @@ import { WorkerLifetimeService } from '@runtime/worker-lifetime.service.js';
     ApplicationCacheModule,
     DatabaseModule,
     ReadinessModule,
+    TrackingWorkerModule,
   ],
-  providers: [WorkerLifetimeService],
 })
 export class WorkerModule {}
