@@ -254,8 +254,8 @@ class TypeOrmTrackingTransaction implements TrackingTransaction {
       estimated_delivery_on: string | null;
       delivered_on: string | null;
     }> = await this.manager.query(
-      `SELECT carrier_status, carrier_status_detail, picked_up_on,
-              estimated_delivery_on, delivered_on
+      `SELECT carrier_status, carrier_status_detail, picked_up_on::text AS picked_up_on,
+              estimated_delivery_on::text AS estimated_delivery_on, delivered_on::text AS delivered_on
          FROM shipment_tracking_snapshots
         WHERE shipment_id = $1 AND id = $2`,
       [shipmentId, snapshotId],

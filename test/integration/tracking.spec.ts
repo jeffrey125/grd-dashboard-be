@@ -95,7 +95,7 @@ describe('Tracking PostgreSQL repository', () => {
     ]);
   });
 
-  it('atomically persists changed and unchanged found outcomes with merged known state', async () => {
+  it('atomically persists changed and unchanged found outcomes with merged known calendar dates', async () => {
     const shipment = await createShipment('tracking-found');
     const firstRun = await service.createRun({
       carrierExternalId: ups.externalId,
@@ -171,7 +171,7 @@ describe('Tracking PostgreSQL repository', () => {
         carrierStatus: null,
         carrierStatusDetail: null,
         pickedUpOn: null,
-        estimatedDeliveryOn: null,
+        estimatedDeliveryOn: '2026-10-20',
         deliveredOn: null,
       },
       sourceData: null,
