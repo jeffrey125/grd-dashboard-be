@@ -2,7 +2,12 @@
 
 ## Status
 
-Partially approved. Nullable `tracking_attempts.source_data jsonb` is part of the initial PostgreSQL schema. Its detailed population and retention policy, additional version columns, and exact raw-artifact storage remain deferred and must not be implemented without explicit approval.
+Partially approved. Nullable `tracking_attempts.source_data jsonb` is part of the
+initial PostgreSQL schema. V1-011 approves storing an optional adapter-sanitized,
+allowlisted JSON object unchanged for `found`, `not_found`, and `failed` attempts;
+`skipped` attempts always store null. Retention, additional version columns, and
+exact raw-artifact storage remain deferred and must not be implemented without
+explicit approval.
 
 ## Terminology
 
@@ -100,7 +105,6 @@ No retention duration is approved yet.
 ## Open decisions
 
 1. Is byte-for-byte evidence required in addition to the approved sanitized source data?
-2. Should source data be populated for every attempt, only changed results, or failures only?
-3. What retention period and deletion guarantees are required?
-4. Who may read source data and raw artifacts?
-5. Are source/adapter version columns required, and is object storage approved for full artifacts?
+2. What retention period and deletion guarantees are required?
+3. Who may read source data and raw artifacts?
+4. Are source/adapter version columns required, and is object storage approved for full artifacts?

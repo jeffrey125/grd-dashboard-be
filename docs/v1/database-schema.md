@@ -339,7 +339,8 @@ For `not_found`, `failed`, or `skipped`, do not create or clear a snapshot. Comp
 
 ## Deferred decisions
 
-- Detailed `source_data` population, access, and retention rules.
+- `source_data` access and retention rules. V1-011 permits optional sanitized,
+  allowlisted objects for `found`, `not_found`, and `failed`; `skipped` stores null.
 - `source_schema_version` and `adapter_version` columns.
 - Exact raw-response artifact storage.
 - Authentication and User foreign keys.

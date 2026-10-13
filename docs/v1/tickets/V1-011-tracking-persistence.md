@@ -4,6 +4,8 @@
 
 Depends on V1-008.
 
+Implemented in the working tree on 2026-10-13. Awaiting final review and commit.
+
 ## Objective
 
 Implement repositories and application operations for tracking runs, attempts, immutable snapshots, and atomic Shipment outcome updates.
@@ -38,3 +40,23 @@ Implement repositories and application operations for tracking runs, attempts, i
 ## Verification
 
 Run tracking unit and PostgreSQL integration suites, migration regression, typecheck, and build.
+
+## Approved implementation decisions
+
+- Store optional adapter-sanitized, allowlisted `source_data` objects unchanged
+  for `found`, `not_found`, and `failed`; `skipped` always stores null. Raw
+  Carrier responses and artifacts remain prohibited.
+- Treat `skipped` as neutral for run summaries. A run succeeds when no attempt
+  failed, partially succeeds when failed and non-failed outcomes are mixed, and
+  fails when every attempt failed.
+- A stale Shipment version or deletion finalizes the pending attempt as
+  `skipped` with `SHIPMENT_STATE_CHANGED` and leaves every Shipment field intact.
+- Create all target attempts as `pending` atomically with the run. Ordinary run
+  finalization rejects pending attempts; interruption recovery explicitly fails
+  remaining attempts before closing the run.
+- The scheduler supplies a positive effective interval. Persistence calculates
+  `next_check_at` from the database completion time in the outcome transaction.
+- Cancellation preserves finalized attempts, changes remaining pending attempts
+  to `skipped / RUN_CANCELLED`, and marks the run `cancelled`.
+- Reuse TypeORM, Zod, PostgreSQL, Vitest, and Testcontainers. No new dependency
+  or migration is required for this ticket.
