@@ -34,6 +34,7 @@ import { createConfiguration } from '@config/configuration.js';
 import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
 import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
 import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
+import { FfeRequestMode1792022400000 } from '@infrastructure/database/migrations/1792022400000-FfeRequestMode.js';
 
 type Runtime = {
   child: ChildProcessWithoutNullStreams;
@@ -56,7 +57,11 @@ beforeAll(async () => {
   });
   const source = new DataSource({
     ...createDatabaseOptions(createConfiguration(runtimeEnvironment)),
-    migrations: [InitialSchema1791849600000, CarrierFetchMode1791936000000],
+    migrations: [
+      InitialSchema1791849600000,
+      CarrierFetchMode1791936000000,
+      FfeRequestMode1792022400000,
+    ],
   });
   await source.initialize();
   try {
@@ -84,6 +89,9 @@ function start(
       ECHOSHIP_URL: '',
       ECHOSHIP_USERNAME: '',
       ECHOSHIP_PASSWORD: '',
+      FFE_URL: '',
+      FFE_USERNAME: '',
+      FFE_PASSWORD: '',
       UPS_CLIENT_ID: '',
       UPS_CLIENT_SECRET: '',
       ...env,
@@ -276,7 +284,7 @@ describe.each([
 
 describe('runtime boundaries', () => {
   it.each([
-    ['ffe', 'ADAPTER_MISSING'],
+    ['ffe', 'ADAPTER_CONFIGURATION_INVALID'],
     ['echoship', 'ADAPTER_CONFIGURATION_INVALID'],
     ['ups', 'ADAPTER_CONFIGURATION_INVALID'],
   ])(

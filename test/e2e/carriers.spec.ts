@@ -11,6 +11,7 @@ import { DatabaseModule } from '@infrastructure/database/database.module.js';
 import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
 import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
 import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
+import { FfeRequestMode1792022400000 } from '@infrastructure/database/migrations/1792022400000-FfeRequestMode.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
 import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
@@ -43,7 +44,11 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         TrackingRunEntity,
         TrackingAttemptEntity,
       ],
-      migrations: [InitialSchema1791849600000, CarrierFetchMode1791936000000],
+      migrations: [
+        InitialSchema1791849600000,
+        CarrierFetchMode1791936000000,
+        FfeRequestMode1792022400000,
+      ],
     });
     await source.initialize();
     await source.runMigrations();
@@ -134,6 +139,19 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       .patch(`/carriers/${echo.externalId}`)
       .send({ fetchMode: 'automatic' })
       .expect(400);
+  });
+
+  it('defaults FFE to request and supports explicitly switching both modes', async () => {
+    const { body } = await http().get('/carriers').expect(200);
+    const ffe = body.find((row: { code: string }) => row.code === 'ffe');
+    expect(ffe.fetchMode).toBe('request');
+    for (const fetchMode of ['browser', 'request']) {
+      const updated = await http()
+        .patch(`/carriers/${ffe.externalId}`)
+        .send({ fetchMode })
+        .expect(200);
+      expect(updated.body.fetchMode).toBe(fetchMode);
+    }
   });
 
   it.each([

@@ -39,6 +39,14 @@ async function setup() {
 }
 
 describe('Carrier configuration', () => {
+  it.each(['request', 'browser'])('allows FFE %s mode', async (fetchMode) => {
+    const { service, repository } = await setup();
+    repository.find.mockResolvedValue({ ...carrier, code: 'ffe' });
+    repository.update.mockResolvedValue({ ...carrier, code: 'ffe' });
+    await expect(
+      service.update(externalId, { fetchMode }),
+    ).resolves.toBeDefined();
+  });
   it('allows EchoShip browser mode but rejects unsupported UPS mode', async () => {
     const { service, repository } = await setup();
     repository.find.mockResolvedValue({ ...carrier, code: 'echoship' });

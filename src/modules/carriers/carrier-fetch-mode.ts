@@ -7,7 +7,7 @@ export type FetchMode = z.infer<typeof fetchModeSchema>;
 export function supportsFetchMode(code: string, mode: FetchMode): boolean {
   return (
     code === 'echoship' ||
-    (code === 'ups' && mode === 'request') ||
-    (code === 'ffe' && mode === 'browser')
+    code === 'ffe' ||
+    (code === 'ups' && mode === 'request')
   );
 }
