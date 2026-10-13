@@ -58,11 +58,17 @@ V1-006 and V1-017 can proceed in parallel after runtime composition is establish
 | [V1-012](V1-012-worker-scheduler.md)                  | Auto-starting single worker, due selection, adapter interface, and polling.               |
 | [V1-013](V1-013-ups-adapter.md)                       | UPS OAuth/API adapter, token cache, retries, and rate limiting.                           |
 | [V1-014](V1-014-echoship-adapter.md)                  | EchoShip request/browser adapters, DB mode selection, isolated sessions and safe mapping. |
-| [V1-015](V1-015-ffe-adapter.md)                       | FFE Playwright/XML batch adapter and bounded parser.                                      |
+| [V1-015](V1-015-ffe-adapter.md)                       | FFE request/browser JSON adapters, one-year searches, isolated sessions and safe mapping. |
 | [V1-016](V1-016-refresh-events-and-notifications.md)  | Manual refresh run API, SSE recovery model, and ntfy publishing.                          |
 | [V1-017](V1-017-structured-logging.md)                | Shared Pino logging, safe errors, redaction, and request/worker context.                  |
 | [V1-018](V1-018-release-readiness.md)                 | Full integration verification, security review, documentation, and v1 gate.               |
 
 ## Shared completion rule
+
+V1-015's [request-based exploration](V1-015-ffe-request-exploration.md) confirmed
+HTTP login and sequential per-reference JSON retrieval without XML. Native batch
+support is unverified; the approved adapter specification uses sequential reads
+in one session. See the [implementation summary](../implementation-summary/V1-015-implementation-summary.md)
+for verification, boundaries, and deployment notes.
 
 Every implementation ticket must finish with passing relevant format, lint, typecheck, unit, integration/e2e, and build checks. If a listed check cannot run, the handoff must state the exact blocker; it is not silently skipped. Every database behavior is verified against real PostgreSQL, not SQLite or an in-memory substitute.

@@ -91,9 +91,12 @@ grd-dashboard-be/
 │       │           ├── ffe.module.ts
 │       │           ├── ffe.adapter.ts
 │       │           ├── ffe.browser.ts
-│       │           ├── ffe-export.parser.ts
-│       │           ├── ffe.schemas.ts
-│       │           └── ffe.mapper.ts
+│       │           ├── ffe.browser-network.ts
+│       │           ├── ffe.request.ts
+│       │           ├── ffe.config.ts
+│       │           ├── ffe.failure.ts
+│       │           ├── ffe.protocol.ts
+│       │           └── ffe.mapping.ts
 │       ├── shipments/
 │       │   ├── shipments.module.ts
 │       │   ├── shipments.controller.ts

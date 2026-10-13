@@ -53,15 +53,15 @@ and peer requirements were checked before explicit implementation approval.
 
 The following are recommended but are not blanket-approved by this plan. The implementing ticket must inspect current project capabilities, verify current maintenance/compatibility from primary sources, explain material tradeoffs, and obtain explicit approval before installation:
 
-| Capability                     | Candidate                                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Request validation integration | Evaluate compatible Nest built-ins with the installed Zod package; additional integrations require approval. |
-| OpenAPI                        | `@nestjs/swagger`.                                                                                           |
-| Additional HTTP integrations   | V1-013 approved direct Axios and axios-retry. `@nestjs/axios` remains unselected.                            |
-| Browser automation             | Playwright approved in V1-014; reuse the pinned package for FFE.                                             |
-| FFE XML                        | `fast-xml-parser`.                                                                                           |
-| Additional Carrier throttling  | V1-013 approved Bottleneck for UPS; reuse it where later adapters require physical request limiting.         |
-| Authentication                 | Selected only after Ticket V1-009 resolves the auth model.                                                   |
+| Capability                     | Candidate                                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Request validation integration | Evaluate compatible Nest built-ins with the installed Zod package; additional integrations require approval.          |
+| OpenAPI                        | `@nestjs/swagger`.                                                                                                    |
+| Additional HTTP integrations   | V1-013 approved direct Axios and axios-retry. `@nestjs/axios` remains unselected.                                     |
+| Browser automation             | Playwright approved in V1-014; reuse the pinned package for FFE.                                                      |
+| FFE HTML / tracking            | V1-015: approved `cheerio@1.2.0` for login/protected HTML; Axios or Playwright for per-reference JSON. No XML parser. |
+| Additional Carrier throttling  | V1-013 approved Bottleneck for UPS; reuse it where later adapters require physical request limiting.                  |
+| Authentication                 | Selected only after Ticket V1-009 resolves the auth model.                                                            |
 
 Node built-in `fetch` is sufficient for simple ntfy calls. RxJS, already required by Nest, is sufficient for SSE. PostgreSQL generates UUIDv4-compatible random UUIDs with `gen_random_uuid()`.
 

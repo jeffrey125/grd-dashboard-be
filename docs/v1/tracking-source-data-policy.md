@@ -56,15 +56,21 @@ store null source data. Invalid or oversized responses never enter persistence.
 
 ### FFE allowlist example
 
-Store only the matching shipment record, converted to JSON. Do not duplicate the complete account export for every Shipment.
+V1-015 uses this exact eight-field projection of the selected JSON record in both
+request and browser modes. Missing optional values are null; raw date/status
+strings remain unchanged. No XML is downloaded. Failed/not-found source data is
+null; sibling records and all unlisted fields are discarded.
 
 ```json
 {
-  "OrderNumber": "9685575",
-  "ShipmentStatus": "Delivered",
-  "ApptPickupDate": "09/02/2026",
-  "ApptDeliveryDate": "09/10/2026",
-  "DeliveryDate": "09/11/2026"
+  "orderNumber": "9685575",
+  "shipmentStatus": "Delivered",
+  "pickupDate": "2026-09-03T00:00:00",
+  "apptPickupDate": "2026-09-02T00:00:00",
+  "apptDeliveryDate": "2026-09-10T00:00:00",
+  "schedDeliveryDate": null,
+  "requestedDeliveryDate": null,
+  "deliveryDate": "2026-09-11T00:00:00"
 }
 ```
 
@@ -113,7 +119,7 @@ application-level artifact retention or change the source-data allowlist.
 Exact responses should not be stored in `shipment_tracking_snapshots` or duplicated across Shipment attempts. If a future audit or debugging requirement justifies retaining them, use a separate artifact design:
 
 - UPS response: one artifact for the relevant request or attempt.
-- FFE export: one artifact for the Carrier tracking run, because the file contains many shipments.
+- FFE: no export is fetched by V1-015; any future raw capture needs separate approval.
 - EchoShip: capture only the allowlisted API projection; store DOM, HTML or screenshots only for an explicitly approved diagnostic workflow.
 - Store artifact metadata in PostgreSQL and large content in approved object storage rather than PostgreSQL. No object-storage provider, SDK, or production dependency is selected yet.
 

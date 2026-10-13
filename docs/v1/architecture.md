@@ -9,7 +9,7 @@ flowchart LR
     Worker[Worker process\nworker.ts] --> DB
     Worker --> UPS[UPS API]
     Worker --> Echo[EchoShip request or browser]
-    Worker --> FFE[FFE browser/XML]
+    Worker --> FFE[FFE request or browser JSON]
     Worker --> Ntfy[ntfy]
 ```
 
@@ -49,17 +49,19 @@ minute; ticks during an active round do not start another round. No worker HTTP
 listener or Start/Stop endpoint is added. `TrackingSchedulerService.status()`
 exposes safe state/reason codes internally, and failures produce structured logs.
 
-V1-013 registers UPS and V1-014 registers both EchoShip modes in the worker. FFE
-remains unimplemented until V1-015. An enabled Carrier with no adapter prevents worker
-startup, even without Shipments. On a fresh seeded database, disable unfinished
-Carriers through the existing Carrier configuration API and supply credentials
-for enabled UPS/EchoShip before starting the worker. Tests mock Carrier I/O; production
+V1-013 registers UPS, V1-014 registers both EchoShip modes, and V1-015 registers
+both FFE modes in the worker. An enabled Carrier without valid configuration
+prevents worker startup, even without Shipments. Supply credentials for every
+enabled Carrier or disable it through the Carrier configuration API. Tests mock Carrier I/O; production
 never returns synthetic tracking results.
-EchoShip reads its mode from the Carrier database row at run start and records it
+EchoShip and FFE read their mode from the Carrier database row at run start and record it
 on the run. Browser mode additionally requires Chromium and its OS libraries;
 install using `pnpm exec playwright install --with-deps chromium`. Request mode
-does not launch a browser or require an installed browser binary. Each EchoShip
+does not launch a browser or require an installed browser binary. Each EchoShip/FFE
 run creates fresh isolated authentication state; no cookies persist to disk.
+FFE uses per-reference one-year JSON searches in either mode, with common mapping,
+no XML, no re-login, and no automatic fallback. Chromium request-stage interception
+enforces the credential origin and physical deadlines across redirect hops.
 Every scan revalidates enabled Carriers. A worker-level configuration/persistence
 failure stops further scans with a safe failed state; resolve it and restart the
 process. Provider lookup/session errors are isolated to their run/attempts.

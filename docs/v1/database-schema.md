@@ -104,9 +104,11 @@ Rules:
 - Referenced Carriers use `ON DELETE NO ACTION`; normal removal is soft deletion or `is_active = false`.
 
 V1-014 adds `carriers.fetch_mode varchar(10) NOT NULL DEFAULT 'request'`, checked
-against `request`/`browser`. Existing UPS and EchoShip use request; FFE is initialized
-to browser. The Carrier API exposes `fetchMode` and rejects unsupported choices
-(UPS request only, EchoShip either, FFE browser only). This is the sole mode source;
+against `request`/`browser`. Existing UPS and EchoShip use request. V1-014 initially
+set FFE to browser; V1-015's `FfeRequestMode1792022400000` migration changes it to
+request (down restores browser), without editing historical runs. The Carrier API
+exposes `fetchMode` and rejects unsupported choices
+(UPS request only, EchoShip and FFE either). This is the sole mode source;
 credentials/endpoints remain environment configuration.
 
 The same migration adds nullable `tracking_runs.fetch_mode varchar(10)` with the
@@ -211,7 +213,7 @@ Rules:
 
 ## 4. `tracking_runs`
 
-One row represents one scheduled or manual execution of one Carrier adapter. A scheduled cycle that processes three Carriers creates three runs. One FFE XML batch is one run containing multiple attempts.
+One row represents one scheduled or manual execution of one Carrier adapter. A scheduled cycle that processes three Carriers creates three runs. One FFE session is one run containing sequential per-reference attempts.
 
 | Column            | Type                                  | Null | Default/meaning                                           |
 | ----------------- | ------------------------------------- | ---- | --------------------------------------------------------- |

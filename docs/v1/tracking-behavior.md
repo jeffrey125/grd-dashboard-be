@@ -152,11 +152,30 @@ the approved rule is that provider API detail/tracking data remains authoritativ
 
 ### FFE
 
-- Uses Playwright to log in and download one account XML export for a Carrier run.
-- Bound the in-memory export at 25 MiB and reject DTD/entity content.
-- Validate XML before parsing and map only requested due Shipments.
-- One export serves the whole FFE run; do not download once per Shipment.
-- Store only the matching record as `source_data`, not the complete account export per attempt.
+- V1-015 defaults to request mode; browser mode is an explicit Carrier API choice.
+  Both use per-reference JSON from the one-year archive, never account XML.
+- Open one fresh isolated authenticated session per run; perform sequential
+  lookups. No immediate retry, mid-run login, or automatic mode fallback.
+- Request mode uses form-token/cookie login. Browser mode uses real login,
+  archive-toggle and search interactions; observed JSON is authoritative, not DOM text.
+- Compare exact references. No reliable record-update timestamp was observed;
+  select the first exact record in response order rather than guessing freshness.
+- Normalize pickup from valid `pickupDate`, then `apptPickupDate`; retain both
+  raw fields. Estimate precedence is `apptDeliveryDate`, `schedDeliveryDate`,
+  `requestedDeliveryDate`. Preserve calendar dates without timezone conversion.
+- Set delivered date only for case-insensitive Delivered status plus valid
+  `deliveryDate`. Delivered without a date stays monitored. Invalid optional dates
+  become null and shared persistence retains previous known values.
+- Verify authentication before accepting absence; unauthorized FFE requests can
+  return an empty HTTP 200. Authentication failure invalidates the session;
+  earlier successes persist. Technical failures do not advance not-found counters.
+- Request absence requires complete search within ten 100-row pages. Browser
+  absence requires complete observed results; partial results fail safely.
+  Absence is limited to one year and can pause older shipments at the configured threshold.
+- Enforce 30-second physical I/O and 4 MiB response limits; browser buffering is
+  not a hard process-memory limit. Share worker-lifetime optional RPM pacing.
+- Store only the selected eight-field [source projection](tracking-source-data-policy.md#ffe-allowlist-example).
+  Notifications when monitoring stops remain V1-016 scope, not adapter behavior.
 
 ## Normalized tracking state
 
