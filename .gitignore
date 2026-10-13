@@ -11,3 +11,14 @@
 
 # Local temporary files and diagnostic captures.
 /tmp/
+
+# Local carrier/browser inspection artifacts may contain authenticated data.
+/artifacts/
+/.playwright-cli/
+/.playwright-profile/
+/playwright/.auth/
+/.playwright/.auth/
+**/storage-state.json
+/playwright-report/
+/test-results/
+/blob-report/

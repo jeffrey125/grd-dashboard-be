@@ -70,17 +70,38 @@ Store only the matching shipment record, converted to JSON. Do not duplicate the
 
 ### EchoShip allowlist example
 
-Store extracted source text rather than the complete authenticated HTML page.
+V1-014 stores this projection for successful request-mode lookups. Only the
+selected event (modified date descending, then created date descending) is retained,
+never the complete history or list. Missing
+optional load values are null; optional event fields may be omitted. IDs are
+canonical strings; original date and status strings remain unconverted.
 
 ```json
 {
-  "statusText": "In Transit",
-  "ediStatusText": "Arrived at terminal",
-  "pickedUpText": "Picked Up Sep 8",
-  "deliveryHeading": "Estimated Delivery",
-  "deliveryText": "Estimated Delivery Sep 12"
+  "load": {
+    "id": "69451086",
+    "pickupDate": "2026-10-08T16:23:00",
+    "deliveryDate": null,
+    "deliveryByDate": null,
+    "deliveryAppointmentStart": null
+  },
+  "trackingEvent": {
+    "id": "69451086",
+    "typeName": "Shipment enroute",
+    "notes": "Arrived at terminal",
+    "createdDate": "2026-10-13T10:00:00",
+    "modifiedDate": "2026-10-13T10:05:00"
+  }
 }
 ```
+
+Browser mode stores the same `load` and `trackingEvent` projection from JSON
+responses naturally observed during navigation. The provider API is authoritative;
+DOM and feature-selected location-history text cannot override it. This supersedes
+the initial DOM-only example whose dates omitted the year. Failed/not-found
+outcomes store null. HTML, addresses, prices, account data, credentials,
+cookie/session values and full responses are excluded. Local exploration captures
+remain Git-ignored, not production source-data storage.
 
 ## Full raw artifacts
 
@@ -93,7 +114,7 @@ Exact responses should not be stored in `shipment_tracking_snapshots` or duplica
 
 - UPS response: one artifact for the relevant request or attempt.
 - FFE export: one artifact for the Carrier tracking run, because the file contains many shipments.
-- EchoShip: capture an allowlisted DOM extract by default; store HTML or screenshots only for an explicitly approved diagnostic workflow.
+- EchoShip: capture only the allowlisted API projection; store DOM, HTML or screenshots only for an explicitly approved diagnostic workflow.
 - Store artifact metadata in PostgreSQL and large content in approved object storage rather than PostgreSQL. No object-storage provider, SDK, or production dependency is selected yet.
 
 ## Security and privacy requirements

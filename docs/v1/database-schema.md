@@ -102,6 +102,20 @@ Rules:
 - The initial single-node worker may enforce this limit in process. If tracking workers later run on multiple nodes, they must share or partition the Carrier quota so each node does not independently spend the full limit.
 - Carrier credentials and endpoints remain configuration/secrets, not database columns.
 - Referenced Carriers use `ON DELETE NO ACTION`; normal removal is soft deletion or `is_active = false`.
+
+V1-014 adds `carriers.fetch_mode varchar(10) NOT NULL DEFAULT 'request'`, checked
+against `request`/`browser`. Existing UPS and EchoShip use request; FFE is initialized
+to browser. The Carrier API exposes `fetchMode` and rejects unsupported choices
+(UPS request only, EchoShip either, FFE browser only). This is the sole mode source;
+credentials/endpoints remain environment configuration.
+
+The same migration adds nullable `tracking_runs.fetch_mode varchar(10)` with the
+same value check. Queued and historical runs stay null. Starting a run captures
+the selected Carrier mode under a shared Carrier lock in the start transaction;
+later Carrier edits cannot change that run's mode. No new foreign key or event
+timestamp column is introduced. Rollback drops these two configuration/evidence
+columns and their checks; it therefore discards recorded mode history.
+
 - V1-007 exposes reads and configuration updates only. Administrators use
   `is_active` to disable/enable; no Carrier deletion or restoration API is exposed.
   Existing soft-deleted Carriers are excluded from reads, updates, and active selection.

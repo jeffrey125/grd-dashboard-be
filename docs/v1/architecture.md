@@ -8,7 +8,7 @@ flowchart LR
     API --> DB[(PostgreSQL)]
     Worker[Worker process\nworker.ts] --> DB
     Worker --> UPS[UPS API]
-    Worker --> Echo[EchoShip browser]
+    Worker --> Echo[EchoShip request or browser]
     Worker --> FFE[FFE browser/XML]
     Worker --> Ntfy[ntfy]
 ```
@@ -49,12 +49,17 @@ minute; ticks during an active round do not start another round. No worker HTTP
 listener or Start/Stop endpoint is added. `TrackingSchedulerService.status()`
 exposes safe state/reason codes internally, and failures produce structured logs.
 
-V1-013 registers the real UPS adapter in the worker. EchoShip and FFE remain
-unimplemented until V1-014–015. An enabled Carrier with no adapter prevents worker
+V1-013 registers UPS and V1-014 registers both EchoShip modes in the worker. FFE
+remains unimplemented until V1-015. An enabled Carrier with no adapter prevents worker
 startup, even without Shipments. On a fresh seeded database, disable unfinished
 Carriers through the existing Carrier configuration API and supply credentials
-for enabled UPS before starting the worker. Tests mock Carrier I/O; production
+for enabled UPS/EchoShip before starting the worker. Tests mock Carrier I/O; production
 never returns synthetic tracking results.
+EchoShip reads its mode from the Carrier database row at run start and records it
+on the run. Browser mode additionally requires Chromium and its OS libraries;
+install using `pnpm exec playwright install --with-deps chromium`. Request mode
+does not launch a browser or require an installed browser binary. Each EchoShip
+run creates fresh isolated authentication state; no cookies persist to disk.
 Every scan revalidates enabled Carriers. A worker-level configuration/persistence
 failure stops further scans with a safe failed state; resolve it and restart the
 process. Provider lookup/session errors are isolated to their run/attempts.

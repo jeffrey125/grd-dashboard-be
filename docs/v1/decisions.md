@@ -35,6 +35,13 @@ Use a currently supported Node LTS release that satisfies the selected stable Ne
 
 ## Approved development dependencies
 
+V1-014 additionally approves `playwright@1.64.0`, `tough-cookie@6.0.2`, and
+`axios-cookiejar-support@7.0.0` as **production** dependencies for EchoShip's
+browser backup and rotating-cookie request sessions. Existing Axios, Zod and
+Bottleneck are reused; EchoShip does not use axios-retry. Mode selection is in
+the Carrier database row, not environment configuration. Public registry engine
+and peer requirements were checked before explicit implementation approval.
+
 - Nest CLI and schematics, TypeScript, and Node/Express types.
 - Vitest, Nest testing utilities, V8 coverage, and TypeScript path resolution.
 - Supertest and its types.
@@ -51,7 +58,7 @@ The following are recommended but are not blanket-approved by this plan. The imp
 | Request validation integration | Evaluate compatible Nest built-ins with the installed Zod package; additional integrations require approval. |
 | OpenAPI                        | `@nestjs/swagger`.                                                                                           |
 | Additional HTTP integrations   | V1-013 approved direct Axios and axios-retry. `@nestjs/axios` remains unselected.                            |
-| Browser automation             | `playwright`.                                                                                                |
+| Browser automation             | Playwright approved in V1-014; reuse the pinned package for FFE.                                             |
 | FFE XML                        | `fast-xml-parser`.                                                                                           |
 | Additional Carrier throttling  | V1-013 approved Bottleneck for UPS; reuse it where later adapters require physical request limiting.         |
 | Authentication                 | Selected only after Ticket V1-009 resolves the auth model.                                                   |

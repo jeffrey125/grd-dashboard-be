@@ -117,11 +117,38 @@ They do not enforce limits shared with other applications using the same account
 
 ### EchoShip
 
-- Uses Playwright in a headless browser.
-- Configure `ECHOSHIP_URL`, `ECHOSHIP_USERNAME`, and `ECHOSHIP_PASSWORD`.
-- Log in once per run/session, navigate back to a fresh Shipment search for every lookup, and read Shipments sequentially in v1.
-- Only an absent search result is `not_found`; browser, navigation, login, or parsing failures are technical failures.
-- Store allowlisted extracted source text, never authenticated HTML or cookies.
+- V1-014 implements request and browser modes, selected by `carriers.fetch_mode`
+  through the Carrier API (`fetchMode`). Request is the default; browser is a
+  manually selected backup. No environment selector or automatic fallback.
+- Capture the chosen mode on the run at execution start. Changes affect the next
+  run. Queued/historical runs have null mode until started. Manual and scheduled
+  work follow the same transport/session policy.
+- Configure `ECHOSHIP_URL`, `ECHOSHIP_USERNAME`, `ECHOSHIP_PASSWORD`; optional
+  `ECHOSHIP_BROWSER_EXECUTABLE_PATH` selects a system Chromium installation.
+  The origin is restricted to `https://echoship.com`. Enabled-worker validation
+  remains lazy; the API and disabled EchoShip do not require credentials.
+- Fresh verified login once per run, sequential lookups, close afterward. No
+  immediate retry or mid-run re-login. Authentication rejection fails subsequent
+  lookups without more requests; earlier successes survive. Recovery waits for
+  the next automated run or manual refresh. Other Carriers continue.
+- Only complete authenticated searches without an exact reference are not-found.
+  Partial/malformed searches and detail/tracking failures are technical failures.
+  Request searches are capped at ten 100-result pages; browser partial-page
+  absence remains unconfirmed. HTTP 400/404 is not treated as proof of absence.
+- Use the detail and tracking APIs as authoritative in both modes. Status/detail
+  use descending modified date, then descending created date. Browser mode maps
+  JSON responses naturally observed during navigation and does not issue separate
+  Axios requests. DOM or location-history text cannot override API values.
+- Preserve source calendar dates: pickupDate, deliveryDate, and Delivery stop
+  appointmentStart followed by deliveryByDate for an undelivered estimate. No
+  timezone conversion, broad-list estimate fallback, or event timestamp columns.
+- Store only the successful lookup allowlist; failed/not-found source data is null.
+  Bounded I/O, privacy, pacing and cleanup details are in the
+  [V1-014 ticket](tickets/V1-014-echoship-adapter.md).
+
+The account's dynamic `viewTrackingData` feature can switch the visible portal
+panel to location-history records. That display may disagree with `/tracking`;
+the approved rule is that provider API detail/tracking data remains authoritative.
 
 ### FFE
 
