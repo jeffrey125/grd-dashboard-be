@@ -151,6 +151,15 @@ Constraints and indexes:
 
 A single `not_found` attempt does not change `monitoring_status`, clear the current snapshot, or remove the Shipment from future scheduling. Each consecutive `not_found` increments the counter. When it reaches the Carrier's `not_found_pause_threshold`—initially `5`—set `monitoring_status = 'paused'`, `monitoring_reason = 'not_found_threshold'`, and `next_check_at = NULL`. A later successful manual refresh resets the counter, clears the reason, and returns the Shipment to `active` unless the normalized result is delivered.
 
+V1-008 creates active Shipments with `next_check_at` set to the database wall-clock
+time and leaves `verification_url` null until the first successful lookup. Manual
+pause permits only active → paused/manual and clears the next check; manual resume
+permits only paused/manual → active and schedules immediately. Both preserve the
+not-found counter and snapshot pointer. Soft deletion clears the next check but
+preserves history. Notes and lifecycle writes increment `lock_version`; no public
+optimistic-version API is introduced. Future tracking writes must honor the
+version/deletion checks so in-flight work cannot overwrite manual lifecycle changes.
+
 The scheduler wakes every 60 seconds but selects only due Shipments. After a finalized scheduled attempt, compute `next_check_at` from the attempt completion time plus the effective interval. The effective interval is the greater of `carriers.poll_interval_minutes` and any hard minimum exposed by the adapter; UPS CIE therefore remains at least 60 minutes even when its database value is 30. A manual refresh does not move an already-active Shipment's scheduled `next_check_at`; reactivating a paused Shipment schedules its next check from the refresh completion time.
 
 ## 3. `shipment_tracking_snapshots`

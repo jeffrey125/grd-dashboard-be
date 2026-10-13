@@ -20,6 +20,10 @@ Implement repositories and application operations for tracking runs, attempts, i
 - Create/start/finalize runs and create/finalize exactly one logical attempt per Shipment per run.
 - For `found`, merge missing Carrier fields with known state, compare the complete normalized snapshot, insert only on change, and update the pointer/attempt/Shipment atomically.
 - Implement `not_found`, threshold pause at 5, `failed`, `skipped`, delivered completion, scheduling metadata, and optimistic concurrency behavior.
+- Integrate V1-008's Carrier reference-policy URL builder: populate a null
+  verification URL only after a successful lookup and retain it through failures.
+  Respect Shipment version/deletion checks and manual pause/resume state so a
+  concurrent management operation cannot be overwritten by stale tracking work.
 - Store only sanitized allowlisted `source_data`; no raw artifact storage.
 
 ## Acceptance criteria

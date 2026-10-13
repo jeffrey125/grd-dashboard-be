@@ -6,9 +6,30 @@
 - `tracking_reference` is a trimmed Carrier-understood string up to 255 characters.
 - Active uniqueness is scoped to `(carrier_id, tracking_reference)`; a soft-deleted pair may be added again.
 - Notes are user-maintained and limited to 500 characters.
-- Carrier-specific validation belongs to the adapter or a Carrier validation interface, not the controller.
+- Reference validation belongs to the Carrier policy interface, not the controller.
+  V1-008 explicitly uses generic trimmed, nonempty strings up to 255 UTF-16 code
+  units for every Carrier, preserving case and leading zeros and rejecting NUL
+  and JSON numbers. Provider-specific format restrictions are not applied.
 - Bulk creation accepts 1-10 explicit items, validates the complete input before writing, deduplicates normalized pairs, writes atomically, and reports inserted versus active duplicates.
 - APIs never expose internal integer IDs.
+
+V1-008 uses one `POST /shipments` endpoint with 1–10 `items`. The last occurrence
+of an in-request normalized pair supplies its notes, including null for omitted
+notes. Existing non-deleted pairs (even paused/completed) remain unchanged and
+are reported as duplicates. At least one insertion returns 201; all duplicates
+returns 200. Any invalid row, unavailable Carrier, or database failure inserts
+nothing. Carrier eligibility is checked again under database locks.
+
+New Shipments are active and immediately due, with `verification_url = NULL`.
+The Carrier interface can build a URL without opening a tracking session; persist
+it only after the first successful lookup and preserve it through later failures.
+
+Manual pause changes only active Shipments to paused/manual and clears the next
+check. Manual resume accepts only paused/manual, returns it to active, clears the
+reason, and schedules it immediately. Neither operation resets the not-found
+counter or tracking history. Invalid/repeated transitions return 409. Threshold
+pause requires a successful manual refresh; delivered remains terminal. Carrier
+disablement still prevents the future scheduler from selecting its Shipments.
 
 ## Polling
 
