@@ -21,6 +21,11 @@ Expose authenticated single-Shipment manual refresh as a queued tracking-run res
 - Worker processes queued manual work before scheduled work.
 - Add SSE events for Shipment/run changes with heartbeat and reconnect behavior that treats PostgreSQL as truth.
 - Publish allowed change/error notifications to ntfy through a notification interface using Node built-in `fetch` unless a new client is explicitly approved.
+- Notify the user when a Shipment transitions to completed/delivered or becomes
+  automatically paused at the consecutive-not-found threshold. Apply this to UPS,
+  EchoShip, and FFE; include the shipment reference and the reason monitoring
+  stopped. This requirement was approved during the V1-015 interview; notification
+  implementation remains in V1-016.
 
 ## Acceptance criteria
 
@@ -30,6 +35,11 @@ Expose authenticated single-Shipment manual refresh as a queued tracking-run res
 - Duplicate/conflicting manual requests have one documented deterministic outcome and cannot produce concurrent same-Carrier execution.
 - `requested_by_id` comes from the authenticated principal.
 - Notification failure never rolls back tracking persistence and is visible through safe diagnostics.
+- Emit one stop notification per completed/delivered or automatic-threshold-pause
+  transition, not repeatedly while the Shipment remains in that state. A later
+  reactivation and subsequent automatic pause is a new transition. Define and test
+  delivery/retry deduplication during V1-016; this does not promise exactly-once
+  external delivery. Ordinary tracking failures must not claim monitoring stopped.
 - Reconnecting clients can recover current run/Shipment state from HTTP/PostgreSQL even if they missed SSE events.
 - Tests cover authorization, queue handoff, outcome behavior, event ordering/reconnect, heartbeat cleanup, notification success/failure, and shutdown cancellation.
 
