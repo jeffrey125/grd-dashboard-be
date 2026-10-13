@@ -84,6 +84,11 @@ Store extracted source text rather than the complete authenticated HTML page.
 
 ## Full raw artifacts
 
+The user-authorized V1-013 local UPS capture is documented in
+[`ups-raw-response-capture.md`](ups-raw-response-capture.md). Its complete JSON is
+kept in the Git-ignored root `tmp/` directory. This manual diagnostic capture does not enable
+application-level artifact retention or change the source-data allowlist.
+
 Exact responses should not be stored in `shipment_tracking_snapshots` or duplicated across Shipment attempts. If a future audit or debugging requirement justifies retaining them, use a separate artifact design:
 
 - UPS response: one artifact for the relevant request or attempt.

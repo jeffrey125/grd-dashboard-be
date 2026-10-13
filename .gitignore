@@ -8,3 +8,6 @@
 !.env.example
 .DS_Store
 /.test-dist/
+
+# Local temporary files and diagnostic captures.
+/tmp/
