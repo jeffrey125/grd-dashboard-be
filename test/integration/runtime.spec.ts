@@ -60,7 +60,7 @@ beforeAll(async () => {
   await source.initialize();
   try {
     await source.runMigrations();
-    // V1-012 ships the scheduler; real adapters arrive in V1-013 through V1-015.
+    // These process tests must never make live Carrier requests.
     await source.query('UPDATE carriers SET is_active = false');
   } finally {
     await source.destroy();
@@ -266,36 +266,43 @@ describe.each([
 });
 
 describe('runtime boundaries', () => {
-  it('refuses worker startup for an enabled missing adapter without affecting API startup', async () => {
-    const source = new DataSource(
-      createDatabaseOptions(createConfiguration(runtimeEnvironment)),
-    );
-    await source.initialize();
-    try {
-      await source.query(
-        "UPDATE carriers SET is_active = true WHERE code = 'ups'",
+  it.each([
+    ['echoship', 'ADAPTER_MISSING'],
+    ['ups', 'ADAPTER_CONFIGURATION_INVALID'],
+  ])(
+    'refuses worker startup for enabled %s without a valid adapter while the API starts',
+    async (code, reasonCode) => {
+      const source = new DataSource(
+        createDatabaseOptions(createConfiguration(runtimeEnvironment)),
       );
-      const worker = start('worker', runtimeEnvironment);
-      await waitForExit(worker);
-      expect(worker.child.exitCode).toBe(1);
-      expect(worker.output()).not.toContain('Worker ready');
-      expect(jsonRecords(worker)).toContainEqual(
-        expect.objectContaining({
-          event: 'tracking.worker.failed',
-          reasonCode: 'ADAPTER_MISSING',
-          carrierCode: 'ups',
-        }),
-      );
-      const api = start('main', {
-        ...runtimeEnvironment,
-        PORT: await availablePort(),
-      });
-      await waitForReady(api, 'API');
-    } finally {
-      await source.query('UPDATE carriers SET is_active = false');
-      await source.destroy();
-    }
-  });
+      await source.initialize();
+      try {
+        await source.query(
+          'UPDATE carriers SET is_active = true WHERE code = $1',
+          [code],
+        );
+        const worker = start('worker', runtimeEnvironment);
+        await waitForExit(worker);
+        expect(worker.child.exitCode).toBe(1);
+        expect(worker.output()).not.toContain('Worker ready');
+        expect(jsonRecords(worker)).toContainEqual(
+          expect.objectContaining({
+            event: 'tracking.worker.failed',
+            reasonCode,
+            carrierCode: code,
+          }),
+        );
+        const api = start('main', {
+          ...runtimeEnvironment,
+          PORT: await availablePort(),
+        });
+        await waitForReady(api, 'API');
+      } finally {
+        await source.query('UPDATE carriers SET is_active = false');
+        await source.destroy();
+      }
+    },
+  );
 
   it('reuses one DataSource across repeated imports and closes its pool with the context', async () => {
     for (const [key, value] of Object.entries({
