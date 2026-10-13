@@ -79,7 +79,15 @@ function start(
   const child = spawn(process.execPath, [resolve('dist', `${entry}.js`)], {
     cwd,
     // Do not inherit developer credentials or other application configuration.
-    env: { PATH: process.env.PATH, ...env },
+    env: {
+      PATH: process.env.PATH,
+      ECHOSHIP_URL: '',
+      ECHOSHIP_USERNAME: '',
+      ECHOSHIP_PASSWORD: '',
+      UPS_CLIENT_ID: '',
+      UPS_CLIENT_SECRET: '',
+      ...env,
+    },
     stdio: 'pipe',
   });
   let output = '';
@@ -268,7 +276,8 @@ describe.each([
 
 describe('runtime boundaries', () => {
   it.each([
-    ['echoship', 'ADAPTER_MISSING'],
+    ['ffe', 'ADAPTER_MISSING'],
+    ['echoship', 'ADAPTER_CONFIGURATION_INVALID'],
     ['ups', 'ADAPTER_CONFIGURATION_INVALID'],
   ])(
     'refuses worker startup for enabled %s without a valid adapter while the API starts',

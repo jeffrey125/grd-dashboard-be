@@ -59,5 +59,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Require Docker runtime
         run: docker info
+      - name: Install Chromium for intercepted browser fixtures
+        run: pnpm exec playwright install --with-deps chromium
       - name: PostgreSQL integration tests
         run: pnpm test:integration
