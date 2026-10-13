@@ -162,6 +162,12 @@ version/deletion checks so in-flight work cannot overwrite manual lifecycle chan
 
 The scheduler wakes every 60 seconds but selects only due Shipments. After a finalized scheduled attempt, compute `next_check_at` from the attempt completion time plus the effective interval. The effective interval is the greater of `carriers.poll_interval_minutes` and any hard minimum exposed by the adapter; UPS CIE therefore remains at least 60 minutes even when its database value is 30. A manual refresh does not move an already-active Shipment's scheduled `next_check_at`; reactivating a paused Shipment schedules its next check from the refresh completion time.
 
+V1-012 measures any additional adapter-minimum eligibility check using scheduled
+attempt history, not `last_attempted_at`, because that column includes manual
+refreshes. Manual refresh must not delay automatic tracking. Skipped and
+worker-interrupted attempts do not establish a new scheduled minimum. This uses
+the existing attempt/run tables and requires no additional column or migration.
+
 ## 3. `shipment_tracking_snapshots`
 
 One immutable row is the complete normalized tracking state first observed when the known tracking facts changed. Polls that return identical normalized data do not create another snapshot.

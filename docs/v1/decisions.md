@@ -30,6 +30,7 @@ Use a currently supported Node LTS release that satisfies the selected stable Ne
 | `@nestjs/cache-manager`, `cache-manager`                     | Per-process in-memory cache.                                                       |
 | `pino`                                                       | Structured JSON logging shared by the API and worker.                              |
 | `pino-http`, `nestjs-pino`                                   | Request context/completion logging and the Nest logging bridge approved in V1-017. |
+| `@nestjs/schedule@12.0.2`                                    | Worker-only minute scans and overlapping-cron prevention, approved in V1-012.      |
 
 ## Approved development dependencies
 
@@ -48,7 +49,6 @@ The following are recommended but are not blanket-approved by this plan. The imp
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | Request validation integration | Evaluate compatible Nest built-ins with the installed Zod package; additional integrations require approval. |
 | OpenAPI                        | `@nestjs/swagger`.                                                                                           |
-| Scheduler                      | `@nestjs/schedule`.                                                                                          |
 | UPS HTTP and retries           | `@nestjs/axios`, `axios`, `axios-retry`.                                                                     |
 | Browser automation             | `playwright`.                                                                                                |
 | FFE XML                        | `fast-xml-parser`.                                                                                           |

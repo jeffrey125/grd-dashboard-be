@@ -40,6 +40,12 @@ disablement still prevents the future scheduler from selecting its Shipments.
 - Compute the next scheduled check from finalized attempt completion, not start time.
 - A technical failure does not count as `not_found`; until a future retry-delay column is approved, it uses the normal effective interval.
 
+V1-012 additionally checks the adapter hard minimum against finalized **scheduled**
+attempt history. Manual attempts do not postpone automatic eligibility or change
+an active Shipment's stored `next_check_at`. Startup/shutdown interruption records
+and skipped attempts do not impose a new minimum wait. Database time controls due
+selection and outcome completion; the worker clock only triggers scans.
+
 ## Rate limiting
 
 - `carriers.rate_limit_per_minute` is nullable and must be positive when set.
@@ -98,9 +104,18 @@ Insert a new immutable snapshot only when the complete normalized known state ch
 - V1 refreshes one selected Shipment; refresh-all is excluded.
 - Return an asynchronous run resource rather than holding the HTTP request open.
 - A queued manual run is durable in PostgreSQL; the single worker checks it before scheduled work.
+- Carrier runs execute sequentially. The worker drains queued manual runs in
+  creation order before each next scheduled Carrier, without interrupting the
+  current run. Continuous manual work can delay scheduled work. An idle worker
+  discovers manual work on its next minute scan.
 - A manual refresh bypasses due-time/minimum-interval eligibility but still uses the rate limiter.
 - It does not shift the existing schedule for an active Shipment.
 - A successful result can reactivate a Shipment paused by not-found threshold; delivered remains terminal.
+
+By explicit V1-012 decision, refreshing one Shipment does not restart the minimum
+waiting period for its automatic checks. A refresh immediately before a scheduled
+check can therefore result in two nearby lookups, both subject to adapter request
+rate limiting. Other Shipments are unaffected.
 
 ## Errors, events, and notifications
 

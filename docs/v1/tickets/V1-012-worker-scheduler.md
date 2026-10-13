@@ -4,6 +4,20 @@
 
 Depends on V1-003, V1-007, and V1-011.
 
+Implementation and verification are recorded in
+[`../implementation-summary/V1-012-implementation-summary.md`](../implementation-summary/V1-012-implementation-summary.md).
+
+## Approved implementation decisions
+
+- Use `@nestjs/schedule@12.0.2` only in the worker. Real adapters remain in
+  V1-013–015; an enabled Carrier without a registered valid adapter prevents startup.
+- Execute Carrier runs sequentially and drain queued manual work between them.
+  Manual refresh targets one Shipment and must not delay its automatic checks;
+  adapter-minimum eligibility ignores manual attempt timestamps.
+- Abort on shutdown, preserve saved results, and allow 30 seconds for cleanup.
+  Retain queued manual work; recover running work and discard stale queued
+  scheduled selections at startup.
+
 ## Objective
 
 Implement the auto-starting v1 worker, due-work scheduling, Carrier grouping, adapter interface, and graceful run lifecycle without an external queue.

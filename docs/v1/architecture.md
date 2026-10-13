@@ -42,6 +42,22 @@ WorkerModule
 
 The scheduler is registered only in the worker composition root. Starting an API replica must never start polling.
 
+V1-012 uses `TrackingWorkerModule` and `@nestjs/schedule@12.0.2`. The process
+checks database readiness, validates all enabled Carrier registrations/configuration,
+recovers interrupted work, then starts an immediate scan. Later scans occur each
+minute; ticks during an active round do not start another round. No worker HTTP
+listener or Start/Stop endpoint is added. `TrackingSchedulerService.status()`
+exposes safe state/reason codes internally, and failures produce structured logs.
+
+The production adapter registry is intentionally empty until V1-013–015 supply
+real adapters. An enabled Carrier with no adapter prevents worker startup, even
+without Shipments. On a fresh seeded database, disable unfinished Carriers through
+the existing Carrier configuration API before starting an idle worker. Tests
+inject fake adapters; production never returns synthetic tracking results.
+Every scan revalidates enabled Carriers. A worker-level configuration/persistence
+failure stops further scans with a safe failed state; resolve it and restart the
+process. Provider lookup/session errors are isolated to their run/attempts.
+
 ## Module seams
 
 - Controllers translate HTTP and never construct TypeORM queries.
@@ -84,6 +100,17 @@ Manual refresh bypasses `next_check_at` and the scheduled minimum interval, but 
 ## Concurrency and recovery
 
 V1 has one worker and permits only one active run per Carrier. The worker must prevent overlapping scheduler ticks. A worker restart clears in-memory cache and sessions. On startup, stale `running` runs from the interrupted process are finalized as failed/interrupted; v1 does not claim exactly-once processing.
+
+All Carrier runs are sequential. Queued manual runs take priority between Carrier
+runs, and each session closes after its run. Shutdown aborts active adapter work
+and allows up to 30 seconds for cleanup before process termination. Completed
+outcomes remain saved; unfinished attempts receive retryable interruption reasons.
+Queued manual runs survive. Startup cancels abandoned queued scheduled runs and
+selects their work again from current Shipment state. Recovery retains V1-011's
+run summary rules: a run with saved successes and failed unfinished attempts is
+partially succeeded; interruption is recorded separately in its reason code.
+An uncooperative adapter's late result is discarded and a late-opened session is
+closed. Provider implementations must still bound their own I/O and cleanup.
 
 Three or more workers are a later architecture milestone. That milestone requires atomic claims, leases/heartbeats, idempotency, shared or partitioned Carrier quotas, and durable recovery. Do not partially implement those mechanisms in v1.
 
