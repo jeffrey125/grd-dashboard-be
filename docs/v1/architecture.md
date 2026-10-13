@@ -49,11 +49,12 @@ minute; ticks during an active round do not start another round. No worker HTTP
 listener or Start/Stop endpoint is added. `TrackingSchedulerService.status()`
 exposes safe state/reason codes internally, and failures produce structured logs.
 
-The production adapter registry is intentionally empty until V1-013–015 supply
-real adapters. An enabled Carrier with no adapter prevents worker startup, even
-without Shipments. On a fresh seeded database, disable unfinished Carriers through
-the existing Carrier configuration API before starting an idle worker. Tests
-inject fake adapters; production never returns synthetic tracking results.
+V1-013 registers the real UPS adapter in the worker. EchoShip and FFE remain
+unimplemented until V1-014–015. An enabled Carrier with no adapter prevents worker
+startup, even without Shipments. On a fresh seeded database, disable unfinished
+Carriers through the existing Carrier configuration API and supply credentials
+for enabled UPS before starting the worker. Tests mock Carrier I/O; production
+never returns synthetic tracking results.
 Every scan revalidates enabled Carriers. A worker-level configuration/persistence
 failure stops further scans with a safe failed state; resolve it and restart the
 process. Provider lookup/session errors are isolated to their run/attempts.

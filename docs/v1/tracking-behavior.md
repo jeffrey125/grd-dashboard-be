@@ -67,6 +67,54 @@ Each adapter validates configuration and references, builds a verification URL, 
 - Apply the request limiter to retries as well as first attempts.
 - Validate and map the response before persistence.
 
+V1-013 uses the approved `axios`, `axios-retry`, and `bottleneck` packages.
+`UPS_ENVIRONMENT` defaults to `cie`; production requires the explicit value
+`production`. Enabled UPS requires nonblank `UPS_CLIENT_ID` and
+`UPS_CLIENT_SECRET`. Credentials are validated lazily by the worker's enabled
+adapter check, so disabled UPS and the API do not require them.
+
+- The database RPM is capped at 10 in production and 5 in CIE; null uses that
+  environment's cap. These are conservative application caps inherited from the
+  original implementation, not a claim about an account's UPS quota. Configure
+  a lower database RPM when required by the account. All OAuth and tracking calls,
+  including retries and the 401 replay, share one worker-lifetime limiter.
+- Requests are spaced evenly, with at most one active HTTP request. A database
+  rate change waits until the previous request is at least one minute old before
+  sending under the new cap. Closing a session never resets quota or cooldown.
+- Every physical request has a 15-second timeout and fresh transaction ID.
+  OAuth permits one transient retry; tracking permits two, using 500 ms/1 second
+  backoff and valid `Retry-After`. One 401 refresh/replay is allowed per lookup;
+  that replay has the same bounded transient retry budget. Cancellation stops
+  retries. Response bodies are limited to 1 MiB, must be JSON, and redirects are
+  not followed.
+- **Approved cooldown decision:** `Retry-After` greater than 60 seconds ends the
+  lookup immediately. All further UPS lookups during that cooldown become
+  retryable `UPS_RATE_LIMITED` failures without HTTP requests. Other Carriers
+  continue. The stored message is "UPS temporarily unavailable. Tracking will
+  retry later." Actual request timeouts use `UPS_TIMEOUT`. UI status/SSE delivery
+  remains in V1-016. Scheduled failures use the normal interval; cooldown expiry
+  does not create a new job or timer to poll UPS.
+- Shipment creation retains V1-008's generic reference policy. The worker rejects
+  UPS lookup references outside 7–34 characters before making requests. Exact
+  tracking-number matching is required; empty, mismatched, duplicate, or malformed
+  package responses are technical failures. Only tracking HTTP 404 is not-found;
+  OAuth HTTP 404 is an authentication failure.
+- Prefer nonblank simplified status, falling back to description. Detail is the
+  description when different from the status. RDD takes precedence over SDD for
+  estimates; DEL supplies the delivered date; pickup remains null. Validate real
+  calendar dates before converting YYYYMMDD to YYYY-MM-DD. For repeated date
+  entries, retain the original last-RDD/last-DEL/first-SDD behavior.
+- Cache tokens with a safety margin of the smaller of 60 seconds and 10% of
+  provider lifetime, conservatively accounting for acquisition time. Concurrent
+  callers share one refresh. Late rejection of an older token cannot evict a newer
+  cached token. Cache loss/corruption causes another acquisition; a cache-operation
+  error disables cache use for the process, preserving lookups at higher OAuth
+  cost. One caller cancelling does not cancel a refresh needed by another;
+  worker shutdown aborts shared HTTP work.
+
+Quota, tokens, and cooldown are process-local and reset with the single worker.
+They do not enforce limits shared with other applications using the same account.
+
 ### EchoShip
 
 - Uses Playwright in a headless browser.

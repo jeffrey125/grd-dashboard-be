@@ -31,6 +31,13 @@ Do not add the two deferred version columns to the initial schema without explic
 
 ### UPS allowlist example
 
+V1-013 persists only the exact matched package's `trackingNumber`,
+`currentStatus.description`, optional `currentStatus.simplifiedTextDescription`,
+and optional `deliveryDate` entries containing only `type` and `date`. Original
+allowlisted strings are retained before normalization; additional package/status/
+date fields and sibling packages are discarded. UPS failed/not-found outcomes
+store null source data. Invalid or oversized responses never enter persistence.
+
 ```json
 {
   "trackingNumber": "1Z999AA10123456784",

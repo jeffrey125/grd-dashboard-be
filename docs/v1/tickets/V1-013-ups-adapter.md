@@ -4,6 +4,16 @@
 
 Depends on V1-006 and V1-012.
 
+Implemented and locally verified. See the
+[`implementation summary`](../implementation-summary/V1-013-implementation-summary.md)
+for approved decisions, verification, limitations, and proposed commits.
+
+The approved approach uses Axios, axios-retry, and Bottleneck. A valid
+`Retry-After` greater than 60 seconds immediately returns a retryable
+`UPS_RATE_LIMITED` result and pauses UPS HTTP calls across sessions until expiry;
+other Carriers continue. Actual request timeouts use `UPS_TIMEOUT`. Safe errors
+are persisted by the existing worker; UI status/SSE delivery remains in V1-016.
+
 ## Objective
 
 Implement UPS OAuth, tracking lookup, validation/mapping, bounded retries, token caching, and request throttling behind the Carrier adapter interface.

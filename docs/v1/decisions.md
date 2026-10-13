@@ -20,17 +20,18 @@ Use a currently supported Node LTS release that satisfies the selected stable Ne
 
 ## Approved production dependencies
 
-| Package                                                      | Purpose                                                                            |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express` | Framework and Express HTTP adapter.                                                |
-| `reflect-metadata`, `rxjs`                                   | Required Nest runtime dependencies.                                                |
-| `@nestjs/config`, `zod`                                      | Approved in V1-003 for environment loading and typed startup validation.           |
-| `@nestjs/terminus`                                           | Approved in V1-003 for readiness aggregation and future dependency checks.         |
-| `@nestjs/typeorm`, `typeorm`, `pg`                           | PostgreSQL persistence and migrations.                                             |
-| `@nestjs/cache-manager`, `cache-manager`                     | Per-process in-memory cache.                                                       |
-| `pino`                                                       | Structured JSON logging shared by the API and worker.                              |
-| `pino-http`, `nestjs-pino`                                   | Request context/completion logging and the Nest logging bridge approved in V1-017. |
-| `@nestjs/schedule@12.0.2`                                    | Worker-only minute scans and overlapping-cron prevention, approved in V1-012.      |
+| Package                                                      | Purpose                                                                                      |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express` | Framework and Express HTTP adapter.                                                          |
+| `reflect-metadata`, `rxjs`                                   | Required Nest runtime dependencies.                                                          |
+| `@nestjs/config`, `zod`                                      | Approved in V1-003 for environment loading and typed startup validation.                     |
+| `@nestjs/terminus`                                           | Approved in V1-003 for readiness aggregation and future dependency checks.                   |
+| `@nestjs/typeorm`, `typeorm`, `pg`                           | PostgreSQL persistence and migrations.                                                       |
+| `@nestjs/cache-manager`, `cache-manager`                     | Per-process in-memory cache.                                                                 |
+| `pino`                                                       | Structured JSON logging shared by the API and worker.                                        |
+| `pino-http`, `nestjs-pino`                                   | Request context/completion logging and the Nest logging bridge approved in V1-017.           |
+| `@nestjs/schedule@12.0.2`                                    | Worker-only minute scans and overlapping-cron prevention, approved in V1-012.                |
+| `axios@1.20.0`, `axios-retry@4.5.0`, `bottleneck@2.19.5`     | UPS HTTP, bounded retries, and worker-local physical request throttling, approved in V1-013. |
 
 ## Approved development dependencies
 
@@ -49,10 +50,10 @@ The following are recommended but are not blanket-approved by this plan. The imp
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | Request validation integration | Evaluate compatible Nest built-ins with the installed Zod package; additional integrations require approval. |
 | OpenAPI                        | `@nestjs/swagger`.                                                                                           |
-| UPS HTTP and retries           | `@nestjs/axios`, `axios`, `axios-retry`.                                                                     |
+| Additional HTTP integrations   | V1-013 approved direct Axios and axios-retry. `@nestjs/axios` remains unselected.                            |
 | Browser automation             | `playwright`.                                                                                                |
 | FFE XML                        | `fast-xml-parser`.                                                                                           |
-| Per-Carrier request throttling | `bottleneck`.                                                                                                |
+| Additional Carrier throttling  | V1-013 approved Bottleneck for UPS; reuse it where later adapters require physical request limiting.         |
 | Authentication                 | Selected only after Ticket V1-009 resolves the auth model.                                                   |
 
 Node built-in `fetch` is sufficient for simple ntfy calls. RxJS, already required by Nest, is sufficient for SSE. PostgreSQL generates UUIDv4-compatible random UUIDs with `gen_random_uuid()`.
