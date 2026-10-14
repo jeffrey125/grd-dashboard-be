@@ -2,6 +2,9 @@
 
 ## Status
 
+Complete in the working tree; implementation and verification are recorded in
+[the V1-010 summary](../implementation-summary/V1-010-implementation-summary.md).
+
 Depends on V1-008 and V1-009.
 
 ## Objective

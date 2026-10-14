@@ -18,15 +18,20 @@ export type MonitoringResult =
 export interface ShipmentsRepository {
   list(): Promise<ShipmentRecord[]>;
   find(externalId: string): Promise<ShipmentRecord | null>;
-  createMany(items: NewShipment[]): Promise<ShipmentCreationResult>;
+  createMany(
+    items: NewShipment[],
+    actorId?: number | null,
+  ): Promise<ShipmentCreationResult>;
   updateNotes(
     externalId: string,
     notes: string | null,
+    actorId?: number | null,
   ): Promise<ShipmentRecord | null>;
-  remove(externalId: string): Promise<boolean>;
+  remove(externalId: string, actorId?: number | null): Promise<boolean>;
   changeMonitoring(
     externalId: string,
     command: MonitoringCommand,
+    actorId?: number | null,
   ): Promise<MonitoringResult>;
 }
 export const SHIPMENTS_REPOSITORY = Symbol('SHIPMENTS_REPOSITORY');

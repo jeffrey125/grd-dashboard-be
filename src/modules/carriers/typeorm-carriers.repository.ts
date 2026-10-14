@@ -50,6 +50,7 @@ export class TypeOrmCarriersRepository implements CarriersRepository {
   async update(
     externalId: string,
     changes: CarrierUpdate,
+    actorId: number | null = null,
   ): Promise<CarrierRecord | null> {
     // Update only supplied settings. Hold the row lock until the response has
     // been read, so another update/deletion cannot replace this write's result.
@@ -57,7 +58,7 @@ export class TypeOrmCarriersRepository implements CarriersRepository {
       const rows = manager.getRepository(CarrierEntity);
       const result = await rows.update(
         { externalId, deletedAt: IsNull() },
-        changes,
+        { ...changes, updatedById: actorId },
       );
       if (!result.affected) return null;
       return record(await rows.findOneByOrFail({ externalId }));

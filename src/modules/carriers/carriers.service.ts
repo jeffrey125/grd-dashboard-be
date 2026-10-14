@@ -37,7 +37,11 @@ export class CarriersService {
     return carrier;
   }
 
-  async update(externalId: string, input: unknown) {
+  async update(
+    externalId: string,
+    input: unknown,
+    actorId: number | null = null,
+  ) {
     const id = parseCarrierInput(carrierExternalIdSchema, externalId);
     const changes = parseCarrierInput(updateCarrierSchema, input);
     if (changes.fetchMode) {
@@ -47,7 +51,7 @@ export class CarriersService {
           'Fetch mode is not supported by this Carrier',
         );
     }
-    const carrier = await this.repository.update(id, changes);
+    const carrier = await this.repository.update(id, changes, actorId);
     if (!carrier) throw new NotFoundException('Carrier not found');
     return carrier;
   }

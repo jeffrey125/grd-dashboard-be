@@ -1,3 +1,4 @@
+import { AuthUserEntity } from '@modules/auth/auth-user.entity.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import { TypeOrmShipmentsRepository } from '@modules/shipments/typeorm-shipments.repository.js';
@@ -21,9 +22,18 @@ describe('Tracking PostgreSQL repository', () => {
   let service: TrackingService;
   let shipments: TypeOrmShipmentsRepository;
   let ups: CarrierEntity;
+  let actorId: number;
 
   beforeAll(async () => {
     db = await shipmentDatabase();
+    actorId = (
+      await db.source.getRepository(AuthUserEntity).save({
+        name: 'Audit Employee',
+        firstName: 'Audit',
+        lastName: 'Employee',
+        email: 'audit@example.test',
+      })
+    ).id;
     service = new TrackingService(new TypeOrmTrackingRepository(db.source));
     shipments = new TypeOrmShipmentsRepository(db.source);
     ups = await db.source
@@ -36,13 +46,16 @@ describe('Tracking PostgreSQL repository', () => {
   });
 
   async function createShipment(reference: string) {
-    const result = await shipments.createMany([
-      {
-        carrierExternalId: ups.externalId,
-        trackingReference: reference,
-        notes: null,
-      },
-    ]);
+    const result = await shipments.createMany(
+      [
+        {
+          carrierExternalId: ups.externalId,
+          trackingReference: reference,
+          notes: null,
+        },
+      ],
+      actorId,
+    );
     if (result.kind !== 'created') throw new Error('Expected creation');
     return result.inserted[0]!;
   }
@@ -130,6 +143,8 @@ describe('Tracking PostgreSQL repository', () => {
       .getRepository(ShipmentEntity)
       .findOneByOrFail({ externalId: shipment.externalId });
     expect(afterChanged).toMatchObject({
+      updatedById: null,
+      createdById: actorId,
       verificationUrl:
         'https://www.ups.com/track?loc=en_US&trackn=tracking-found',
       monitoringStatus: 'active',
@@ -215,6 +230,8 @@ describe('Tracking PostgreSQL repository', () => {
       const stored = await db.source
         .getRepository(ShipmentEntity)
         .findOneByOrFail({ externalId: shipment.externalId });
+      expect(stored.updatedById).toBeNull();
+      expect(stored.createdById).toBe(actorId);
       expect(stored.consecutiveNotFoundCount).toBe(count);
       if (count < 5) {
         expect(stored.monitoringStatus).toBe('active');
@@ -265,6 +282,8 @@ describe('Tracking PostgreSQL repository', () => {
       .getRepository(ShipmentEntity)
       .findOneByOrFail({ externalId: shipment.externalId });
     expect(stored).toMatchObject({
+      updatedById: null,
+      createdById: actorId,
       consecutiveNotFoundCount: 2,
       currentTrackingSnapshotId: null,
       verificationUrl: 'https://example.test/already-known',

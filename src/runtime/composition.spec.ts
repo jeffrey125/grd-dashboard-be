@@ -1,3 +1,4 @@
+import { AUTH_ENGINE } from '@modules/auth/auth.engine.js';
 import { Test } from '@nestjs/testing';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
@@ -23,11 +24,15 @@ describe('composition roots', () => {
     const api = await Test.createTestingModule({ imports: [AppModule] })
       .overrideModule(DatabaseModule)
       .useModule(TestDatabaseModule)
+      .overrideProvider(AUTH_ENGINE)
+      .useValue({})
       .compile();
     try {
       const worker = await Test.createTestingModule({ imports: [WorkerModule] })
         .overrideModule(DatabaseModule)
         .useModule(TestDatabaseModule)
+        .overrideProvider(AUTH_ENGINE)
+        .useValue({})
         .compile();
       try {
         const apiCache = api.get<Cache>(CACHE_MANAGER);
@@ -54,6 +59,8 @@ describe('composition roots', () => {
     })
       .overrideModule(DatabaseModule)
       .useModule(TestDatabaseModule)
+      .overrideProvider(AUTH_ENGINE)
+      .useValue({})
       .compile();
     try {
       expect(module.get(HealthController)).toBeDefined();
@@ -72,6 +79,8 @@ describe('composition roots', () => {
     })
       .overrideModule(DatabaseModule)
       .useModule(TestDatabaseModule)
+      .overrideProvider(AUTH_ENGINE)
+      .useValue({})
       .compile();
     try {
       expect(() => module.get(HealthController)).toThrow();

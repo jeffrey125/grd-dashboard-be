@@ -1,3 +1,4 @@
+import { administratorCookie } from '@test/support/authentication.js';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { Server } from 'node:http';
@@ -15,7 +16,12 @@ describe('Shipment HTTP API with PostgreSQL', () => {
   let db: Awaited<ReturnType<typeof shipmentDatabase>>;
   let app: INestApplication;
   let carrierExternalId: string;
-  const http = () => request(app.getHttpServer() as Server);
+  let cookie: string;
+  const http = () =>
+    request
+      .agent(app.getHttpServer() as Server)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test');
   const item = (trackingReference: string, notes?: string | null) => ({
     carrierExternalId,
     trackingReference,
@@ -35,6 +41,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       .compile();
     app = module.createNestApplication({ logger: false });
     await app.init();
+    cookie = await administratorCookie(app);
     carrierExternalId = (
       await db.source
         .getRepository(CarrierEntity)
@@ -117,9 +124,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
         withDeleted: true,
       });
     expect(deleted).toMatchObject({
-      createdById: null,
-      updatedById: null,
-      deletedById: null,
+      createdById: expect.any(Number),
+      updatedById: expect.any(Number),
+      deletedById: expect.any(Number),
     });
   });
 

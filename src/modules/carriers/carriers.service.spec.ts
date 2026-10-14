@@ -99,13 +99,17 @@ describe('Carrier configuration', () => {
       pollIntervalMinutes: 32767,
       rateLimitPerMinute: null,
     });
-    expect(repository.update).toHaveBeenCalledWith(externalId, {
-      name: 'UPS Display',
-      isActive: false,
-      notFoundPauseThreshold: 2,
-      pollIntervalMinutes: 32767,
-      rateLimitPerMinute: null,
-    });
+    expect(repository.update).toHaveBeenCalledWith(
+      externalId,
+      {
+        name: 'UPS Display',
+        isActive: false,
+        notFoundPauseThreshold: 2,
+        pollIntervalMinutes: 32767,
+        rateLimitPerMinute: null,
+      },
+      null,
+    );
   });
 
   it('reports absent or soft-deleted Carriers as not found', async () => {
@@ -127,14 +131,22 @@ describe('Carrier configuration', () => {
       notFoundPauseThreshold: 32767,
       pollIntervalMinutes: 1,
     });
-    expect(repository.update).toHaveBeenCalledWith(externalId, {
-      notFoundPauseThreshold: 32767,
-      pollIntervalMinutes: 1,
-    });
+    expect(repository.update).toHaveBeenCalledWith(
+      externalId,
+      {
+        notFoundPauseThreshold: 32767,
+        pollIntervalMinutes: 1,
+      },
+      null,
+    );
     await service.update(externalId, { rateLimitPerMinute: 32767 });
-    expect(repository.update).toHaveBeenLastCalledWith(externalId, {
-      rateLimitPerMinute: 32767,
-    });
+    expect(repository.update).toHaveBeenLastCalledWith(
+      externalId,
+      {
+        rateLimitPerMinute: 32767,
+      },
+      null,
+    );
   });
 
   it.each(['1', 'not-a-uuid', '00000000-0000-1000-8000-000000000000'])(

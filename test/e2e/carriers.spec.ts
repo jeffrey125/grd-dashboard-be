@@ -1,3 +1,4 @@
+import { administratorCookie } from '@test/support/authentication.js';
 import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
 import type { INestApplication } from '@nestjs/common';
@@ -30,7 +31,12 @@ describe('Carrier HTTP API with PostgreSQL', () => {
   let source: DataSource;
   let container: StartedPostgreSqlContainer | undefined;
   let upsId: string;
-  const http = () => request(app!.getHttpServer() as Server);
+  let cookie: string;
+  const http = () =>
+    request
+      .agent(app!.getHttpServer() as Server)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test');
 
   beforeAll(async () => {
     container = await startPostgresqlContainer();
@@ -64,6 +70,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       .compile();
     app = module.createNestApplication();
     await app.init();
+    cookie = await administratorCookie(app);
     upsId = (
       await source.getRepository(CarrierEntity).findOneByOrFail({ code: 'ups' })
     ).externalId;

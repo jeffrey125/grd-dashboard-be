@@ -1,3 +1,4 @@
+import type { Principal } from '@modules/auth/auth.repository.js';
 import {
   Body,
   Controller,
@@ -9,8 +10,10 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { CarriersService } from './carriers.service.js';
+import { AuthPolicy, CurrentPrincipal } from '@modules/auth/auth.policy.js';
 
 @Controller('carriers')
+@AuthPolicy('staff')
 export class CarriersController {
   constructor(
     @Inject(CarriersService) private readonly carriers: CarriersService,
@@ -31,14 +34,15 @@ export class CarriersController {
     return this.carriers.find(externalId);
   }
 
-  // V1-010 must enforce the approved admin-only policy before public deployment.
+  @AuthPolicy('admin')
   @Patch(':externalId')
   @Header('Cache-Control', 'no-store')
   update(
     @Param('externalId', new ParseUUIDPipe({ version: '4' }))
     externalId: string,
     @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
   ) {
-    return this.carriers.update(externalId, input);
+    return this.carriers.update(externalId, input, principal.id);
   }
 }

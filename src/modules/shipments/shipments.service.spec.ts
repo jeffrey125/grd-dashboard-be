@@ -52,10 +52,13 @@ describe('Shipment creation', () => {
         { carrierExternalId, trackingReference: '001ab', notes: ' Last ' },
       ],
     });
-    expect(repository.createMany).toHaveBeenCalledWith([
-      { carrierExternalId, trackingReference: '001Ab', notes: null },
-      { carrierExternalId, trackingReference: '001ab', notes: 'Last' },
-    ]);
+    expect(repository.createMany).toHaveBeenCalledWith(
+      [
+        { carrierExternalId, trackingReference: '001Ab', notes: null },
+        { carrierExternalId, trackingReference: '001ab', notes: 'Last' },
+      ],
+      null,
+    );
   });
 
   it.each([

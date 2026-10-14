@@ -40,7 +40,9 @@
     "query": "pnpm build && typeorm query -d dist/infrastructure/database/data-source.js",
     "test:e2e": "pnpm build && vitest run --project e2e",
     "prepare": "husky",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "auth:bootstrap": "pnpm build && node dist/auth-cli.js bootstrap",
+    "auth:recover": "pnpm build && node dist/auth-cli.js recover"
   },
   "keywords": [],
   "author": "",
@@ -53,10 +55,12 @@
     "@nestjs/platform-express": "12.1.2",
     "@nestjs/schedule": "12.0.2",
     "@nestjs/terminus": "12.1.0",
+    "@nestjs/throttler": "6.7.1",
     "@nestjs/typeorm": "12.0.2",
     "axios": "1.20.0",
     "axios-cookiejar-support": "7.0.0",
     "axios-retry": "4.5.0",
+    "better-auth": "1.7.7",
     "bottleneck": "2.19.5",
     "cache-manager": "7.2.9",
     "cheerio": "1.2.0",

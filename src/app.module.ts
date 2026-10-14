@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '@modules/auth/auth.module.js';
 import { RuntimeConfigModule } from '@config/config.module.js';
 import { ApplicationCacheModule } from '@infrastructure/cache/application-cache.module.js';
 import { DatabaseModule } from '@infrastructure/database/database.module.js';
@@ -13,6 +14,7 @@ import { ShipmentsModule } from '@modules/shipments/shipments.module.js';
     LoggingModule.forRoot('api'),
     ApplicationCacheModule,
     DatabaseModule,
+    AuthModule,
     HealthModule,
     CarriersModule,
     ShipmentsModule,

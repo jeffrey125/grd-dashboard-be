@@ -77,6 +77,9 @@ describe('PinoLoggerService', () => {
 
     const canaries = {
       password: 'CANARY_PASSWORD',
+      currentPassword: 'CANARY_CURRENT_PASSWORD',
+      newPassword: 'CANARY_NEW_PASSWORD',
+      passwordHash: 'CANARY_PASSWORD_HASH',
       token: 'CANARY_TOKEN',
       secret: 'CANARY_SECRET',
       apiKey: 'CANARY_API_KEY',
@@ -104,6 +107,9 @@ describe('PinoLoggerService', () => {
     logger.error('logger.redaction.checked', 'Redaction checked', {
       event: 'Invalid Call Event',
       password: canaries.password,
+      currentPassword: canaries.currentPassword,
+      newPassword: canaries.newPassword,
+      passwordHash: canaries.passwordHash,
       secret: canaries.secret,
       apiKey: canaries.apiKey,
       csrfToken: canaries.csrfToken,

@@ -1,3 +1,6 @@
+import { AUTH_ENGINE, type AuthEngine } from '@modules/auth/auth.engine.js';
+import type { PostgresDriver } from 'typeorm/driver/postgres/PostgresDriver.js';
+import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
 import {
   spawn,
   execFile,
@@ -46,6 +49,8 @@ const directories: string[] = [];
 const runtimeEnvironment = {
   ...testEnvironment,
   NODE_ENV: 'production',
+  AUTH_BASE_URL: 'https://api.example.test',
+  AUTH_TRUSTED_ORIGINS: 'https://dashboard.example.test',
   LOG_LEVEL: 'debug',
 };
 let container: StartedPostgreSqlContainer | undefined;
@@ -53,6 +58,8 @@ beforeAll(async () => {
   container = await startPostgresqlContainer();
   Object.assign(runtimeEnvironment, postgresqlEnvironment(container), {
     NODE_ENV: 'production',
+    AUTH_BASE_URL: 'https://api.example.test',
+    AUTH_TRUSTED_ORIGINS: 'https://dashboard.example.test',
     LOG_LEVEL: 'debug',
   });
   const source = new DataSource({
@@ -61,6 +68,7 @@ beforeAll(async () => {
       InitialSchema1791849600000,
       CarrierFetchMode1791936000000,
       FfeRequestMode1792022400000,
+      EmployeeAuth1792108800000,
     ],
   });
   await source.initialize();
@@ -322,6 +330,19 @@ describe('runtime boundaries', () => {
     },
   );
 
+  it('rejects invalid auth before opening a database pool without exposing its secret', async () => {
+    const runtime = start('main', {
+      ...runtimeEnvironment,
+      AUTH_SECRET: 'CANARY_SHORT_SECRET',
+      PORT: await availablePort(),
+    });
+    await waitForExit(runtime);
+    expect(runtime.child.exitCode).toBe(1);
+    expect(runtime.output()).not.toContain('CANARY_SHORT_SECRET');
+    expect(runtime.output()).not.toContain('database.connecting');
+    expect(runtime.output()).toContain('application.startup.failed');
+  });
+
   it('reuses one DataSource across repeated imports and closes its pool with the context', async () => {
     for (const [key, value] of Object.entries({
       ...runtimeEnvironment,
@@ -340,10 +361,15 @@ describe('runtime boundaries', () => {
     try {
       await module.init();
       expect(module.select(DatabaseModule).get(DataSource)).toBe(source);
+      const pool = (source.driver as PostgresDriver).master;
+      expect(
+        (await module.get<AuthEngine>(AUTH_ENGINE).$context).options.database,
+      ).toBe(pool);
       const [row] = await source.query(
         "SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database() AND backend_type = 'client backend'",
       );
-      expect(row.count).toBe(1);
+      expect(row.count).toBe(pool.totalCount);
+      expect(row.count).toBeLessThanOrEqual(10);
       await expect(module.get(ReadinessService).check()).resolves.toMatchObject(
         { details: { database: { status: 'up' } } },
       );
@@ -381,6 +407,9 @@ describe('runtime boundaries', () => {
       [
         'NODE_ENV=development',
         'PORT=invalid-file-port',
+        `AUTH_SECRET=${runtimeEnvironment.AUTH_SECRET}`,
+        `AUTH_BASE_URL=${runtimeEnvironment.AUTH_BASE_URL}`,
+        `AUTH_TRUSTED_ORIGINS=${runtimeEnvironment.AUTH_TRUSTED_ORIGINS}`,
         `DB_PORT=${runtimeEnvironment.DB_PORT}`,
         `DB_HOST=${runtimeEnvironment.DB_HOST}`,
         `DB_NAME=${runtimeEnvironment.DB_NAME}`,

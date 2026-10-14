@@ -22,6 +22,7 @@ export interface CarriersRepository {
   update(
     externalId: string,
     changes: CarrierUpdate,
+    actorId?: number | null,
   ): Promise<CarrierRecord | null>;
 }
 

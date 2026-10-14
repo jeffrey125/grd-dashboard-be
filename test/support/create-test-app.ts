@@ -1,3 +1,4 @@
+import { AUTH_ENGINE } from '@modules/auth/auth.engine.js';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '@app/app.module.js';
 import { DatabaseModule } from '@infrastructure/database/database.module.js';
@@ -13,6 +14,8 @@ export async function createTestApp(dependencies: ReadinessDependency[] = []) {
   })
     .overrideModule(DatabaseModule)
     .useModule(TestDatabaseModule)
+    .overrideProvider(AUTH_ENGINE)
+    .useValue({})
     .overrideProvider(READINESS_DEPENDENCIES)
     .useValue(dependencies)
     .compile();

@@ -4,6 +4,8 @@ export type LogRuntime = 'api' | 'worker';
 export type LogEvent = `${string}.${string}`;
 
 export interface LogFields {
+  actorExternalId?: string;
+  accountExternalId?: string;
   component?: string;
   carrierCode?: string;
   runExternalId?: string;

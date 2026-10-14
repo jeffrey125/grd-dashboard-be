@@ -80,21 +80,33 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
     return find(this.source.manager, externalId);
   }
 
-  async updateNotes(externalId: string, notes: string | null) {
+  async updateNotes(
+    externalId: string,
+    notes: string | null,
+    actorId: number | null = null,
+  ) {
     return this.source.transaction(async (manager) => {
       const result = await manager
         .getRepository(ShipmentEntity)
-        .update({ externalId, deletedAt: IsNull() }, { notes });
+        .update(
+          { externalId, deletedAt: IsNull() },
+          { notes, updatedById: actorId },
+        );
       return result.affected ? find(manager, externalId) : null;
     });
   }
 
-  async remove(externalId: string) {
+  async remove(externalId: string, actorId: number | null = null) {
     const result = await this.source
       .getRepository(ShipmentEntity)
       .createQueryBuilder()
       .update()
-      .set({ deletedAt: () => 'clock_timestamp()', nextCheckAt: null })
+      .set({
+        deletedAt: () => 'clock_timestamp()',
+        nextCheckAt: null,
+        updatedById: actorId,
+        deletedById: actorId,
+      })
       .where('external_id = :externalId AND deleted_at IS NULL', { externalId })
       .execute();
     return Boolean(result.affected);
@@ -103,6 +115,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
   async changeMonitoring(
     externalId: string,
     command: MonitoringCommand,
+    actorId: number | null = null,
   ): Promise<MonitoringResult> {
     return this.source.transaction(async (manager) => {
       const rows = manager.getRepository(ShipmentEntity);
@@ -122,11 +135,13 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
         { id: row.id, deletedAt: IsNull() },
         command === 'pause'
           ? {
+              updatedById: actorId,
               monitoringStatus: ShipmentMonitoringStatus.Paused,
               monitoringReason: ShipmentMonitoringReason.Manual,
               nextCheckAt: null,
             }
           : {
+              updatedById: actorId,
               monitoringStatus: ShipmentMonitoringStatus.Active,
               monitoringReason: null,
               nextCheckAt: () => 'clock_timestamp()',
@@ -136,7 +151,10 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
     });
   }
 
-  async createMany(items: NewShipment[]): Promise<ShipmentCreationResult> {
+  async createMany(
+    items: NewShipment[],
+    actorId: number | null = null,
+  ): Promise<ShipmentCreationResult> {
     return this.source.transaction('READ COMMITTED', async (manager) => {
       const carrierIds = [
         ...new Set(items.map((item) => item.carrierExternalId)),
@@ -179,11 +197,11 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
         let inserted = false;
         while (!externalId) {
           const created: Array<{ external_id: string }> = await manager.query(
-            `INSERT INTO shipments (carrier_id, tracking_reference, notes, next_check_at)
-             VALUES ($1, $2, $3, clock_timestamp())
+            `INSERT INTO shipments (carrier_id, tracking_reference, notes, next_check_at, created_by_id, updated_by_id)
+             VALUES ($1, $2, $3, clock_timestamp(), $4, $4)
              ON CONFLICT (carrier_id, tracking_reference) WHERE deleted_at IS NULL DO NOTHING
              RETURNING external_id`,
-            [carrierId, item.trackingReference, item.notes],
+            [carrierId, item.trackingReference, item.notes, actorId],
           );
           externalId = created[0]?.external_id;
           inserted = Boolean(externalId);

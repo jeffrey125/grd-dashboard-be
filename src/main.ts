@@ -1,7 +1,10 @@
+import { ConfigModule } from '@nestjs/config';
+import { authConfiguration } from '@modules/auth/auth.config.js';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import {
   configuration,
+  createConfiguration,
   type RuntimeConfiguration,
 } from '@config/configuration.js';
 import { NestLoggerAdapter } from '@infrastructure/logging/nest-logger.adapter.js';
@@ -9,6 +12,11 @@ import { ProjectLogger } from '@infrastructure/logging/logging.types.js';
 import { reportStartupError } from '@runtime/startup-error.js';
 
 async function bootstrap() {
+  // Fail before concurrent Nest providers can open a database pool. A rejected
+  // configuration provider otherwise leaves another provider connecting in flight.
+  await ConfigModule.envVariablesLoaded;
+  createConfiguration(process.env);
+  authConfiguration(process.env);
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
     autoFlushLogs: false,

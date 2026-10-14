@@ -1,3 +1,4 @@
+import type { Principal } from '@modules/auth/auth.repository.js';
 import {
   Body,
   Controller,
@@ -14,9 +15,10 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ShipmentsService } from './shipments.service.js';
+import { AuthPolicy, CurrentPrincipal } from '@modules/auth/auth.policy.js';
 
-// V1-010 must enforce Shipment authorization before public deployment.
 @Controller('shipments')
+@AuthPolicy('staff')
 export class ShipmentsController {
   constructor(
     @Inject(ShipmentsService) private readonly shipments: ShipmentsService,
@@ -32,9 +34,10 @@ export class ShipmentsController {
   @Header('Cache-Control', 'no-store')
   async create(
     @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.shipments.create(input);
+    const result = await this.shipments.create(input, principal.id);
     response.status(result.inserted.length ? 201 : 200);
     return result;
   }
@@ -54,18 +57,20 @@ export class ShipmentsController {
     @Param('externalId', new ParseUUIDPipe({ version: '4' }))
     externalId: string,
     @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
   ) {
-    return this.shipments.updateNotes(externalId, input);
+    return this.shipments.updateNotes(externalId, input, principal.id);
   }
 
   @Delete(':externalId')
   @HttpCode(204)
   @Header('Cache-Control', 'no-store')
   remove(
+    @CurrentPrincipal() principal: Principal,
     @Param('externalId', new ParseUUIDPipe({ version: '4' }))
     externalId: string,
   ) {
-    return this.shipments.remove(externalId);
+    return this.shipments.remove(externalId, principal.id);
   }
 
   @Post(':externalId/pause')
@@ -74,9 +79,15 @@ export class ShipmentsController {
   pause(
     @Param('externalId', new ParseUUIDPipe({ version: '4' }))
     externalId: string,
-    @Body() input?: unknown,
+    @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
   ) {
-    return this.shipments.changeMonitoring(externalId, 'pause', input);
+    return this.shipments.changeMonitoring(
+      externalId,
+      'pause',
+      input,
+      principal.id,
+    );
   }
 
   @Post(':externalId/resume')
@@ -85,8 +96,14 @@ export class ShipmentsController {
   resume(
     @Param('externalId', new ParseUUIDPipe({ version: '4' }))
     externalId: string,
-    @Body() input?: unknown,
+    @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
   ) {
-    return this.shipments.changeMonitoring(externalId, 'resume', input);
+    return this.shipments.changeMonitoring(
+      externalId,
+      'resume',
+      input,
+      principal.id,
+    );
   }
 }

@@ -336,6 +336,7 @@ class TypeOrmTrackingTransaction implements TrackingTransaction {
                 WHEN $7::boolean THEN NULL
                 ELSE monitoring_reason
               END,
+              updated_by_id = NULL,
               lock_version = lock_version + 1,
               updated_at = clock_timestamp()
         WHERE id = $1 AND lock_version = $9 AND deleted_at IS NULL
@@ -383,6 +384,7 @@ class TypeOrmTrackingTransaction implements TrackingTransaction {
                   THEN 'not_found_threshold'::shipment_monitoring_reason
                 ELSE monitoring_reason
               END,
+              updated_by_id = NULL,
               lock_version = lock_version + 1,
               updated_at = clock_timestamp()
         WHERE id = $1 AND lock_version = $7 AND deleted_at IS NULL
@@ -415,6 +417,7 @@ class TypeOrmTrackingTransaction implements TrackingTransaction {
                   THEN $2::timestamptz + ($4::integer * INTERVAL '1 minute')
                 ELSE next_check_at
               END,
+              updated_by_id = NULL,
               lock_version = lock_version + 1,
               updated_at = clock_timestamp()
         WHERE id = $1 AND lock_version = $5 AND deleted_at IS NULL

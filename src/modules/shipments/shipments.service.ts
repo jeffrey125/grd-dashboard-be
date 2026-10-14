@@ -38,7 +38,7 @@ export class ShipmentsService {
     return this.repository.list();
   }
 
-  async create(input: unknown) {
+  async create(input: unknown, actorId: number | null = null) {
     const envelope = parseShipmentInput(createShipmentsEnvelopeSchema, input);
     const details: ShipmentValidationDetail[] = [];
     const normalized: NewShipment[] = [];
@@ -83,7 +83,10 @@ export class ShipmentsService {
         JSON.stringify([item.carrierExternalId, item.trackingReference]),
         item,
       );
-    const result = await this.repository.createMany([...unique.values()]);
+    const result = await this.repository.createMany(
+      [...unique.values()],
+      actorId,
+    );
     if (result.kind === 'unavailable') {
       // Revalidation under the database lock closes the Carrier-disable race.
       invalidShipmentRows(
@@ -111,18 +114,23 @@ export class ShipmentsService {
     return result;
   }
 
-  async updateNotes(externalId: string, input: unknown) {
+  async updateNotes(
+    externalId: string,
+    input: unknown,
+    actorId: number | null = null,
+  ) {
     const id = parseShipmentInput(shipmentExternalIdSchema, externalId);
     const { notes } = parseShipmentInput(updateShipmentNotesSchema, input);
-    const result = await this.repository.updateNotes(id, notes);
+    const result = await this.repository.updateNotes(id, notes, actorId);
     if (!result) throw new NotFoundException('Shipment not found');
     return result;
   }
 
-  async remove(externalId: string) {
+  async remove(externalId: string, actorId: number | null = null) {
     if (
       !(await this.repository.remove(
         parseShipmentInput(shipmentExternalIdSchema, externalId),
+        actorId,
       ))
     )
       throw new NotFoundException('Shipment not found');
@@ -132,10 +140,11 @@ export class ShipmentsService {
     externalId: string,
     command: MonitoringCommand,
     input: unknown = {},
+    actorId: number | null = null,
   ) {
     const id = parseShipmentInput(shipmentExternalIdSchema, externalId);
     parseShipmentInput(monitoringCommandSchema, input);
-    const result = await this.repository.changeMonitoring(id, command);
+    const result = await this.repository.changeMonitoring(id, command, actorId);
     if (result.kind === 'missing')
       throw new NotFoundException('Shipment not found');
     if (result.kind === 'conflict')

@@ -11,6 +11,9 @@ export const LOG_REDACTION_CENSOR = '[Redacted]';
 
 const SENSITIVE_FIELD_NAMES = [
   'password',
+  'currentPassword',
+  'newPassword',
+  'passwordHash',
   'passwords',
   'token',
   'tokens',
@@ -175,6 +178,10 @@ export function createPinoHttpOptions(
       response.setHeader(REQUEST_ID_HEADER, requestId);
       return requestId;
     },
+    // Never hand live request/response objects to recursive redaction: it can
+    // mutate their headers. Completion fields are explicitly projected below.
+    wrapSerializers: false,
+    serializers: { req: () => ({}), res: () => ({}) },
     quietReqLogger: true,
     quietResLogger: true,
     customAttributeKeys: {
