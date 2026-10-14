@@ -25,7 +25,7 @@ AppModule
 ├── ApplicationCacheModule
 ├── DatabaseModule
 ├── HealthModule
-├── AuthModule             # after the auth decision ticket
+├── AuthModule             # API-only employee sessions, policy, and accounts
 ├── CarriersModule
 ├── ShipmentsModule
 ├── TrackingHttpModule
@@ -136,4 +136,4 @@ Unknown errors pass through a safe projection before logging. It may retain an a
 
 ## Authentication boundary
 
-Audit actor IDs are nullable until auth is implemented. Clients never submit actor IDs; authenticated application services populate them. Worker/system writes use null until a system-actor model is explicitly approved. See [`auth-plan.md`](auth-plan.md).
+Audit actor IDs reference Employee Accounts and remain nullable for historical/system writes. Clients never submit actor IDs; authenticated application services populate them. Worker/system writes use null until a system-actor model is explicitly approved. See [`auth-plan.md`](auth-plan.md).

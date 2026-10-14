@@ -2,6 +2,9 @@
 
 ## Status
 
+Complete in the working tree; approved decision and verification are recorded in
+[the V1-009 summary](../implementation-summary/V1-009-implementation-summary.md).
+
 Depends on V1-003 and V1-005. This is a design/approval gate, not an implementation ticket.
 
 ## Objective

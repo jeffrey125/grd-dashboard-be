@@ -1,5 +1,14 @@
 # V1 authentication plan
 
+## Approved V1-009 decision
+
+The authoritative employee authentication decision is
+[`../adr/0001-employee-authentication.md`](../adr/0001-employee-authentication.md).
+The implementation contract is [`auth-api.md`](auth-api.md). The owner approved
+Better Auth, Nest throttling and guards, and the account/session lifecycle.
+The original decision-gate checklist below is retained as historical context;
+its questions are resolved by the ADR.
+
 ## Decision
 
 Build the Nest/configuration/database foundation first. Then resolve and implement authentication before the API is publicly deployed. Do not ship temporary authentication that will be discarded later.

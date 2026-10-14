@@ -12,7 +12,7 @@ The initial schema has five tables:
 4. `tracking_runs`
 5. `tracking_attempts`
 
-Raw-artifact storage, source-data retention, authentication relations, notifications/outbox, and a durable queue remain outside this initial schema.
+Raw-artifact storage, source-data retention, notifications/outbox, and a durable queue remain outside this initial schema.
 
 ## Relationship diagram
 
@@ -365,7 +365,20 @@ For `not_found`, `failed`, or `skipped`, do not create or clear a snapshot. Comp
   allowlisted objects for `found`, `not_found`, and `failed`; `skipped` stores null.
 - `source_schema_version` and `adapter_version` columns.
 - Exact raw-response artifact storage.
-- Authentication and User foreign keys.
+- Additional authentication providers beyond the V1-009/V1-010 employee model.
 - Durable notification outbox and queue infrastructure.
 
 See `docs/v1/tracking-source-data-policy.md` for the partially approved source-data design.
+
+## Employee authentication extension (V1-009 / V1-010)
+
+Migration `1792108800000-EmployeeAuth` adds `auth_users`, `auth_accounts`,
+`auth_sessions`, and `auth_verifications`. The authoritative columns, constraints,
+indexes, and API projections are in [auth-api.md](auth-api.md#schema), with
+policy in [ADR 0001](../adr/0001-employee-authentication.md).
+
+Carrier and Shipment actor columns, plus `tracking_runs.requested_by_id`, now
+reference `auth_users.id` with indexed `ON DELETE NO ACTION` foreign keys.
+Historical and worker/system actors remain nullable. Users are deactivated,
+never deleted. API clients cannot supply actor IDs. The initial schema migration
+is unchanged; the extension is separately reversible and TypeORM-mapped.
