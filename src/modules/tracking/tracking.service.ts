@@ -1,4 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  TrackingNotifications,
+  type TrackingNotice,
+} from '@modules/notifications/tracking-notifications.js';
 import { carrierReferencePolicy } from '@modules/carriers/carrier-reference-policy.js';
 import {
   createTrackingRunSchema,
@@ -109,6 +113,9 @@ export class TrackingService {
   constructor(
     @Inject(TRACKING_REPOSITORY)
     private readonly repository: TrackingRepository,
+    @Optional()
+    @Inject(TrackingNotifications)
+    private readonly notifications?: TrackingNotifications,
   ) {}
 
   createRun(input: unknown) {
@@ -212,7 +219,8 @@ export class TrackingService {
 
   finalizeFound(input: unknown) {
     const command = finalizeFoundSchema.parse(input);
-    return this.finalizeCurrentAttempt(
+    let notice: TrackingNotice | undefined;
+    const result = this.finalizeCurrentAttempt(
       command,
       async (transaction, attempt, completedAt) => {
         let previous: NormalizedTrackingState | null = null;
@@ -277,6 +285,19 @@ export class TrackingService {
           message: null,
           completedAt,
         });
+        notice = {
+          carrierCode: attempt.carrierCode,
+          shipmentExternalId: attempt.shipmentExternalId,
+          trackingReference: attempt.trackingReference,
+          outcome: 'found',
+          changed,
+          initial: previous === null,
+          snapshot: merged,
+          previous,
+          ...(delivered && attempt.monitoringStatus !== 'completed'
+            ? { stopped: 'delivered' as const }
+            : {}),
+        };
         return {
           outcome: 'found' as const,
           snapshotChanged: changed,
@@ -285,11 +306,16 @@ export class TrackingService {
         };
       },
     );
+    return result.then(async (outcome) => {
+      if (notice) await this.notifications?.record(notice);
+      return outcome;
+    });
   }
 
   finalizeNotFound(input: unknown) {
     const command = finalizeNotFoundSchema.parse(input);
-    return this.finalizeCurrentAttempt(
+    let notice: TrackingNotice | undefined;
+    const result = this.finalizeCurrentAttempt(
       command,
       async (transaction, attempt, completedAt) => {
         const notFoundCount = attempt.consecutiveNotFoundCount + 1;
@@ -318,6 +344,19 @@ export class TrackingService {
           message: null,
           completedAt,
         });
+        notice = {
+          carrierCode: attempt.carrierCode,
+          shipmentExternalId: attempt.shipmentExternalId,
+          trackingReference: attempt.trackingReference,
+          outcome: 'not_found',
+          ...(thresholdReached &&
+          !(
+            attempt.monitoringStatus === 'paused' &&
+            attempt.monitoringReason === 'not_found_threshold'
+          )
+            ? { stopped: 'not_found_threshold' as const }
+            : {}),
+        };
         return {
           outcome: 'not_found' as const,
           snapshotChanged: false as const,
@@ -326,11 +365,16 @@ export class TrackingService {
         };
       },
     );
+    return result.then(async (outcome) => {
+      if (notice) await this.notifications?.record(notice);
+      return outcome;
+    });
   }
 
   finalizeFailed(input: unknown) {
     const command = finalizeFailedSchema.parse(input);
-    return this.finalizeCurrentAttempt(
+    let notice: TrackingNotice | undefined;
+    const result = this.finalizeCurrentAttempt(
       command,
       async (transaction, attempt, completedAt) => {
         requireShipmentUpdate(
@@ -355,6 +399,12 @@ export class TrackingService {
           message: command.message,
           completedAt,
         });
+        notice = {
+          carrierCode: attempt.carrierCode,
+          shipmentExternalId: attempt.shipmentExternalId,
+          trackingReference: attempt.trackingReference,
+          outcome: 'failed',
+        };
         return {
           outcome: 'failed' as const,
           snapshotChanged: false as const,
@@ -363,6 +413,10 @@ export class TrackingService {
         };
       },
     );
+    return result.then(async (outcome) => {
+      if (notice) await this.notifications?.record(notice);
+      return outcome;
+    });
   }
 
   finalizeSkipped(input: unknown) {
