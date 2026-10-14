@@ -41,7 +41,6 @@ pnpm migration:show
 pnpm migration:run
 pnpm migration:revert
 pnpm schema:log
-pnpm query 'SELECT now()'
 pnpm typeorm --help
 ```
 

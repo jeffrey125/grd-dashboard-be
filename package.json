@@ -37,7 +37,6 @@
     "migration:revert": "pnpm build && typeorm migration:revert -d dist/infrastructure/database/data-source.js",
     "migration:show": "pnpm build && typeorm migration:show -d dist/infrastructure/database/data-source.js",
     "schema:log": "pnpm build && typeorm schema:log -d dist/infrastructure/database/data-source.js",
-    "query": "pnpm build && typeorm query -d dist/infrastructure/database/data-source.js",
     "test:e2e": "pnpm build && vitest run --project e2e",
     "prepare": "husky",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
