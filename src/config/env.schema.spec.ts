@@ -21,6 +21,8 @@ describe('runtime configuration', () => {
         database: 'runtime_test',
         username: 'runtime_test',
         password: ' p@ss%$word ',
+        sslMode: 'disable',
+        sslCaFile: undefined,
       },
     });
   });
@@ -32,6 +34,7 @@ describe('runtime configuration', () => {
       DB_PORT: undefined,
       ECHOSHIP_PASSWORD: '',
     });
+
     expect(env).toMatchObject({
       NODE_ENV: 'development',
       PORT: 3000,
@@ -97,6 +100,7 @@ describe('runtime configuration', () => {
         validateEnvironment({ ...testEnvironment, [field]: value }),
       ).toThrow(`${field} must be an integer`);
     }
+
     for (const value of ['1', '65535']) {
       expect(
         validateEnvironment({ ...testEnvironment, [field]: value })[
@@ -109,6 +113,7 @@ describe('runtime configuration', () => {
   it('reports all invalid fields without retaining input or underlying errors', () => {
     const secret = 'CANARY_CONFIG_SECRET';
     let failure: unknown;
+
     try {
       validateEnvironment({
         ...testEnvironment,
@@ -120,6 +125,7 @@ describe('runtime configuration', () => {
     } catch (error) {
       failure = error;
     }
+
     expect(failure).toBeInstanceOf(ConfigurationError);
     expect(String(failure)).toContain('NODE_ENV');
     expect(String(failure)).toContain('PORT');

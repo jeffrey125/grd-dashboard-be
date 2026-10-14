@@ -26,6 +26,8 @@ describe('NestLoggerAdapter', () => {
       database: 'logging_test',
       username: 'logging_test',
       password: 'fixture-password',
+      sslMode: 'disable',
+      sslCaFile: undefined,
     },
   };
   let module: TestingModule;
@@ -61,6 +63,7 @@ describe('NestLoggerAdapter', () => {
       code: 'PROVIDER_FAILED',
       status: 502,
     });
+
     error.stack = [
       'ProviderError: CANARY_LOCAL_STACK',
       '    at execute (src/modules/tracking/executor.ts:7:3)',
@@ -71,6 +74,7 @@ describe('NestLoggerAdapter', () => {
       nativeLogger,
       productionConfiguration,
     );
+
     production.log('Mapped {/health/live, GET} route', 'RouterExplorer');
     production.error(error, 'ExceptionsHandler');
 
@@ -78,6 +82,7 @@ describe('NestLoggerAdapter', () => {
       ...productionConfiguration,
       environment: 'development',
     });
+
     development.error(error, 'ExceptionsHandler');
     development.verbose('CANARY_LOCAL_VERBOSE', 'InstanceLoader');
 

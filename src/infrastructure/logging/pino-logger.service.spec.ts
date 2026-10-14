@@ -25,6 +25,8 @@ describe('PinoLoggerService', () => {
       database: 'logging_test',
       username: 'logging_test',
       password: 'fixture-password',
+      sslMode: 'disable',
+      sslCaFile: undefined,
     },
   };
   let module: TestingModule;
@@ -48,12 +50,14 @@ describe('PinoLoggerService', () => {
 
   it('emits stable JSON, filters levels, carries child fields, and redacts canaries', () => {
     logger.debug('logger.debug.enabled', 'Debug logging is enabled');
+
     expect(() =>
       logger.info(
         'Invalid Event' as `${string}.${string}`,
         'Invalid event should not be written',
       ),
     ).toThrow('Log event must be a lowercase dot-separated identifier');
+
     logger
       .child({
         component: 'scheduler',
@@ -104,6 +108,7 @@ describe('PinoLoggerService', () => {
       browserState: 'CANARY_BROWSER_STATE',
       browserArtifact: 'CANARY_BROWSER_ARTIFACT',
     };
+
     logger.error('logger.redaction.checked', 'Redaction checked', {
       event: 'Invalid Call Event',
       password: canaries.password,
@@ -195,8 +200,10 @@ describe('PinoLoggerService', () => {
       event: 'logger.error.enabled',
     });
     expect(records[2]).toMatchObject({ event: 'logger.redaction.checked' });
+
     for (const canary of Object.values(canaries))
       expect(output).not.toContain(canary);
+
     expect(output).toContain('[Redacted]');
   });
 });

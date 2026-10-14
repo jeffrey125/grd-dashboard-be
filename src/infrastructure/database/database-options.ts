@@ -1,16 +1,19 @@
 import { fileURLToPath } from 'node:url';
 import type { DataSourceOptions } from 'typeorm';
 import type { RuntimeConfiguration } from '@config/configuration.js';
+import { databaseTls } from './database-tls.js';
 
 export function createDatabaseOptions(
   config: RuntimeConfiguration,
 ): DataSourceOptions {
+  const { sslMode, sslCaFile, ...database } = config.database;
+
   // Resolve from this module, not the CLI's working directory. Only compiled
   // production entities/migrations are discovered; test fixtures stay separate.
   return {
     type: 'postgres',
-    ...config.database,
-    ssl: false,
+    ...database,
+    ssl: databaseTls(sslMode, sslCaFile),
     synchronize: false,
     migrationsRun: false,
     dropSchema: false,
