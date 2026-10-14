@@ -217,7 +217,47 @@ rate limiting. Other Shipments are unaffected.
 - Per-Shipment failures are isolated and stored on attempts; one failure does not discard successful results from the same run.
 - SSE may announce run/Shipment changes, but PostgreSQL is the reconnect source of truth.
 - Notification failure must not roll back tracking persistence.
-- Use Node built-in `fetch` for ntfy unless a later requirement justifies another client.
+- V1-016 explicitly approves the existing Axios package for ntfy. Publishing has
+  a 15-second deadline, no redirects/retries, and shutdown cancellation. Optional
+  `NTFY_URL` enables alerts; absent/blank disables them. Failed sends are safely
+  logged and discarded; no delivery table or durable queue is introduced.
+
+### V1-016 HTTP and notification contract
+
+- Unrestricted Staff/Admin can `POST /shipments/:externalId/refresh` with no body
+  or `{}`. Return 202 with the queued run's public UUID/status. Concurrent/repeated
+  requests for the same Shipment reuse its queued/running manual run and retain
+  its original requester. Once finished, another request creates a new run.
+  Missing/deleted Shipments return 404; disabled Carriers, manual pauses and
+  delivered Shipments return 409 when no reusable eligible request exists.
+  A pending run can finish while a duplicate response is being prepared; its
+  returned status may already be terminal. No second job is created in that race.
+- `GET /tracking-runs/:externalId` exposes current run status, attempt outcomes,
+  retryability, safe reason codes, timestamps and public Shipment/Carrier UUIDs.
+  It never returns internal IDs or source data. Any unrestricted Staff/Admin can
+  read runs in this shared dashboard; historical soft-deleted Shipment UUIDs may
+  remain in run history. There is no refresh-all route.
+- `GET /events` is a credentialed SSE stream. `shipment.changed` and `run.changed`
+  contain `{ externalId }`, announcing changes rather than full records. Database
+  triggers signal committed writes across API/worker processes. Attempt completion
+  also signals run changes. Signals follow commit order; clients must tolerate
+  coalescing and fetch current state, not assume every intermediate state appears.
+- `resync` with `{}` occurs on every connection and database listener recovery.
+  Refetch Shipments and any watched run URLs. Subscribe before the initial HTTP
+  fetch and refetch again for changes arriving during it. `Last-Event-ID` does not
+  replay history. `heartbeat` with `{}` occurs every 15 seconds. Session validity
+  is checked before each frame; an idle revoked session closes by the next heartbeat.
+  Slow consumers are disconnected to bound pending work and reconnect with resync.
+- Notifications include first successful results, changed known values, and one
+  combined alert when delivery stops monitoring. Threshold pauses generate one
+  alert per transition, including the Shipment reference and stop reason. Repeated
+  not-found while paused stays silent. Reactivation permits a new stop transition.
+  Ordinary failures do not claim monitoring stopped. One failure alert per Carrier
+  is sent until a confirmed found/not-found lookup resets suppression; this state
+  is process-local and restarting may produce another failure alert. Unchanged
+  results stay silent. A failed first alert is also suppressed until recovery.
+  Messages are bounded by UTF-8 bytes and truncate optional details. A crash after
+  commit but before publishing can lose an alert; no exactly-once delivery claim.
 
 ## Legacy behavior explicitly excluded
 

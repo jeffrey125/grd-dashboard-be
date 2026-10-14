@@ -63,7 +63,11 @@ The following are recommended but are not blanket-approved by this plan. The imp
 | Additional Carrier throttling  | V1-013 approved Bottleneck for UPS; reuse it where later adapters require physical request limiting.                  |
 | Authentication                 | Selected only after Ticket V1-009 resolves the auth model.                                                            |
 
-Node built-in `fetch` is sufficient for simple ntfy calls. RxJS, already required by Nest, is sufficient for SSE. PostgreSQL generates UUIDv4-compatible random UUIDs with `gen_random_uuid()`.
+V1-016 explicitly approved the existing Axios package for ntfy rather than the
+original built-in `fetch` default. Existing Nest/RxJS and `pg` supply SSE and
+PostgreSQL LISTEN/NOTIFY; no new package is needed. Notifications are best-effort
+and discarded on failure. PostgreSQL generates UUIDv4-compatible random UUIDs
+with `gen_random_uuid()`.
 
 By explicit V1-004 user decision, operator-invoked TypeORM CLI commands preserve
 complete stdout and stderr for diagnostics. This can include SQL, parameters,

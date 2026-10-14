@@ -4,6 +4,10 @@
 
 Depends on V1-010, V1-011, and V1-012.
 
+Implemented and locally verified. See the
+[implementation summary](../implementation-summary/V1-016-implementation-summary.md)
+for approved decisions, exact checks, limitations and proposed commits.
+
 ## Objective
 
 Expose authenticated single-Shipment manual refresh as a queued tracking-run resource, provide reconnect-safe status/events, and publish non-transactional ntfy notifications.
@@ -20,7 +24,7 @@ Expose authenticated single-Shipment manual refresh as a queued tracking-run res
 - Add authorized run-status retrieval without exposing internal IDs or sensitive source data.
 - Worker processes queued manual work before scheduled work.
 - Add SSE events for Shipment/run changes with heartbeat and reconnect behavior that treats PostgreSQL as truth.
-- Publish allowed change/error notifications to ntfy through a notification interface using Node built-in `fetch` unless a new client is explicitly approved.
+- Publish allowed change/error notifications through a notification interface using the existing Axios package, explicitly approved during the V1-016 interview in place of the original built-in `fetch` default. No new dependency.
 - Notify the user when a Shipment transitions to completed/delivered or becomes
   automatically paused at the consecutive-not-found threshold. Apply this to UPS,
   EchoShip, and FFE; include the shipment reference and the reason monitoring

@@ -105,6 +105,25 @@ Authenticated API request
 
 Manual refresh bypasses `next_check_at` and the scheduled minimum interval, but it still obeys the Carrier request-per-minute limiter. It does not move an already-active Shipment's existing scheduled `next_check_at`. A successful refresh may reactivate a Shipment paused by the not-found threshold.
 
+V1-016 adds the Staff/Admin tracking HTTP routes. Concurrent producers serialize
+on a transaction-scoped advisory lock derived from the canonical Shipment UUID;
+queued/running manual work is reused with its original employee requester.
+
+The API's EventsModule uses one lazy, dedicated PostgreSQL LISTEN connection,
+shared across SSE clients through a feature-owned EventsSource contract. A reviewed
+migration adds transactional triggers for Shipment/run changes and attempt
+completion. Signals carry only public UUIDs; the API checks the session before
+each frame, including 15-second heartbeats. Reconnection requests a fresh HTTP
+read. This is transient signaling, not a broker or durable replay log.
+
+Tracking outcome transactions determine notification content from locked before/
+after state. Once committed, the worker's notification interface publishes through
+an isolated Axios client. It never retries or rolls persistence back. Optional
+NTFY_URL controls publishing. Failure-alert suppression is per Carrier in worker
+memory; confirmed found/not-found responses reset it. Stop alerts are based on
+state transitions, so repeated manual absence on an already paused Shipment does
+not emit another stop alert.
+
 ## Concurrency and recovery
 
 V1 has one worker and permits only one active run per Carrier. The worker must prevent overlapping scheduler ticks. A worker restart clears in-memory cache and sessions. On startup, stale `running` runs from the interrupted process are finalized as failed/interrupted; v1 does not claim exactly-once processing.
