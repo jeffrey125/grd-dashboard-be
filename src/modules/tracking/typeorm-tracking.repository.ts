@@ -44,7 +44,7 @@ function lockedRun(row: RunRow): LockedTrackingRun {
   };
 }
 
-class TypeOrmTrackingTransaction implements TrackingTransaction {
+export class TypeOrmTrackingTransaction implements TrackingTransaction {
   constructor(private readonly manager: EntityManager) {}
 
   async lockAvailableCarrier(externalId: string) {

@@ -7,6 +7,7 @@ import { LoggingModule } from '@infrastructure/logging/logging.module.js';
 import { HealthModule } from '@modules/health/health.module.js';
 import { CarriersModule } from '@modules/carriers/carriers.module.js';
 import { ShipmentsModule } from '@modules/shipments/shipments.module.js';
+import { TrackingHttpModule } from '@modules/tracking/tracking-http.module.js';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ShipmentsModule } from '@modules/shipments/shipments.module.js';
     HealthModule,
     CarriersModule,
     ShipmentsModule,
+    TrackingHttpModule,
   ],
 })
 export class AppModule {}
