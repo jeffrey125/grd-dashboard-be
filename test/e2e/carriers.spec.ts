@@ -1,6 +1,7 @@
 import { administratorCookie } from '@test/support/authentication.js';
 import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
+import { TrackingEvents1792195200000 } from '@infrastructure/database/migrations/1792195200000-TrackingEvents.js';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -58,6 +59,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         CarrierFetchMode1791936000000,
         FfeRequestMode1792022400000,
         EmployeeAuth1792108800000,
+        TrackingEvents1792195200000,
       ],
     });
     await source.initialize();

@@ -1,6 +1,7 @@
 import { AUTH_ENGINE, type AuthEngine } from '@modules/auth/auth.engine.js';
 import type { PostgresDriver } from 'typeorm/driver/postgres/PostgresDriver.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
+import { TrackingEvents1792195200000 } from '@infrastructure/database/migrations/1792195200000-TrackingEvents.js';
 import {
   spawn,
   execFile,
@@ -69,6 +70,7 @@ beforeAll(async () => {
       CarrierFetchMode1791936000000,
       FfeRequestMode1792022400000,
       EmployeeAuth1792108800000,
+      TrackingEvents1792195200000,
     ],
   });
   await source.initialize();

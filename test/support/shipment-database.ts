@@ -1,4 +1,5 @@
 import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
+import { TrackingEvents1792195200000 } from '@infrastructure/database/migrations/1792195200000-TrackingEvents.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
 import { DataSource } from 'typeorm';
 import { createConfiguration } from '@config/configuration.js';
@@ -34,6 +35,7 @@ export async function shipmentDatabase() {
       CarrierFetchMode1791936000000,
       FfeRequestMode1792022400000,
       EmployeeAuth1792108800000,
+      TrackingEvents1792195200000,
     ],
   });
   try {

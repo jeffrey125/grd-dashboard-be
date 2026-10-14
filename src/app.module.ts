@@ -8,6 +8,7 @@ import { HealthModule } from '@modules/health/health.module.js';
 import { CarriersModule } from '@modules/carriers/carriers.module.js';
 import { ShipmentsModule } from '@modules/shipments/shipments.module.js';
 import { TrackingHttpModule } from '@modules/tracking/tracking-http.module.js';
+import { EventsModule } from '@modules/events/events.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TrackingHttpModule } from '@modules/tracking/tracking-http.module.js';
     CarriersModule,
     ShipmentsModule,
     TrackingHttpModule,
+    EventsModule,
   ],
 })
 export class AppModule {}
