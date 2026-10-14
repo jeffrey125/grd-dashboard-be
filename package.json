@@ -27,6 +27,8 @@
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
     "test:cov": "vitest run --project unit --coverage",
+    "test:cov:all": "pnpm build && vitest run --coverage",
+    "test:container": "node --test test/container/runtime.test.ts",
     "test:integration": "pnpm build && vitest run --project integration",
     "typeorm": "typeorm",
     "entity:create": "typeorm entity:create",

@@ -1,0 +1,103 @@
+# Local development only. Never point this database service at managed PostgreSQL.
+x-runtime: &runtime
+  image: grd-dashboard-be:local
+  build: .
+  init: true
+  stop_grace_period: 40s
+
+x-database: &database
+  DB_HOST: db
+  DB_PORT: '5432'
+  DB_NAME: grd_local
+  DB_USER: grd_local
+  DB_PASSWORD: local-only-password
+  DB_SSL_MODE: disable
+
+services:
+  db:
+    image: postgres:18.3-alpine
+    environment:
+      POSTGRES_DB: grd_local
+      POSTGRES_USER: grd_local
+      POSTGRES_PASSWORD: local-only-password
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U grd_local -d grd_local']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    <<: *runtime
+    command:
+      [
+        'node',
+        'node_modules/typeorm/cli.js',
+        'migration:run',
+        '-d',
+        'dist/infrastructure/database/data-source.js',
+      ]
+    environment:
+      <<: *database
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *runtime
+    environment:
+      <<: *database
+      NODE_ENV: development
+      LOG_LEVEL: info
+      PORT: '3000'
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}
+      AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:3000}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-http://localhost:5173}
+      AUTH_TRUST_PROXY: 'false'
+    ports:
+      - '127.0.0.1:${GRD_API_PORT:-3000}:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready', {signal: AbortSignal.timeout(4000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  worker:
+    <<: *runtime
+    profiles: ['worker']
+    command: ['node', 'dist/worker.js']
+    environment:
+      <<: *database
+      NODE_ENV: production
+      LOG_LEVEL: info
+      UPS_ENVIRONMENT: ${UPS_ENVIRONMENT:-cie}
+      UPS_CLIENT_ID: ${UPS_CLIENT_ID:-}
+      UPS_CLIENT_SECRET: ${UPS_CLIENT_SECRET:-}
+      ECHOSHIP_URL: ${ECHOSHIP_URL:-}
+      ECHOSHIP_USERNAME: ${ECHOSHIP_USERNAME:-}
+      ECHOSHIP_PASSWORD: ${ECHOSHIP_PASSWORD:-}
+      FFE_URL: ${FFE_URL:-}
+      FFE_USERNAME: ${FFE_USERNAME:-}
+      FFE_PASSWORD: ${FFE_PASSWORD:-}
+      NTFY_URL: ${NTFY_URL:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    shm_size: 1gb
+    deploy:
+      replicas: 1
+
+volumes:
+  postgres-data:

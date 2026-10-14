@@ -1,0 +1,12 @@
+# Allowlist: local credentials, Git history, captures and test data never enter builds.
+**
+!Dockerfile
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!nest-cli.json
+!tsconfig.json
+!tsconfig.build.json
+!src/
+!src/**
+src/**/*.spec.ts
