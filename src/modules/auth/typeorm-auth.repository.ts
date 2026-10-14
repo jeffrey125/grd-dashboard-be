@@ -13,18 +13,23 @@ import type {
 
 class AuthStore implements AuthTransaction {
   constructor(private readonly manager: EntityManager) {}
+
   findById(id: number) {
     return this.manager.findOneBy(AuthUserEntity, { id });
   }
+
   findByEmail(email: string) {
     return this.manager.findOneBy(AuthUserEntity, { email });
   }
+
   findByExternalId(externalId: string) {
     return this.manager.findOneBy(AuthUserEntity, { externalId });
   }
+
   list() {
     return this.manager.find(AuthUserEntity, { order: { id: 'ASC' } });
   }
+
   async principal(
     sessionId: number,
     userId: number,
@@ -40,8 +45,10 @@ class AuthStore implements AuthTransaction {
        WHERE u.id = $1 AND s.id = $2 AND u.active = true AND s.expires_at > clock_timestamp()`,
       [userId, sessionId],
     );
+
     return rows[0] ? { ...rows[0], sessionId } : null;
   }
+
   async create(
     input: NewAccount,
     passwordHash: string,
@@ -56,17 +63,21 @@ class AuthStore implements AuthTransaction {
       createdById: actorId,
       updatedById: actorId,
     });
+
     await this.manager.save(AuthAccountEntity, {
       userId: user.id,
       accountId: String(user.id),
       providerId: 'credential',
       password: passwordHash,
     });
+
     return this.manager.findOneByOrFail(AuthUserEntity, { id: user.id });
   }
+
   async update(id: number, changes: AccountChanges, actorId: number | null) {
     const current = await this.manager.findOneByOrFail(AuthUserEntity, { id });
     const next = { ...current, ...changes };
+
     await this.manager.update(
       AuthUserEntity,
       { id },
@@ -77,8 +88,10 @@ class AuthStore implements AuthTransaction {
         updatedAt: () => 'clock_timestamp()',
       },
     );
+
     return this.manager.findOneByOrFail(AuthUserEntity, { id });
   }
+
   async passwordHash(userId: number) {
     return (
       (
@@ -89,14 +102,17 @@ class AuthStore implements AuthTransaction {
       )?.password ?? null
     );
   }
+
   async replacePassword(userId: number, passwordHash: string) {
     const result = await this.manager.update(
       AuthAccountEntity,
       { userId, providerId: 'credential' },
       { password: passwordHash, updatedAt: () => 'clock_timestamp()' },
     );
+
     if (result.affected !== 1) throw new Error('Credential record missing');
   }
+
   async revokeSessions(userId: number) {
     await this.manager.delete(AuthSessionEntity, { userId });
   }
@@ -108,17 +124,20 @@ const queues = new WeakMap<DataSource, Bottleneck>();
 
 export class TypeOrmAuthRepository extends AuthStore implements AuthRepository {
   private readonly queue: Bottleneck;
+
   constructor(private readonly source: DataSource) {
     super(source.manager);
     this.queue = queues.get(source) ?? new Bottleneck({ maxConcurrent: 1 });
     queues.set(source, this.queue);
   }
+
   transaction<T>(
     work: (transaction: AuthTransaction) => Promise<T>,
   ): Promise<T> {
     return this.queue.schedule(() =>
       this.source.transaction(async (manager) => {
         await manager.query('SELECT pg_advisory_xact_lock(1792108800)');
+
         return work(new AuthStore(manager));
       }),
     );

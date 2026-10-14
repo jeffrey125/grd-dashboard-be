@@ -7,9 +7,12 @@ export const changeSchema = z
     externalId: z.uuid(),
   })
   .strict();
+
 export type LiveEvent =
   { type: 'resync' | 'heartbeat' } | z.infer<typeof changeSchema>;
+
 export abstract class EventsSource {
   abstract readonly events: Observable<LiveEvent>;
+
   abstract start(): void;
 }

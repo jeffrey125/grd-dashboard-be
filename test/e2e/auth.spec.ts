@@ -19,8 +19,10 @@ describe('employee HTTP authentication', () => {
     (response.headers['set-cookie'] as string[])
       .map((value) => value.split(';')[0])
       .join('; ');
+
   beforeAll(async () => {
     db = await shipmentDatabase();
+
     for (const [key, value] of Object.entries({
       ...db.environment,
       AUTH_SECRET: 'test-secret-'.repeat(4),
@@ -28,12 +30,14 @@ describe('employee HTTP authentication', () => {
       AUTH_TRUSTED_ORIGINS: origin,
     }))
       vi.stubEnv(key, value);
+
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideModule(DatabaseModule)
       .useModule(TestDatabaseModule)
       .overrideProvider(DataSource)
       .useValue(db.source)
       .compile();
+
     app = module.createNestApplication({ logger: false });
     await app.init();
     await app.get(AuthService).bootstrap({
@@ -56,17 +60,21 @@ describe('employee HTTP authentication', () => {
       .post('/auth/sign-in')
       .send({ email: 'admin@example.test', password: 'initial admin password' })
       .expect(403);
+
     const login = await http()
       .post('/auth/sign-in')
       .set('Origin', origin)
       .send({ email: 'admin@example.test', password: 'initial admin password' })
       .expect(200);
+
     expect(String(login.headers['set-cookie'])).toContain('HttpOnly');
     expect(String(login.headers['set-cookie'])).toContain('SameSite=Lax');
     expect(login.body.mustChangePassword).toBe(true);
     expect(login.body.token).toBeUndefined();
     expect(login.body.id).toBeUndefined();
+
     const cookie = cookies(login);
+
     await http().get('/auth/me').set('Cookie', cookie).expect(200);
     await http().get('/carriers').set('Cookie', cookie).expect(403);
     await http()
@@ -79,11 +87,13 @@ describe('employee HTTP authentication', () => {
       })
       .expect(204);
     await http().get('/auth/me').set('Cookie', cookie).expect(401);
+
     const fresh = await http()
       .post('/auth/sign-in')
       .set('Origin', origin)
       .send({ email: 'admin@example.test', password: 'chosen admin password' })
       .expect(200);
+
     await http().get('/carriers').set('Cookie', cookies(fresh)).expect(200);
     await http()
       .post('/auth/sign-up/email')
@@ -115,6 +125,7 @@ describe('employee HTTP authentication', () => {
       .set('Origin', origin)
       .send({ email: staff.body.email, password: 'issued staff password' })
       .expect(200);
+
     await http()
       .post('/auth/change-password')
       .set('Origin', origin)
@@ -124,6 +135,7 @@ describe('employee HTTP authentication', () => {
         newPassword: 'chosen staff password',
       })
       .expect(204);
+
     const staffLogin = await http()
       .post('/auth/sign-in')
       .set('Origin', origin)
@@ -135,6 +147,7 @@ describe('employee HTTP authentication', () => {
       .set('Cookie', cookie)
       .expect(200);
     const carrierId = carriers.body[0].externalId;
+
     await http()
       .patch(`/carriers/${carrierId}`)
       .set('Origin', origin)
@@ -156,6 +169,7 @@ describe('employee HTTP authentication', () => {
         ],
       })
       .expect(400);
+
     const created = await http()
       .post('/shipments')
       .set('Origin', origin)
@@ -167,6 +181,7 @@ describe('employee HTTP authentication', () => {
       })
       .expect(201);
     const id = created.body.inserted[0].externalId;
+
     await http()
       .patch(`/shipments/${id}`)
       .set('Origin', origin)
@@ -190,6 +205,7 @@ describe('employee HTTP authentication', () => {
       .set('Origin', origin)
       .set('Cookie', cookie)
       .expect(204);
+
     const [actor] = await db.source.query(
       'SELECT id FROM auth_users WHERE external_id = $1',
       [staff.body.externalId],
@@ -198,21 +214,25 @@ describe('employee HTTP authentication', () => {
       'SELECT created_by_id, updated_by_id, deleted_by_id FROM shipments WHERE external_id = $1',
       [id],
     );
+
     expect(row).toEqual({
       created_by_id: actor.id,
       updated_by_id: actor.id,
       deleted_by_id: actor.id,
     });
+
     await http()
       .patch(`/carriers/${carrierId}`)
       .set('Origin', origin)
       .set('Cookie', adminCookie)
       .send({ name: 'Admin edited' })
       .expect(200);
+
     const [carrier] = await db.source.query(
       'SELECT u.external_id FROM carriers c JOIN auth_users u ON c.updated_by_id = u.id WHERE c.external_id = $1',
       [carrierId],
     );
+
     expect(carrier.external_id).toBe(adminLogin.body.externalId);
   });
   it('rejects cross-origin requests and limits normalized-email login attempts', async () => {
@@ -236,12 +256,14 @@ describe('employee HTTP authentication', () => {
       .get('/auth/me')
       .set('Authorization', 'Bearer unsupported')
       .expect(401);
+
     for (let index = 0; index < 5; index++)
       await http()
         .post('/auth/sign-in')
         .set('Origin', origin)
         .send({ email: '  Absent@example.test ', password: 'wrong password' })
         .expect(401);
+
     await http()
       .post('/auth/sign-in')
       .set('Origin', origin)

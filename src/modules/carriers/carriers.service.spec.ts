@@ -35,12 +35,14 @@ async function setup() {
       { provide: CARRIERS_REPOSITORY, useValue: repository },
     ],
   }).compile();
+
   return { repository, service: module.get(CarriersService) };
 }
 
 describe('Carrier configuration', () => {
   it.each(['request', 'browser'])('allows FFE %s mode', async (fetchMode) => {
     const { service, repository } = await setup();
+
     repository.find.mockResolvedValue({ ...carrier, code: 'ffe' });
     repository.update.mockResolvedValue({ ...carrier, code: 'ffe' });
     await expect(
@@ -49,6 +51,7 @@ describe('Carrier configuration', () => {
   });
   it('allows EchoShip browser mode but rejects unsupported UPS mode', async () => {
     const { service, repository } = await setup();
+
     repository.find.mockResolvedValue({ ...carrier, code: 'echoship' });
     repository.update.mockResolvedValue({ ...carrier, code: 'echoship' });
     await expect(
@@ -83,14 +86,17 @@ describe('Carrier configuration', () => {
     [],
   ])('rejects invalid configuration before persistence: %j', async (input) => {
     const { service, repository } = await setup();
+
     await expect(service.update(externalId, input)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+
     expect(repository.update).not.toHaveBeenCalled();
   });
 
   it('trims a display name and accepts explicit disable and unlimited rate', async () => {
     const { service, repository } = await setup();
+
     vi.mocked(repository.update).mockResolvedValue(carrier);
     await service.update(externalId, {
       name: '  UPS Display  ',
@@ -99,6 +105,7 @@ describe('Carrier configuration', () => {
       pollIntervalMinutes: 32767,
       rateLimitPerMinute: null,
     });
+
     expect(repository.update).toHaveBeenCalledWith(
       externalId,
       {
@@ -114,6 +121,7 @@ describe('Carrier configuration', () => {
 
   it('reports absent or soft-deleted Carriers as not found', async () => {
     const { service, repository } = await setup();
+
     vi.mocked(repository.find).mockResolvedValue(null);
     vi.mocked(repository.update).mockResolvedValue(null);
     await expect(service.find(externalId)).rejects.toBeInstanceOf(
@@ -126,11 +134,13 @@ describe('Carrier configuration', () => {
 
   it('preserves an omitted rate limit and accepts the numeric boundaries', async () => {
     const { service, repository } = await setup();
+
     vi.mocked(repository.update).mockResolvedValue(carrier);
     await service.update(externalId, {
       notFoundPauseThreshold: 32767,
       pollIntervalMinutes: 1,
     });
+
     expect(repository.update).toHaveBeenCalledWith(
       externalId,
       {
@@ -139,7 +149,9 @@ describe('Carrier configuration', () => {
       },
       null,
     );
+
     await service.update(externalId, { rateLimitPerMinute: 32767 });
+
     expect(repository.update).toHaveBeenLastCalledWith(
       externalId,
       {
@@ -153,12 +165,14 @@ describe('Carrier configuration', () => {
     'rejects an invalid public identifier before persistence: %s',
     async (id) => {
       const { service, repository } = await setup();
+
       await expect(service.find(id)).rejects.toBeInstanceOf(
         BadRequestException,
       );
       await expect(
         service.update(id, { isActive: false }),
       ).rejects.toBeInstanceOf(BadRequestException);
+
       expect(repository.find).not.toHaveBeenCalled();
       expect(repository.update).not.toHaveBeenCalled();
     },

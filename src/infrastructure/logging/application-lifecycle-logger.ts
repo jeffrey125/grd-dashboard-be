@@ -15,6 +15,7 @@ export class ApplicationLifecycleLogger implements OnApplicationShutdown {
     await new Promise<void>((resolve, reject) => {
       PinoLogger.root.flush((error) => {
         const streamError = error as NodeJS.ErrnoException | undefined;
+
         // SonicBoom calls fsync after draining. stdout pipes cannot be synced,
         // but their writes have already completed when this callback runs.
         if (
@@ -22,8 +23,10 @@ export class ApplicationLifecycleLogger implements OnApplicationShutdown {
           (streamError.code === 'EINVAL' && streamError.syscall === 'fsync')
         ) {
           resolve();
+
           return;
         }
+
         reject(new Error('Application log flush failed'));
       });
     });

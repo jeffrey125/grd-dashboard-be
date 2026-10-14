@@ -9,11 +9,15 @@ import {
 function boundedMessage(message: string) {
   let result = '';
   let bytes = 0;
+
   for (const character of message) {
     bytes += Buffer.byteLength(character);
+
     if (bytes > 3400) return `${result}\n[Details truncated]`;
+
     result += character;
   }
+
   return result;
 }
 
@@ -32,12 +36,16 @@ export class NotificationsService
     maxBodyLength: 4096,
     proxy: false,
   });
+
   constructor(@Inject(ProjectLogger) private readonly logger: ProjectLogger) {
     super();
+
     const configured = process.env.NTFY_URL?.trim();
+
     if (configured) {
       try {
         const url = new URL(configured);
+
         if (
           !['http:', 'https:'].includes(url.protocol) ||
           url.username ||
@@ -46,6 +54,7 @@ export class NotificationsService
           url.search
         )
           throw new Error();
+
         this.url = url.toString();
       } catch {
         throw new Error(
@@ -54,17 +63,22 @@ export class NotificationsService
       }
     }
   }
+
   async record(notice: TrackingNotice): Promise<void> {
     if (this.stopped.signal.aborted) return;
+
     const fields = {
       carrierCode: notice.carrierCode,
       shipmentExternalId: notice.shipmentExternalId,
     };
+
     try {
       let title: string;
       let detail: string;
+
       if (notice.outcome === 'failed') {
         if (this.failures.has(notice.carrierCode)) return;
+
         this.failures.add(notice.carrierCode);
         title = 'Carrier check incomplete';
         detail =
@@ -72,6 +86,7 @@ export class NotificationsService
       } else {
         // A confirmed not-found response also demonstrates a functioning lookup.
         this.failures.delete(notice.carrierCode);
+
         if (notice.stopped) {
           title = 'Shipment monitoring stopped';
           detail =
@@ -86,6 +101,7 @@ export class NotificationsService
             ? 'First tracking result.'
             : 'Tracking details changed.';
         } else return;
+
         if (notice.snapshot) {
           for (const [key, value] of Object.entries(notice.snapshot)) {
             if (
@@ -93,11 +109,14 @@ export class NotificationsService
               notice.previous[key as keyof typeof notice.previous] === value
             )
               continue;
+
             detail += `\n${key}: ${notice.previous ? `${notice.previous[key as keyof typeof notice.previous] ?? 'unknown'} -> ` : ''}${value ?? 'unknown'}`;
           }
         }
       }
+
       if (!this.url) return;
+
       await this.client.post(
         this.url,
         boundedMessage(
@@ -128,6 +147,7 @@ export class NotificationsService
       );
     }
   }
+
   onModuleDestroy() {
     this.stopped.abort();
   }

@@ -159,6 +159,7 @@ export class InitialSchema1791849600000 implements MigrationInterface {
         END IF;
         RETURN NEW;
       END $$`);
+
     for (const table of [
       'carriers',
       'shipments',
@@ -168,6 +169,7 @@ export class InitialSchema1791849600000 implements MigrationInterface {
       await runner.query(`CREATE TRIGGER immutable_identifiers BEFORE UPDATE ON ${table}
         FOR EACH ROW EXECUTE FUNCTION reject_identifier_update()`);
     }
+
     // Snapshots protect the entire row, including their generated identity.
     await runner.query(`CREATE FUNCTION reject_snapshot_update() RETURNS trigger
       LANGUAGE plpgsql AS $$ BEGIN

@@ -35,12 +35,14 @@ async function setup() {
       { provide: CARRIERS_REPOSITORY, useValue: carriers },
     ],
   }).compile();
+
   return { service: module.get(ShipmentsService), repository, carriers };
 }
 
 describe('Shipment creation', () => {
   it('preserves strings and case, normalizes UUIDs, and uses the last repeated pair including omitted notes', async () => {
     const { service, repository } = await setup();
+
     await service.create({
       items: [
         {
@@ -52,6 +54,7 @@ describe('Shipment creation', () => {
         { carrierExternalId, trackingReference: '001ab', notes: ' Last ' },
       ],
     });
+
     expect(repository.createMany).toHaveBeenCalledWith(
       [
         { carrierExternalId, trackingReference: '001Ab', notes: null },
@@ -74,7 +77,9 @@ describe('Shipment creation', () => {
     { items: [], createdById: 1 },
   ])('rejects invalid envelopes: %j', async (input) => {
     const { service, repository } = await setup();
+
     await expect(service.create(input)).rejects.toMatchObject({ status: 400 });
+
     expect(repository.createMany).not.toHaveBeenCalled();
   });
 
@@ -108,6 +113,7 @@ describe('Shipment creation', () => {
           ],
         })
         .catch((error) => error);
+
       expect(error).toMatchObject({ status: 400 });
       expect(JSON.stringify(error.response)).not.toContain('CANARY');
       expect(repository.createMany).not.toHaveBeenCalled();
@@ -118,6 +124,7 @@ describe('Shipment creation', () => {
     'rejects missing/deleted or disabled Carriers for the entire batch',
     async (value) => {
       const { service, repository, carriers } = await setup();
+
       carriers.find.mockResolvedValueOnce(carrier).mockResolvedValueOnce(value);
       await expect(
         service.create({
@@ -133,12 +140,14 @@ describe('Shipment creation', () => {
           ],
         },
       });
+
       expect(repository.createMany).not.toHaveBeenCalled();
     },
   );
 
   it('retains original row numbers when Carrier eligibility changes during creation', async () => {
     const { service, repository } = await setup();
+
     repository.createMany.mockResolvedValue({
       kind: 'unavailable',
       carrierExternalIds: [carrierExternalId],
@@ -162,6 +171,7 @@ describe('Shipment creation', () => {
 
   it('accepts generic references for each seeded Carrier and exact length boundaries', async () => {
     const { service, repository, carriers } = await setup();
+
     for (const code of ['ups', 'echoship', 'ffe']) {
       carriers.find.mockResolvedValue({ ...carrier, code });
       await service.create({
@@ -174,11 +184,13 @@ describe('Shipment creation', () => {
         ],
       });
     }
+
     expect(repository.createMany).toHaveBeenCalledTimes(3);
   });
 
   it('rejects every invalid row before any writes and exposes safe row errors', async () => {
     const { service, repository } = await setup();
+
     await expect(
       service.create({
         items: [
@@ -200,6 +212,7 @@ describe('Shipment creation', () => {
         ]),
       },
     });
+
     expect(repository.createMany).not.toHaveBeenCalled();
   });
 });

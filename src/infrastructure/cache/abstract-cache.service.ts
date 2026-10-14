@@ -8,6 +8,7 @@ export abstract class AbstractCacheService<TValue> {
 
   async get(identifier: string): Promise<TValue | undefined> {
     const value = await this.cache.get<TValue>(this.createKey(identifier));
+
     return value ?? undefined;
   }
 
@@ -31,6 +32,7 @@ export abstract class AbstractCacheService<TValue> {
     if (!namespace) {
       throw new Error('Cache namespace must not be empty.');
     }
+
     if (!normalizedIdentifier) {
       throw new Error('Cache identifier must not be empty.');
     }

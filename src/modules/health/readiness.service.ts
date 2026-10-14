@@ -31,9 +31,11 @@ export class ReadinessService
   onApplicationBootstrap() {
     this.ready = true;
   }
+
   beforeApplicationShutdown() {
     this.ready = false;
   }
+
   check() {
     return this.health.check([
       () =>
@@ -47,6 +49,7 @@ export class ReadinessService
             await dependency.check(signal);
           })
           .withTimeout(1000);
+
         // Terminus can include the thrown error's message. Expose status only.
         return result[dependency.name].status === 'up'
           ? indicator.up()

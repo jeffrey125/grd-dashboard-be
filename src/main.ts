@@ -17,6 +17,7 @@ async function bootstrap() {
   await ConfigModule.envVariablesLoaded;
   createConfiguration(process.env);
   authConfiguration(process.env);
+
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
     autoFlushLogs: false,
@@ -27,13 +28,16 @@ async function bootstrap() {
     app.useLogger(app.get(NestLoggerAdapter));
     app.flushLogs();
     app.enableShutdownHooks(['SIGINT', 'SIGTERM']);
+
     const config = app.get<RuntimeConfiguration>(configuration.KEY);
+
     await app.listen(config.port);
     app
       .get(ProjectLogger)
       .info('application.ready', 'API ready', { port: config.port });
   } catch (error) {
     await app.close().catch(() => undefined);
+
     throw error;
   }
 }

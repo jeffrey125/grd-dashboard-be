@@ -20,18 +20,25 @@ export class AuthSessionEntity {
     generatedIdentity: 'ALWAYS',
   })
   id: number;
+
   @Column({ name: 'user_id', type: 'integer' })
   userId: number;
+
   @Column({ name: 'token', type: 'text' })
   token: string;
+
   @Column({ name: 'expires_at', type: 'timestamptz' })
   expiresAt: Date;
+
   @Column({ name: 'ip_address', type: 'text', nullable: true })
   ipAddress: string | null;
+
   @Column({ name: 'user_agent', type: 'text', nullable: true })
   userAgent: string | null;
+
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;
+
   @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
   updatedAt: Date;
 }

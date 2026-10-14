@@ -21,11 +21,15 @@ export function envelope(input: unknown): unknown {
   const status = z
     .object({ status: z.object({ code: z.number() }), data: z.unknown() })
     .safeParse(input);
+
   if (!status.success) throw new EchoShipFailure('ECHOSHIP_INVALID_RESPONSE');
+
   if ([401, 403].includes(status.data.status.code))
     throw new EchoShipFailure('ECHOSHIP_AUTHENTICATION_FAILED');
+
   if (status.data.status.code !== 200)
     throw new EchoShipFailure('ECHOSHIP_INVALID_RESPONSE');
+
   return status.data.data;
 }
 
@@ -40,12 +44,14 @@ export function searchPage(input: unknown) {
 
 function date(value: string | null | undefined): string | null {
   if (!value || value.startsWith('0001-01-01')) return null;
+
   if (
     !z
       .union([z.iso.date(), z.iso.datetime({ offset: true, local: true })])
       .safeParse(value).success
   )
     throw new EchoShipFailure('ECHOSHIP_INVALID_RESPONSE');
+
   // Preserve the source calendar date, regardless of offset or machine timezone.
   return z.iso.date().parse(value.slice(0, 10));
 }
@@ -81,18 +87,24 @@ export function mapEchoShip(
         .optional(),
     })
     .parse(envelope(rawDetail));
+
   if (load.id !== reference)
     throw new EchoShipFailure('ECHOSHIP_REFERENCE_MISMATCH');
+
   const events = z.array(eventSchema).max(10_000).parse(envelope(rawTracking));
+
   for (const event of events) {
     if (event.id !== reference)
       throw new EchoShipFailure('ECHOSHIP_REFERENCE_MISMATCH');
+
     for (const timestamp of [event.modifiedDate, event.createdDate]) {
       date(timestamp);
+
       if (!Number.isFinite(eventOrder(timestamp)))
         throw new EchoShipFailure('ECHOSHIP_INVALID_RESPONSE');
     }
   }
+
   // Match the portal's orderBy(modifiedDate desc, createdDate desc), not event time alone.
   // Ties with conflicting panel text cannot be resolved from the ordering evidence.
   const sorted = [...events].sort(
@@ -101,6 +113,7 @@ export function mapEchoShip(
       eventOrder(b.createdDate) - eventOrder(a.createdDate),
   );
   const latest = sorted[0];
+
   if (
     latest &&
     sorted.some(
@@ -112,6 +125,7 @@ export function mapEchoShip(
     )
   )
     throw new EchoShipFailure('ECHOSHIP_AMBIGUOUS_TRACKING');
+
   const appointment = load.stops?.find(
     (stop) => stop.stopType === 'Delivery',
   )?.appointmentStart;
@@ -123,6 +137,7 @@ export function mapEchoShip(
     deliveryByDate: load.deliveryByDate ?? null,
     deliveryAppointmentStart: appointment ?? null,
   };
+
   return trackingResultSchema.parse({
     outcome: 'found',
     snapshot: {

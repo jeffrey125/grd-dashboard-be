@@ -43,15 +43,19 @@ export class EchoShipAdapter implements CarrierAdapter, OnModuleDestroy {
     options: Parameters<CarrierAdapter['openSession']>[0],
   ): Promise<TrackingSession> {
     options.signal.throwIfAborted();
+
     if (
       options.rateLimitPerMinute !== null &&
       (!Number.isSafeInteger(options.rateLimitPerMinute) ||
         options.rateLimitPerMinute < 1)
     )
       throw new EchoShipFailure('ECHOSHIP_CONFIGURATION_INVALID', false);
+
     const settings = this.configuration.read();
+
     if (!['request', 'browser'].includes(options.fetchMode ?? ''))
       throw new EchoShipFailure('ECHOSHIP_MODE_INVALID', false);
+
     const portal =
       options.fetchMode === 'browser'
         ? new EchoShipBrowser(
@@ -68,31 +72,40 @@ export class EchoShipAdapter implements CarrierAdapter, OnModuleDestroy {
             options.rateLimitPerMinute,
             options.signal,
           );
+
     try {
       await portal.login(options.signal);
     } catch (error) {
       await portal.close();
+
       throw echoShipFailure(error);
     }
+
     let authenticationFailed = false;
     const session: TrackingSession = {
       read: async (reference, signal) => {
         signal.throwIfAborted();
+
         if (authenticationFailed)
           return failedResult(
             new EchoShipFailure('ECHOSHIP_AUTHENTICATION_FAILED'),
           );
+
         if (!/^\d{1,20}$/.test(reference))
           return failedResult(
             new EchoShipFailure('ECHOSHIP_INVALID_REFERENCE', false),
           );
+
         try {
           return await portal.read(reference, signal);
         } catch (error) {
           signal.throwIfAborted();
+
           const failure = echoShipFailure(error);
+
           authenticationFailed =
             failure.code === 'ECHOSHIP_AUTHENTICATION_FAILED';
+
           return failedResult(failure);
         }
       },
@@ -104,7 +117,9 @@ export class EchoShipAdapter implements CarrierAdapter, OnModuleDestroy {
         }
       },
     };
+
     this.sessions.add(session);
+
     return session;
   }
 

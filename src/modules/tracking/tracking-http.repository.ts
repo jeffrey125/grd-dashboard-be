@@ -12,6 +12,7 @@ export interface RunStatus extends TrackingRunRecord {
     completedAt: string | null;
   }>;
 }
+
 export interface TrackingHttpRepository {
   queue(
     shipmentExternalId: string,
@@ -22,4 +23,5 @@ export interface TrackingHttpRepository {
   >;
   find(externalId: string): Promise<RunStatus | null>;
 }
+
 export const TRACKING_HTTP_REPOSITORY = Symbol('TRACKING_HTTP_REPOSITORY');

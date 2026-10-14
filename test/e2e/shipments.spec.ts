@@ -29,16 +29,20 @@ describe('Shipment HTTP API with PostgreSQL', () => {
   });
   const create = (items: unknown[]) =>
     http().post('/shipments').send({ items });
+
   beforeAll(async () => {
     db = await shipmentDatabase();
+
     for (const [key, value] of Object.entries(db.environment))
       vi.stubEnv(key, value);
+
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideModule(DatabaseModule)
       .useModule(TestDatabaseModule)
       .overrideProvider(DataSource)
       .useValue(db.source)
       .compile();
+
     app = module.createNestApplication({ logger: false });
     await app.init();
     cookie = await administratorCookie(app);
@@ -60,6 +64,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       .expect('Cache-Control', 'no-store');
     const shipment = response.body.inserted[0];
     const path = `/shipments/${shipment.externalId}`;
+
     expect(shipment).toEqual({
       externalId: expect.any(String),
       carrier: {
@@ -91,7 +96,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     expect(
       (await http().patch(path).send({ notes: null }).expect(200)).body.notes,
     ).toBeNull();
+
     await http().post(`${path}/resume`).expect(409);
+
     expect((await http().post(`${path}/pause`).expect(200)).body).toMatchObject(
       {
         monitoringStatus: 'paused',
@@ -99,7 +106,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
         nextCheckAt: null,
       },
     );
+
     await http().post(`${path}/pause`).expect(409);
+
     expect(
       (await http().post(`${path}/resume`).expect(200)).body,
     ).toMatchObject({
@@ -107,22 +116,27 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       monitoringReason: null,
       nextCheckAt: expect.any(String),
     });
+
     await http().delete(path).expect(204);
     await http().get(path).expect(404);
     await http().patch(path).send({ notes: 'Cannot revive' }).expect(404);
     await http().post(`${path}/pause`).expect(404);
     await http().post(`${path}/resume`).expect(404);
     await http().delete(path).expect(404);
+
     const replacement = await create([item('000Ab')]).expect(201);
+
     expect(replacement.body.inserted[0].externalId).not.toBe(
       shipment.externalId,
     );
+
     const deleted = await db.source
       .getRepository(ShipmentEntity)
       .findOneOrFail({
         where: { externalId: shipment.externalId },
         withDeleted: true,
       });
+
     expect(deleted).toMatchObject({
       createdById: expect.any(Number),
       updatedById: expect.any(Number),
@@ -136,21 +150,26 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       item(' repeat '),
       item('other', ' keep '),
     ]).expect(201);
+
     expect(
       response.body.inserted.map((row: { notes: string | null }) => row.notes),
     ).toEqual([null, 'keep']);
     expect(response.body.duplicates).toEqual([]);
+
     const duplicate = await create([
       item('other', 'must not overwrite'),
       item('new'),
     ]).expect(201);
+
     expect(duplicate.body.inserted).toHaveLength(1);
     expect(duplicate.body.duplicates).toEqual([response.body.inserted[1]]);
+
     const all = await create([
       item('repeat'),
       item('repeat'),
       item('other'),
     ]).expect(200);
+
     expect(all.body.inserted).toEqual([]);
     expect(all.body.duplicates).toHaveLength(2);
   });
@@ -164,6 +183,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       item('conflicting'),
       { ...item('forbidden'), createdById: 999, CANARY_FIELD: 'CANARY_VALUE' },
     ]).expect(400);
+
     expect(invalid.body.code).toBe('shipment_validation_failed');
     expect(invalid.body.details).toEqual(
       expect.arrayContaining([
@@ -207,6 +227,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
 
   it('returns 404 for an unknown public UUID', async () => {
     const path = '/shipments/00000000-0000-4000-8000-000000000000';
+
     await http().get(path).expect(404);
     await http().patch(path).send({ notes: null }).expect(404);
     await http().delete(path).expect(404);
@@ -218,6 +239,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       item('x'.repeat(255), 'n'.repeat(500)),
     ]).expect(201);
     const path = `/shipments/${response.body.inserted[0].externalId}`;
+
     for (const input of [
       {},
       { notes: '' },
@@ -230,8 +252,11 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     ]) {
       await http().patch(path).send(input).expect(400);
     }
+
     await http().post(`${path}/pause`).send({ updatedById: 1 }).expect(400);
+
     expect((await http().get(path)).body).toEqual(response.body.inserted[0]);
+
     await create([item('x'.repeat(256))]).expect(400);
     await create([item('nul\u0000')]).expect(400);
   });
@@ -243,6 +268,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       isActive: false,
       pollIntervalMinutes: 5,
     });
+
     for (const id of [
       carrier.externalId,
       '00000000-0000-4000-8000-000000000000',
@@ -251,10 +277,12 @@ describe('Shipment HTTP API with PostgreSQL', () => {
         item('no-partial-write'),
         { ...item('disabled'), carrierExternalId: id },
       ]).expect(400);
+
       expect(response.body.details).toEqual([
         { row: 2, field: 'carrierExternalId', message: expect.any(String) },
       ]);
     }
+
     expect(
       (await http().get('/shipments')).body.some(
         (row: { trackingReference: string }) =>
@@ -267,13 +295,16 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     const results = await Promise.all(
       Array.from({ length: 4 }, () => create([item('http-concurrent')])),
     );
+
     expect(results.map((result) => result.status).sort()).toEqual([
       200, 200, 200, 201,
     ]);
+
     const records = results.flatMap((result) => [
       ...result.body.inserted,
       ...result.body.duplicates,
     ]);
+
     expect(new Set(records.map((row) => row.externalId)).size).toBe(1);
   });
 
@@ -281,11 +312,13 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     await db.source.query(
       `ALTER TABLE shipments ADD CONSTRAINT http_test_failure CHECK (tracking_reference <> 'http-db-fail-z')`,
     );
+
     try {
       const response = await create([
         item('http-db-fail-a'),
         item('http-db-fail-z'),
       ]).expect(500);
+
       expect(response.body).toEqual({
         statusCode: 500,
         message: 'Internal server error',

@@ -36,6 +36,7 @@ describe('UPS response mapping', () => {
       },
       reference,
     );
+
     expect(result).toEqual({
       outcome: 'found',
       snapshot: {
@@ -98,6 +99,7 @@ describe('UPS response mapping', () => {
         { trackResponse: { shipment: [{ package: [pkg] }] } },
         reference,
       );
+
       expect(result).toMatchObject({
         outcome: 'found',
         snapshot: { ...expected, pickedUpOn: null },

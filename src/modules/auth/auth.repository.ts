@@ -1,6 +1,7 @@
 import type { AuthUserEntity } from './auth-user.entity.js';
 
 export type AuthRole = 'admin' | 'staff';
+
 export interface Principal {
   id: number;
   externalId: string;
@@ -8,10 +9,12 @@ export interface Principal {
   role: AuthRole;
   mustChangePassword: boolean;
 }
+
 export type NewAccount = Pick<
   AuthUserEntity,
   'firstName' | 'lastName' | 'email' | 'role'
 >;
+
 export type AccountChanges = Partial<
   Pick<
     AuthUserEntity,
@@ -23,6 +26,7 @@ export type AccountChanges = Partial<
     | 'mustChangePassword'
   >
 >;
+
 export interface AuthTransaction {
   findById(id: number): Promise<AuthUserEntity | null>;
   findByEmail(email: string): Promise<AuthUserEntity | null>;
@@ -43,13 +47,16 @@ export interface AuthTransaction {
   replacePassword(userId: number, passwordHash: string): Promise<void>;
   revokeSessions(userId: number): Promise<void>;
 }
+
 export interface AuthRepository extends AuthTransaction {
   /** Serializes account/session mutations, including Better Auth calls. */
   transaction<T>(
     work: (transaction: AuthTransaction) => Promise<T>,
   ): Promise<T>;
 }
+
 export const AUTH_REPOSITORY = Symbol('AUTH_REPOSITORY');
+
 export function publicAccount(user: AuthUserEntity) {
   return {
     externalId: user.externalId,

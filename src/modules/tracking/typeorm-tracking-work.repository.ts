@@ -29,6 +29,7 @@ export class TypeOrmTrackingWorkRepository implements TrackingWorkRepository {
         ORDER BY shipment.next_check_at, shipment.id`,
       [carrierExternalId, minimumIntervalMinutes],
     );
+
     return rows.map((row) => row.external_id);
   }
 
@@ -40,6 +41,7 @@ export class TypeOrmTrackingWorkRepository implements TrackingWorkRepository {
        WHERE run.status = 'queued' AND run.trigger = 'manual'
        ORDER BY run.created_at, run.id LIMIT 1`,
       );
+
     return rows[0]
       ? {
           externalId: rows[0].external_id,
@@ -52,6 +54,7 @@ export class TypeOrmTrackingWorkRepository implements TrackingWorkRepository {
     const rows: Array<{ external_id: string }> = await this.source.query(
       "SELECT external_id FROM tracking_runs WHERE status = 'running' ORDER BY id",
     );
+
     return rows.map((row) => row.external_id);
   }
 
@@ -59,6 +62,7 @@ export class TypeOrmTrackingWorkRepository implements TrackingWorkRepository {
     const rows: Array<{ external_id: string }> = await this.source.query(
       "SELECT external_id FROM tracking_runs WHERE status = 'queued' AND trigger = 'scheduled' ORDER BY id",
     );
+
     return rows.map((row) => row.external_id);
   }
 }

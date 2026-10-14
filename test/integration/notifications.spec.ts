@@ -15,17 +15,23 @@ let publisher: NotificationsService;
 let tracking: TrackingService;
 const messages: Array<{ title: string; body: string }> = [];
 let status = 200;
+
 beforeAll(async () => {
   db = await shipmentDatabase();
   server = createServer(async (request, response) => {
     let body = '';
+
     for await (const chunk of request) body += chunk;
+
     messages.push({ title: String(request.headers.title), body });
     response.writeHead(status).end();
   }).listen(0, '127.0.0.1');
   await once(server, 'listening');
+
   const address = server.address();
+
   if (!address || typeof address === 'string') throw new Error('No server');
+
   vi.stubEnv('NTFY_URL', `http://127.0.0.1:${address.port}/private-topic`);
   publisher = new NotificationsService({
     warn: vi.fn(),
@@ -38,10 +44,12 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   publisher?.onModuleDestroy();
+
   if (server) {
     server.close();
     await once(server, 'close');
   }
+
   await db?.close();
   vi.unstubAllEnvs();
 });
@@ -53,10 +61,12 @@ it.each(['ups', 'echoship', 'ffe'])(
     const carrier = await db.source
       .getRepository(CarrierEntity)
       .findOneByOrFail({ code });
+
     await db.source.query(
       'UPDATE carriers SET not_found_pause_threshold = 2 WHERE id = $1',
       [carrier.id],
     );
+
     const created = await shipments.createMany([
       {
         carrierExternalId: carrier.externalId,
@@ -64,9 +74,12 @@ it.each(['ups', 'echoship', 'ffe'])(
         notes: null,
       },
     ]);
+
     if (created.kind !== 'created') throw new Error('No shipment');
+
     const shipment = created.inserted[0]!;
     const initialSchedule = shipment.nextCheckAt;
+
     async function attempt(
       outcome: 'found' | 'not_found' | 'failed',
       delivered = false,
@@ -85,6 +98,7 @@ it.each(['ups', 'echoship', 'ffe'])(
         effectiveIntervalMinutes: 5,
         sourceData: null,
       };
+
       if (outcome === 'found')
         await tracking.finalizeFound({
           ...command,
@@ -105,36 +119,56 @@ it.each(['ups', 'echoship', 'ffe'])(
           reasonCode: 'TEST_FAILURE',
           message: 'Safe failure',
         });
+
       await tracking.finalizeRun(run.externalId);
+
       return command;
     }
+
     messages.length = 0;
     await attempt('found');
+
     expect(messages).toHaveLength(1);
     expect(messages[0]!.title).toBe('Initial tracking result');
     expect((await shipments.find(shipment.externalId))!.nextCheckAt).toEqual(
       initialSchedule,
     );
+
     await attempt('found');
+
     expect(messages).toHaveLength(1);
+
     await attempt('not_found');
+
     expect(messages).toHaveLength(1);
+
     await attempt('not_found');
+
     expect(messages).toHaveLength(2);
     expect(messages[1]!.body).toContain('consecutive not-found threshold');
+
     await attempt('not_found');
+
     expect(messages).toHaveLength(2);
+
     await attempt('found');
+
     expect((await shipments.find(shipment.externalId))!.monitoringStatus).toBe(
       'active',
     );
+
     await attempt('not_found');
     await attempt('not_found');
+
     expect(messages).toHaveLength(3);
+
     await attempt('found');
     status = 503;
+
     const delivered = await attempt('found', true);
+
     status = 200;
+
     expect(messages).toHaveLength(4);
     expect(messages[3]!.body).toContain(
       'Monitoring stopped: shipment delivered',
@@ -142,7 +176,9 @@ it.each(['ups', 'echoship', 'ffe'])(
     expect((await shipments.find(shipment.externalId))!.monitoringStatus).toBe(
       'completed',
     );
+
     await expect(tracking.finalizeNotFound(delivered)).rejects.toThrow();
+
     expect(messages).toHaveLength(4);
   },
 );

@@ -21,6 +21,7 @@ export const createTrackingRunSchema = z
         path: ['shipmentExternalIds'],
         message: 'Shipment IDs must be unique within a tracking run',
       });
+
     if (value.trigger === 'scheduled' && value.requestedById !== null)
       context.addIssue({
         code: 'custom',
@@ -37,6 +38,7 @@ const calendarDateSchema = z
   .refine((value) => {
     const [year, month, day] = value.split('-').map(Number);
     const date = new Date(Date.UTC(year!, month! - 1, day));
+
     return (
       date.getUTCFullYear() === year &&
       date.getUTCMonth() === month! - 1 &&
@@ -70,6 +72,7 @@ export const finalizeFoundSchema = z
 export type NormalizedTrackingState = z.infer<
   typeof normalizedTrackingStateSchema
 >;
+
 export type FinalizeFound = z.infer<typeof finalizeFoundSchema>;
 
 export const finalizeNotFoundSchema = z
@@ -118,4 +121,5 @@ export const interruptRunSchema = z
   .strict();
 
 export type FinalizeSkipped = z.infer<typeof finalizeSkippedSchema>;
+
 export type InterruptRun = z.infer<typeof interruptRunSchema>;

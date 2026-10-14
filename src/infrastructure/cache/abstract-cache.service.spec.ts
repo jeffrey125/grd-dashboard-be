@@ -35,7 +35,9 @@ describe('AbstractCacheService', () => {
 
   it('expires entries using feature-default and overridden millisecond TTLs', async () => {
     vi.useFakeTimers();
+
     const shortLived = new TestCacheService(cache, 'test:short', 100);
+
     await shortLived.set('default', { value: 'default' });
     await shortLived.set('override', { value: 'override' }, 1);
     await expect(shortLived.get('override')).resolves.toEqual({
@@ -55,7 +57,9 @@ describe('AbstractCacheService', () => {
     'preserves falsy values and normalizes null to a miss (%j)',
     async (value) => {
       const values = new TestCacheService<typeof value>(cache);
+
       await values.set('value', value);
+
       if (value === null) {
         await expect(values.get('value')).resolves.toBeUndefined();
       } else {
@@ -66,11 +70,15 @@ describe('AbstractCacheService', () => {
 
   it('retains object references like the selected default in-memory store', async () => {
     const value = { value: 'original' };
+
     await service.set('123', value);
     value.value = 'mutated';
+
     const retrieved = await service.get('123');
+
     expect(retrieved).toBe(value);
     expect(retrieved).toEqual({ value: 'mutated' });
+
     retrieved!.value = 'mutated again';
     await expect(service.get('123')).resolves.toEqual({
       value: 'mutated again',
@@ -81,7 +89,9 @@ describe('AbstractCacheService', () => {
     'rejects invalid explicit and feature-default TTL %s without overwriting a value',
     async (ttl) => {
       await service.set('123', { value: 'original' });
+
       const invalidDefault = new TestCacheService(cache, 'test:item', ttl);
+
       await expect(
         service.set('123', { value: 'invalid' }, ttl),
       ).rejects.toThrow(
@@ -104,6 +114,7 @@ describe('AbstractCacheService', () => {
     await service.invalidate('missing');
     await expect(service.get('123')).resolves.toBeUndefined();
     await expect(service.get('456')).resolves.toEqual({ value: 'other' });
+
     expect('clear' in service).toBe(false);
   });
 
@@ -113,6 +124,7 @@ describe('AbstractCacheService', () => {
       cache,
       ' test:item ',
     );
+
     await service.set('a:b', { value: 'colon' });
     await service.set('a%3Ab', { value: 'literal escape' });
     await service.set('貨物 /?#', { value: 'unicode' });
@@ -133,6 +145,7 @@ describe('AbstractCacheService', () => {
     'rejects blank identifiers and namespaces (%j) for every operation',
     async (blank) => {
       const invalidNamespace = new TestCacheService(cache, blank);
+
       for (const operation of [
         () => service.get(blank),
         () => service.set(blank, { value: 'invalid' }),
@@ -142,6 +155,7 @@ describe('AbstractCacheService', () => {
           'Cache identifier must not be empty.',
         );
       }
+
       for (const operation of [
         () => invalidNamespace.get('123'),
         () => invalidNamespace.set('123', { value: 'invalid' }),

@@ -13,19 +13,24 @@ export class EchoShipFailure extends Error {
 
 export function echoShipFailure(error: unknown): EchoShipFailure {
   if (error instanceof EchoShipFailure) return error;
+
   if (axios.isAxiosError(error)) {
     if ([401, 403].includes(error.response?.status ?? 0))
       return new EchoShipFailure('ECHOSHIP_AUTHENTICATION_FAILED');
+
     if (['ECONNABORTED', 'ETIMEDOUT'].includes(error.code ?? ''))
       return new EchoShipFailure('ECHOSHIP_TIMEOUT');
   }
+
   if (error instanceof Error && error.name === 'TimeoutError')
     return new EchoShipFailure('ECHOSHIP_TIMEOUT');
+
   return new EchoShipFailure('ECHOSHIP_LOOKUP_FAILED');
 }
 
 export function failedResult(error: unknown): TrackingResult {
   const failure = echoShipFailure(error);
+
   return {
     outcome: 'failed',
     reasonCode: failure.code,

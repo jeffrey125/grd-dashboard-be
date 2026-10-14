@@ -48,10 +48,12 @@ export class UpsClient implements OnModuleDestroy {
           config.signal as AbortSignal,
           this.stopped.signal,
         ]);
+
         return waitFor(
           this.limiter!.schedule(async () => {
             signal.throwIfAborted();
             this.assertAvailable();
+
             // Bottleneck reserves launch times; event-loop delay must not compress physical sends.
             const remaining =
               Math.max(
@@ -59,10 +61,13 @@ export class UpsClient implements OnModuleDestroy {
                 this.cooldownUntil,
                 this.transitionUntil,
               ) - Date.now();
+
             if (remaining > 0) await delay(remaining, signal);
+
             this.assertAvailable();
             this.lastStarted = Date.now();
             config.headers.set('transId', randomUUID());
+
             const timeout = new AbortController();
             const timer = setTimeout(
               () =>
@@ -76,6 +81,7 @@ export class UpsClient implements OnModuleDestroy {
               15_000,
             );
             const physicalSignal = AbortSignal.any([signal, timeout.signal]);
+
             try {
               const response = await waitFor(
                 Promise.resolve().then(() =>
@@ -83,16 +89,19 @@ export class UpsClient implements OnModuleDestroy {
                 ),
                 physicalSignal,
               );
+
               if (
                 !/^application\/(?:[\w.+-]+\+)?json(?:\s*;|$)/i.test(
                   String(response.headers['content-type'] ?? ''),
                 )
               )
                 throw invalidUpsResponse();
+
               return response;
             } catch (error) {
               if (timeout.signal.aborted && !signal.aborted)
                 throw timeout.signal.reason;
+
               if (
                 axios.isAxiosError(error) &&
                 error.response &&
@@ -102,15 +111,18 @@ export class UpsClient implements OnModuleDestroy {
                   error.response.headers['retry-after'],
                   Date.now(),
                 );
+
                 if (retryAfter !== undefined) {
                   this.cooldownUntil = Math.max(
                     this.cooldownUntil,
                     Date.now() + retryAfter,
                   );
+
                   if (retryAfter > 60_000)
                     this.longCooldownUntil = this.cooldownUntil;
                 }
               }
+
               throw error;
             } finally {
               clearTimeout(timer);
@@ -120,6 +132,7 @@ export class UpsClient implements OnModuleDestroy {
         );
       },
     });
+
     const oauthLog = logger.child({
       carrierCode: 'ups',
       component: 'ups.oauth',
@@ -128,17 +141,20 @@ export class UpsClient implements OnModuleDestroy {
       carrierCode: 'ups',
       component: 'ups.tracking',
     });
+
     this.http.interceptors.response.use(undefined, (error: unknown) => {
       const log =
         axios.isAxiosError(error) && error.config?.url?.includes('/oauth/token')
           ? oauthLog
           : trackingLog;
+
       if (!axios.isCancel(error))
         log.warn(
           'ups.request.failed',
           'UPS HTTP request failed',
           safeErrorFields(error),
         );
+
       return Promise.reject(error);
     });
     axiosRetry(this.http, {
@@ -165,6 +181,7 @@ export class UpsClient implements OnModuleDestroy {
 
   async configureRateLimit(configured: number | null): Promise<void> {
     const maximum = this.configuration.read().maximumRpm;
+
     if (
       configured !== null &&
       (!Number.isSafeInteger(configured) || configured < 1)
@@ -174,11 +191,15 @@ export class UpsClient implements OnModuleDestroy {
         false,
         'UPS request rate must be a positive integer.',
       );
+
     const nextRpm = Math.min(configured ?? maximum, maximum);
+
     // A changed database cap cannot erase the previous minute's physical requests.
     if (this.rpm && nextRpm !== this.rpm)
       this.transitionUntil = this.lastStarted + 60_000;
+
     this.rpm = nextRpm;
+
     if (!this.limiter)
       this.limiter = new Bottleneck({
         maxConcurrent: 1,
@@ -192,6 +213,7 @@ export class UpsClient implements OnModuleDestroy {
 
   async oauth(signal: AbortSignal): Promise<unknown> {
     const config = this.configuration.read();
+
     try {
       const response = await this.http.post(
         `${config.origin}/security/v1/oauth/token`,
@@ -203,10 +225,12 @@ export class UpsClient implements OnModuleDestroy {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         },
       );
+
       return response.data;
     } catch (error) {
       signal.throwIfAborted();
       this.assertAvailable();
+
       throw upsHttpFailure(error, true);
     }
   }
@@ -232,6 +256,7 @@ export class UpsClient implements OnModuleDestroy {
         },
       },
     );
+
     return response.data;
   }
 

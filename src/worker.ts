@@ -22,6 +22,7 @@ async function bootstrap() {
     app.get(ProjectLogger).info('application.ready', 'Worker ready');
   } catch (error) {
     await app.close().catch(() => undefined);
+
     throw error;
   }
 }

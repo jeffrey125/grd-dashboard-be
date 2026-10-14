@@ -75,6 +75,7 @@ describe('TrackingService', () => {
   it('passes sanitized source data through without reshaping it', async () => {
     const persistence = repository();
     const tx = transaction();
+
     vi.mocked(persistence.transaction).mockImplementation((work) => work(tx));
     vi.mocked(tx.lockAttempt).mockResolvedValue({
       runId: 'run-id',
@@ -97,6 +98,7 @@ describe('TrackingService', () => {
     });
     vi.mocked(tx.databaseNow).mockResolvedValue(new Date());
     vi.mocked(tx.updateShipmentFailed).mockResolvedValue(true);
+
     const service = new TrackingService(persistence);
     const sourceData = { carrierCode: 'SAFE', nested: { value: 42 } };
 

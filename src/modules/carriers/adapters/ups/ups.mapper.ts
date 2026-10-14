@@ -7,7 +7,9 @@ export function mapUpsResponse(
   reference: string,
 ): TrackingResult {
   const response = upsResponseSchema.safeParse(body);
+
   if (!response.success) throw invalidUpsResponse();
+
   const matches = response.data.trackResponse.shipment
     .flatMap((shipment) => shipment.package)
     .filter(
@@ -17,9 +19,13 @@ export function mapUpsResponse(
         'trackingNumber' in pkg &&
         pkg.trackingNumber === reference,
     );
+
   if (matches.length !== 1) throw invalidUpsResponse();
+
   const parsed = upsPackageSchema.safeParse(matches[0]);
+
   if (!parsed.success) throw invalidUpsResponse();
+
   const pkg = parsed.data;
   const description = pkg.currentStatus.description.trim();
   const status =
@@ -31,6 +37,7 @@ export function mapUpsResponse(
     value
       ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
       : null;
+
   return {
     outcome: 'found',
     snapshot: {

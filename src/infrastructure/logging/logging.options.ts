@@ -71,8 +71,11 @@ const REDACTION_MAX_PARENT_DEPTH = 6;
 
 function redactionPath(field: string, parentDepth: number) {
   const property = field.includes('-') ? `["${field}"]` : field;
+
   if (parentDepth === 0) return property;
+
   const parents = Array.from({ length: parentDepth }, () => '*').join('.');
+
   return field.includes('-')
     ? `${parents}${property}`
     : `${parents}.${property}`;
@@ -115,6 +118,7 @@ type HttpRequest = IncomingMessage & {
 
 function routeTemplate(request: HttpRequest) {
   const path = request.route?.path;
+
   if (
     typeof path !== 'string' ||
     path.includes('*splat') ||
@@ -122,12 +126,15 @@ function routeTemplate(request: HttpRequest) {
   ) {
     return 'unmatched';
   }
+
   const baseUrl = typeof request.baseUrl === 'string' ? request.baseUrl : '';
+
   return `${baseUrl}${path}` || '/';
 }
 
 function safeMethod(request: IncomingMessage) {
   const method = request.method;
+
   return typeof method === 'string' && /^[A-Z]{1,16}$/.test(method)
     ? method
     : 'UNKNOWN';
@@ -139,6 +146,7 @@ function requestFields(
   value: object,
 ) {
   const duration = (value as Record<string, unknown>).durationMs;
+
   return {
     component: 'http',
     event: 'api.request.completed',
@@ -155,11 +163,15 @@ function requestLevel(
   error?: Error,
 ) {
   const route = routeTemplate(request);
+
   if (route === '/health/live' || route === '/health/ready') {
     return response.statusCode < 400 && !error ? 'debug' : 'warn';
   }
+
   if (error || response.statusCode >= 500) return 'error';
+
   if (response.statusCode >= 400) return 'warn';
+
   return 'info';
 }
 
@@ -175,7 +187,9 @@ export function createPinoHttpOptions(
     ),
     genReqId: (_request, response) => {
       const requestId = randomUUID();
+
       response.setHeader(REQUEST_ID_HEADER, requestId);
+
       return requestId;
     },
     // Never hand live request/response objects to recursive redaction: it can

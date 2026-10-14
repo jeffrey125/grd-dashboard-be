@@ -45,10 +45,13 @@ export class TrackingSchedulerService implements OnModuleDestroy {
   async start(): Promise<void> {
     if (this.state !== 'stopped' || this.controller.signal.aborted)
       throw new Error('Worker already started or stopped');
+
     this.state = 'starting';
+
     try {
       for (const carrier of await this.carriers.listActive())
         this.adapters.validate(carrier.code, carrier.fetchMode);
+
       for (const runExternalId of await this.work.interruptedRuns())
         await this.tracking.interruptRun({
           runExternalId,
@@ -56,13 +59,16 @@ export class TrackingSchedulerService implements OnModuleDestroy {
           reasonCode: 'WORKER_INTERRUPTED',
           message: 'Previous worker stopped before tracking completed.',
         });
+
       // Scheduled targets may have changed during downtime. Cancel and rescan them.
       for (const id of await this.work.abandonedScheduledRuns())
         await this.tracking.cancelRun(id);
+
       this.state = 'ready';
       void this.tick();
     } catch (error) {
       this.fail(error);
+
       throw error;
     }
   }
@@ -73,7 +79,9 @@ export class TrackingSchedulerService implements OnModuleDestroy {
   })
   tick(): Promise<void> {
     if (this.active) return this.active;
+
     if (this.state !== 'ready') return Promise.resolve();
+
     this.active = this.round()
       .catch((error) => {
         if (!this.controller.signal.aborted) this.fail(error);
@@ -81,13 +89,16 @@ export class TrackingSchedulerService implements OnModuleDestroy {
       .finally(() => {
         this.active = undefined;
       });
+
     return this.active;
   }
 
   async onModuleDestroy(): Promise<void> {
     this.state = 'stopping';
     this.controller.abort();
+
     let timeout: ReturnType<typeof setTimeout> | undefined;
+
     try {
       await Promise.race([
         this.active,
@@ -110,21 +121,30 @@ export class TrackingSchedulerService implements OnModuleDestroy {
   private async round() {
     const signal = this.controller.signal;
     const carriers = await this.carriers.listActive();
+
     for (const carrier of carriers)
       this.adapters.validate(carrier.code, carrier.fetchMode);
+
     await this.manualWork();
+
     for (const selected of carriers) {
       signal.throwIfAborted();
       await this.manualWork();
+
       const carrier = await this.carriers.find(selected.externalId);
+
       if (!carrier?.isActive) continue;
+
       const adapter = this.adapters.validate(carrier.code, carrier.fetchMode);
       const targets = await this.work.findDue(
         carrier.externalId,
         adapter.minimumIntervalMinutes,
       );
+
       if (!targets.length) continue;
+
       signal.throwIfAborted();
+
       try {
         const run = await this.tracking.createRun({
           carrierExternalId: carrier.externalId,
@@ -132,6 +152,7 @@ export class TrackingSchedulerService implements OnModuleDestroy {
           shipmentExternalIds: targets,
           requestedById: null,
         });
+
         await this.executor.execute(run.externalId, carrier, signal);
       } catch (error) {
         if (
@@ -139,17 +160,22 @@ export class TrackingSchedulerService implements OnModuleDestroy {
           ['CARRIER_UNAVAILABLE', 'SHIPMENT_UNAVAILABLE'].includes(error.code)
         )
           continue;
+
         throw error;
       }
     }
+
     await this.manualWork();
   }
 
   private async manualWork() {
     while (!this.controller.signal.aborted) {
       const run = await this.work.nextManual();
+
       if (!run) return;
+
       const carrier = await this.carriers.find(run.carrierExternalId);
+
       await this.executor.execute(
         run.externalId,
         carrier,

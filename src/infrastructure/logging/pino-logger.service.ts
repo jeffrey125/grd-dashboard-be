@@ -8,6 +8,7 @@ import {
 } from './logging.types.js';
 
 type WritableLevel = 'debug' | 'info' | 'warn' | 'error';
+
 const SAFE_EVENT = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/;
 
 class BoundProjectLogger extends ProjectLogger {
@@ -56,6 +57,7 @@ class BoundProjectLogger extends ProjectLogger {
         'Log event must be a lowercase dot-separated identifier',
       );
     }
+
     this.pino[level](
       {
         ...fields,

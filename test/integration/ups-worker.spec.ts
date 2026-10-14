@@ -59,6 +59,7 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
       headers: { 'content-type': 'application/json', ...headers },
       statusText: String(status),
     };
+
     if (status >= 400)
       throw new AxiosError(
         'PRIVATE_PROVIDER_DETAIL',
@@ -67,11 +68,13 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
         undefined,
         result,
       );
+
     return result;
   }
 
   async function finish<T>(promise: Promise<T>): Promise<T> {
     let settled = false;
+
     void promise.then(
       () => {
         settled = true;
@@ -80,13 +83,16 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
         settled = true;
       },
     );
+
     for (let tick = 0; !settled && tick < 10_000; tick++) {
       await vi.advanceTimersByTimeAsync(100);
       // Let real PostgreSQL sockets progress before advancing their timeout clocks.
       await allowDatabaseIO(2);
     }
+
     if (!settled)
       throw new Error('Worker did not finish within fake-time bound');
+
     return promise;
   }
 
@@ -101,8 +107,10 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
       'TRUNCATE TABLE tracking_attempts, shipment_tracking_snapshots, tracking_runs, shipments RESTART IDENTITY',
     );
     await db.source.query("UPDATE carriers SET is_active = code = 'ups'");
+
     for (const [key, value] of Object.entries(db.environment))
       vi.stubEnv(key, value);
+
     vi.stubEnv('UPS_ENVIRONMENT', 'cie');
     vi.stubEnv('LOG_LEVEL', 'silent');
     vi.stubEnv('UPS_CLIENT_ID', 'fixture-client');
@@ -119,11 +127,13 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
       .overrideProvider(UPS_HTTP_ADAPTER)
       .useValue(async (config: InternalAxiosRequestConfig) => {
         calls.push(config);
+
         if (config.method === 'post')
           return response(config, {
             access_token: 'PRIVATE_TOKEN',
             expires_in: 3600,
           });
+
         return respond(config);
       })
       .overrideProvider(CARRIER_ADAPTERS)
@@ -140,6 +150,7 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
               return {
                 async read() {
                   otherReads++;
+
                   return { outcome: 'not_found', sourceData: null };
                 },
                 async close() {},
@@ -151,8 +162,10 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
       .compile();
     carriers = new TypeOrmCarriersRepository(db.source);
     tracking = new TrackingService(new TypeOrmTrackingRepository(db.source));
+
     const registry = module.get(CarrierAdapterRegistry);
     const logger = module.get(ProjectLogger);
+
     worker = new TrackingSchedulerService(
       new TypeOrmTrackingWorkRepository(db.source),
       carriers,
@@ -165,7 +178,9 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
   });
   afterEach(async () => {
     if (worker) await finish(worker.onModuleDestroy());
+
     if (module) await finish(module.close());
+
     vi.useRealTimers();
     vi.unstubAllEnvs();
   });
@@ -179,7 +194,9 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
         notes: null,
       },
     ]);
+
     if (result.kind !== 'created') throw new Error('Expected creation');
+
     return { shipment: result.inserted[0]!, carrier };
   }
 
@@ -188,15 +205,19 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
     await shipment('MISSING1');
     await shipment('BADBODY1');
     await shipment('short');
+
     const pkg = {
       trackingNumber: 'FOUND001',
       currentStatus: { description: 'Delivered' },
       deliveryDate: [{ type: 'DEL', date: '20261012' }],
     };
+
     respond = async (config) => {
       if (config.url?.endsWith('MISSING1')) return response(config, {}, 404);
+
       if (config.url?.endsWith('BADBODY1'))
         return response(config, { private: 'PRIVATE_PAYLOAD' });
+
       return response(config, {
         trackResponse: {
           shipment: [{ package: [{ ...pkg, address: 'PRIVATE_ADDRESS' }] }],
@@ -205,13 +226,16 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
     };
     await worker.start();
     await finish(worker.tick());
+
     expect(worker.status()).toEqual({ state: 'ready', reasonCode: null });
     expect(await db.source.query('SELECT status FROM tracking_runs')).toEqual([
       { status: 'partially_succeeded' },
     ]);
+
     const attempts = await db.source.query(
       'SELECT outcome, reason_code, source_data FROM tracking_attempts ORDER BY id',
     );
+
     expect(attempts).toEqual([
       { outcome: 'found', reason_code: null, source_data: pkg },
       { outcome: 'not_found', reason_code: null, source_data: null },
@@ -231,9 +255,11 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
         'SELECT carrier_status, delivered_on::text FROM shipment_tracking_snapshots',
       ),
     ).toEqual([{ carrier_status: 'Delivered', delivered_on: '2026-10-12' }]);
+
     const shipments = await db.source.query(
       'SELECT monitoring_status, consecutive_not_found_count, verification_url, next_check_at - last_attempted_at AS delay FROM shipments ORDER BY id',
     );
+
     expect(shipments[0]).toMatchObject({
       monitoring_status: 'completed',
       verification_url: 'https://www.ups.com/track?loc=en_US&trackn=FOUND001',
@@ -253,10 +279,12 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
   it('persists the shared cooldown, preserves a previous snapshot, and continues another Carrier', async () => {
     const first = await shipment('COOLDOWN1');
     const second = await shipment('COOLDOWN2');
+
     await db.source.query(
       "UPDATE carriers SET is_active = true WHERE code = 'ffe'",
     );
     await shipment('other', 'ffe');
+
     const seed = await tracking.createRun({
       carrierExternalId: first.carrier.externalId,
       trigger: 'manual',
@@ -264,6 +292,7 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
       requestedById: null,
     });
     const started = await tracking.startRun(seed.externalId);
+
     await tracking.finalizeFound({
       runExternalId: seed.externalId,
       shipmentExternalId: first.shipment.externalId,
@@ -279,6 +308,7 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
       },
     });
     await tracking.finalizeRun(seed.externalId);
+
     const manual = await tracking.createRun({
       carrierExternalId: first.carrier.externalId,
       trigger: 'manual',
@@ -288,17 +318,21 @@ describe('UPS tracking worker with PostgreSQL and mocked HTTP', () => {
       ],
       requestedById: null,
     });
+
     respond = async (config) =>
       response(config, {}, 429, { 'retry-after': '3600' });
     await worker.start();
     await finish(worker.tick());
+
     expect(calls).toHaveLength(2);
     expect(otherReads).toBe(1);
     expect(worker.status().state).toBe('ready');
+
     const attempts = await db.source.query(
       'SELECT a.outcome, a.reason_code, a.retryable, a.message FROM tracking_attempts a JOIN tracking_runs r ON r.id = a.tracking_run_id WHERE r.external_id = $1 ORDER BY a.id',
       [manual.externalId],
     );
+
     expect(attempts).toEqual(
       Array.from({ length: 2 }, () => ({
         outcome: 'failed',

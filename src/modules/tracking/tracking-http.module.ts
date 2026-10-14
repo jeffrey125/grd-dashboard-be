@@ -23,6 +23,7 @@ class TrackingHttpController {
   constructor(
     @Inject(TrackingHttpService) private readonly tracking: TrackingHttpService,
   ) {}
+
   @Post('shipments/:externalId/refresh')
   @HttpCode(202)
   refresh(
@@ -32,6 +33,7 @@ class TrackingHttpController {
   ) {
     return this.tracking.refresh(id, principal.id, body);
   }
+
   @Get('tracking-runs/:externalId')
   find(@Param('externalId', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.tracking.find(id);

@@ -45,6 +45,7 @@ type Runtime = {
   output: () => string;
   closed: () => boolean;
 };
+
 const children: Runtime[] = [];
 const directories: string[] = [];
 const runtimeEnvironment = {
@@ -55,6 +56,7 @@ const runtimeEnvironment = {
   LOG_LEVEL: 'debug',
 };
 let container: StartedPostgreSqlContainer | undefined;
+
 beforeAll(async () => {
   container = await startPostgresqlContainer();
   Object.assign(runtimeEnvironment, postgresqlEnvironment(container), {
@@ -63,6 +65,7 @@ beforeAll(async () => {
     AUTH_TRUSTED_ORIGINS: 'https://dashboard.example.test',
     LOG_LEVEL: 'debug',
   });
+
   const source = new DataSource({
     ...createDatabaseOptions(createConfiguration(runtimeEnvironment)),
     migrations: [
@@ -73,7 +76,9 @@ beforeAll(async () => {
       TrackingEvents1792195200000,
     ],
   });
+
   await source.initialize();
+
   try {
     await source.runMigrations();
     // These process tests must never make live Carrier requests.
@@ -109,18 +114,24 @@ function start(
     stdio: 'pipe',
   });
   let output = '';
+
   child.stdout.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
   child.stderr.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
+
   let closed = false;
+
   child.once('close', () => {
     closed = true;
   });
+
   const runtime = { child, output: () => output, closed: () => closed };
+
   children.push(runtime);
+
   return runtime;
 }
 
@@ -155,16 +166,21 @@ function jsonRecords(runtime: Runtime) {
 
 async function availablePort() {
   const server = createServer();
+
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
   });
+
   const address = server.address();
+
   if (!address || typeof address === 'string')
     throw new Error('Missing test port');
+
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve())),
   );
+
   return String(address.port);
 }
 
@@ -175,8 +191,10 @@ afterEach(async () => {
       await waitForExit(runtime);
     }
   }
+
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
+
   vi.unstubAllEnvs();
 });
 
@@ -191,9 +209,11 @@ describe.each([
         ...runtimeEnvironment,
         PORT: await availablePort(),
       });
+
       await waitForReady(runtime, label);
       runtime.child.kill(signal);
       await waitForExit(runtime);
+
       expect({
         exit: runtime.child.exitCode,
         signal: runtime.child.signalCode,
@@ -202,7 +222,9 @@ describe.each([
       // Nest completes shutdown hooks, removes its listener, then re-sends the signal.
       expect(runtime.child.signalCode).toBe(signal);
       expect(runtime.output()).not.toContain('startup failed');
+
       const records = jsonRecords(runtime);
+
       expect(records.filter((record) => record.event === 'nest.error')).toEqual(
         [],
       );
@@ -241,7 +263,9 @@ describe.each([
       LOG_LEVEL: 'debug',
       PORT: await availablePort(),
     });
+
     await waitForExit(runtime);
+
     expect(runtime.child.exitCode).toBe(1);
     expect(runtime.output()).toContain('DB_PASSWORD is required');
     expect(runtime.output()).toContain('DB_HOST is required');
@@ -261,9 +285,13 @@ describe.each([
       DB_PASSWORD: 'CANARY_DATABASE_SECRET',
       PORT: await availablePort(),
     });
+
     await waitForExit(runtime);
+
     expect(runtime.child.exitCode).toBe(1);
+
     const records = jsonRecords(runtime);
+
     expect(
       records.filter((record) => record.event === 'database.connecting'),
     ).toHaveLength(3);
@@ -283,11 +311,14 @@ describe.each([
       DB_PASSWORD: canary,
       ECHOSHIP_PASSWORD: canary,
     });
+
     await waitForExit(runtime);
+
     expect(runtime.child.exitCode).toBe(1);
     expect(runtime.output()).toContain('Invalid configuration');
     expect(runtime.output()).not.toContain(canary);
     expect(runtime.output()).not.toContain(`${label} ready`);
+
     jsonRecords(runtime);
   });
 });
@@ -303,14 +334,19 @@ describe('runtime boundaries', () => {
       const source = new DataSource(
         createDatabaseOptions(createConfiguration(runtimeEnvironment)),
       );
+
       await source.initialize();
+
       try {
         await source.query(
           'UPDATE carriers SET is_active = true WHERE code = $1',
           [code],
         );
+
         const worker = start('worker', runtimeEnvironment);
+
         await waitForExit(worker);
+
         expect(worker.child.exitCode).toBe(1);
         expect(worker.output()).not.toContain('Worker ready');
         expect(jsonRecords(worker)).toContainEqual(
@@ -320,10 +356,12 @@ describe('runtime boundaries', () => {
             carrierCode: code,
           }),
         );
+
         const api = start('main', {
           ...runtimeEnvironment,
           PORT: await availablePort(),
         });
+
         await waitForReady(api, 'API');
       } finally {
         await source.query('UPDATE carriers SET is_active = false');
@@ -338,7 +376,9 @@ describe('runtime boundaries', () => {
       AUTH_SECRET: 'CANARY_SHORT_SECRET',
       PORT: await availablePort(),
     });
+
     await waitForExit(runtime);
+
     expect(runtime.child.exitCode).toBe(1);
     expect(runtime.output()).not.toContain('CANARY_SHORT_SECRET');
     expect(runtime.output()).not.toContain('database.connecting');
@@ -352,6 +392,7 @@ describe('runtime boundaries', () => {
       LOG_LEVEL: 'silent',
     }))
       vi.stubEnv(key, value);
+
     const module = await Test.createTestingModule({
       imports: [AppModule, DatabaseModule],
     }).compile();
@@ -360,27 +401,36 @@ describe('runtime boundaries', () => {
       module.get(ApplicationLifecycleLogger),
       'onApplicationShutdown',
     );
+
     try {
       await module.init();
+
       expect(module.select(DatabaseModule).get(DataSource)).toBe(source);
+
       const pool = (source.driver as PostgresDriver).master;
+
       expect(
         (await module.get<AuthEngine>(AUTH_ENGINE).$context).options.database,
       ).toBe(pool);
+
       const [row] = await source.query(
         "SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database() AND backend_type = 'client backend'",
       );
+
       expect(row.count).toBe(pool.totalCount);
       expect(row.count).toBeLessThanOrEqual(10);
+
       await expect(module.get(ReadinessService).check()).resolves.toMatchObject(
         { details: { database: { status: 'up' } } },
       );
+
       expect(() =>
         module.get(DatabaseReadiness).check(AbortSignal.abort()),
       ).toThrow();
     } finally {
       await module.close();
     }
+
     expect(source.isInitialized).toBe(false);
     expect(lifecycle).toHaveBeenCalledOnce();
   });
@@ -389,20 +439,29 @@ describe('runtime boundaries', () => {
     const port = await availablePort();
     const env = { ...runtimeEnvironment, PORT: port };
     const api = start('main', env);
+
     await waitForReady(api, 'API');
+
     const url = `http://127.0.0.1:${port}/health/ready`;
+
     expect((await fetch(url)).status).toBe(200);
+
     const worker = start('worker', env);
+
     await waitForReady(worker, 'Worker');
+
     // The API owns this port. A worker HTTP listener would fail startup here.
     expect((await fetch(url)).status).toBe(200);
+
     worker.child.kill('SIGTERM');
     await waitForExit(worker);
+
     expect((await fetch(url)).status).toBe(200);
   });
 
   it('loads .env without expanding passwords and gives process environment precedence', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'grd-runtime-env-'));
+
     directories.push(directory);
     await writeFile(
       join(directory, '.env'),
@@ -419,9 +478,12 @@ describe('runtime boundaries', () => {
         'DB_PASSWORD="$UNSET_LITERAL_PASSWORD"',
       ].join('\n'),
     );
+
     const port = await availablePort();
     const api = start('main', { PORT: port }, directory);
+
     await waitForReady(api, 'API');
+
     expect((await fetch(`http://127.0.0.1:${port}/health/ready`)).status).toBe(
       200,
     );
@@ -431,20 +493,26 @@ describe('runtime boundaries', () => {
   it('reports an occupied API port safely and exits without leaving its context open', async () => {
     const port = await availablePort();
     const first = start('main', { ...runtimeEnvironment, PORT: port });
+
     await waitForReady(first, 'API');
+
     const second = start('main', {
       ...runtimeEnvironment,
       PORT: port,
       ECHOSHIP_PASSWORD: 'CANARY_PORT_SECRET',
     });
+
     await waitForExit(second);
+
     expect(second.child.exitCode).toBe(1);
     expect(second.output()).toContain('Application stopped');
     expect(second.output()).toContain(
       'Check runtime configuration and port availability',
     );
     expect(second.output()).not.toContain('CANARY_PORT_SECRET');
+
     jsonRecords(second);
+
     expect((await fetch(`http://127.0.0.1:${port}/health/live`)).status).toBe(
       200,
     );
@@ -453,10 +521,13 @@ describe('runtime boundaries', () => {
   it('fails readiness but keeps liveness available during a database outage, then recovers', async () => {
     const port = await availablePort();
     const api = start('main', { ...runtimeEnvironment, PORT: port });
+
     await waitForReady(api, 'API');
     await promisify(execFile)('docker', ['pause', container!.getId()]);
+
     try {
       const response = await fetch(`http://127.0.0.1:${port}/health/ready`);
+
       expect(response.status).toBe(503);
       expect(await response.json()).toMatchObject({
         error: { database: { status: 'down' } },
@@ -467,6 +538,7 @@ describe('runtime boundaries', () => {
     } finally {
       await promisify(execFile)('docker', ['unpause', container!.getId()]);
     }
+
     await vi.waitFor(
       async () => {
         expect(

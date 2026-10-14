@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 @Injectable()
 export class DatabaseReadiness {
   private pending?: Promise<void>;
+
   constructor(@Inject(DataSource) private readonly source: DataSource) {}
 
   check(signal: AbortSignal): Promise<void> {
@@ -16,6 +17,7 @@ export class DatabaseReadiness {
       .finally(() => {
         this.pending = undefined;
       });
+
     return this.pending;
   }
 }

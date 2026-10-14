@@ -27,9 +27,11 @@ export type CarrierUpdate = z.infer<typeof updateCarrierSchema>;
 
 export function parseCarrierInput<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
+
   if (!result.success) {
     // Do not echo client values, unknown field names, or credentials in errors.
     throw new BadRequestException('Invalid Carrier input');
   }
+
   return result.data;
 }

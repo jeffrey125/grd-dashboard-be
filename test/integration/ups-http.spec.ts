@@ -23,6 +23,7 @@ describe('UPS native HTTP transport against a local fixture server', () => {
 
   async function finish<T>(promise: Promise<T>): Promise<T> {
     let settled = false;
+
     void promise.then(
       () => {
         settled = true;
@@ -31,17 +32,21 @@ describe('UPS native HTTP transport against a local fixture server', () => {
         settled = true;
       },
     );
+
     for (let tick = 0; !settled && tick < 2000; tick++) {
       await vi.advanceTimersByTimeAsync(100);
       await allowNetworkIO(2);
     }
+
     if (!settled) throw new Error('HTTP fixture did not finish');
+
     return promise;
   }
 
   beforeEach(async () => {
     for (const [key, value] of Object.entries(testEnvironment))
       vi.stubEnv(key, value);
+
     vi.stubEnv('LOG_LEVEL', 'silent');
     requests = [];
     vi.stubEnv('UPS_ENVIRONMENT', 'production');
@@ -49,6 +54,7 @@ describe('UPS native HTTP transport against a local fixture server', () => {
     vi.stubEnv('UPS_CLIENT_SECRET', 'fixture-secret');
     server = createServer((request, response) => {
       const chunks: Buffer[] = [];
+
       request.on('data', (chunk: Buffer) => chunks.push(chunk));
       request.on('end', () => {
         requests.push({
@@ -57,6 +63,7 @@ describe('UPS native HTTP transport against a local fixture server', () => {
           body: Buffer.concat(chunks).toString(),
         });
         response.setHeader('Content-Type', 'application/json');
+
         if (request.url?.includes('/oauth/token'))
           response.end(
             JSON.stringify({ access_token: 'fixture-token', expires_in: 3600 }),
@@ -67,11 +74,15 @@ describe('UPS native HTTP transport against a local fixture server', () => {
     await new Promise<void>((resolve) =>
       server.listen(0, '127.0.0.1', resolve),
     );
+
     const address = server.address();
+
     if (!address || typeof address === 'string')
       throw new Error('Missing fixture port');
+
     const origin = `http://127.0.0.1:${address.port}`;
     const nativeTransport = axios.getAdapter('http');
+
     module = await Test.createTestingModule({
       imports: [
         ApplicationCacheModule,
@@ -93,10 +104,13 @@ describe('UPS native HTTP transport against a local fixture server', () => {
   });
   afterEach(async () => {
     if (module) await finish(module.close());
+
     vi.useRealTimers();
     server?.closeAllConnections();
+
     if (server)
       await new Promise<void>((resolve) => server.close(() => resolve()));
+
     vi.unstubAllEnvs();
   });
 
@@ -105,6 +119,7 @@ describe('UPS native HTTP transport against a local fixture server', () => {
     const session = await finish(
       adapter.openSession({ signal, rateLimitPerMinute: 10 }),
     );
+
     return finish(session.read('FOUND001', signal));
   }
 
@@ -126,6 +141,7 @@ describe('UPS native HTTP transport against a local fixture server', () => {
           },
         }),
       );
+
     expect(await lookup()).toMatchObject({ outcome: 'found' });
     expect(requests[0]).toEqual({
       url: '/security/v1/oauth/token',
@@ -152,6 +168,7 @@ describe('UPS native HTTP transport against a local fixture server', () => {
             ? JSON.stringify({ data: 'x'.repeat(1_048_576) })
             : '{invalid-json',
         );
+
       expect(await lookup()).toMatchObject({
         outcome: 'failed',
         reasonCode: 'UPS_INVALID_RESPONSE',
@@ -167,6 +184,7 @@ describe('UPS native HTTP transport against a local fixture server', () => {
       response.setHeader('Location', '/redirect-target');
       response.end('{}');
     };
+
     expect(await lookup()).toEqual({
       outcome: 'failed',
       reasonCode: 'UPS_UNAVAILABLE',

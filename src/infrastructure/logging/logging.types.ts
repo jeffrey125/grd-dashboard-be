@@ -1,6 +1,7 @@
 import type { LogLevel } from '@config/env.schema.js';
 
 export type LogRuntime = 'api' | 'worker';
+
 export type LogEvent = `${string}.${string}`;
 
 export interface LogFields {
@@ -34,9 +35,14 @@ export interface LogFields {
 
 export abstract class ProjectLogger {
   abstract debug(event: LogEvent, message: string, fields?: LogFields): void;
+
   abstract info(event: LogEvent, message: string, fields?: LogFields): void;
+
   abstract warn(event: LogEvent, message: string, fields?: LogFields): void;
+
   abstract error(event: LogEvent, message: string, fields?: LogFields): void;
+
   abstract child(fields: LogFields): ProjectLogger;
+
   abstract setLevel(level: LogLevel): void;
 }

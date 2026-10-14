@@ -11,6 +11,7 @@ export interface TrackingNotice {
   previous?: NormalizedTrackingState | null;
   stopped?: 'delivered' | 'not_found_threshold';
 }
+
 export abstract class TrackingNotifications {
   abstract record(notice: TrackingNotice): Promise<void>;
 }

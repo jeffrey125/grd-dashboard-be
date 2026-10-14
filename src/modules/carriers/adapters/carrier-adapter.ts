@@ -1,6 +1,7 @@
 import type { CarrierReferencePolicy } from '@modules/carriers/carrier-reference-policy.js';
 import type { TrackingResult } from './carrier-result.js';
 import type { FetchMode } from '@modules/carriers/carrier-fetch-mode.js';
+
 export type { TrackingResult } from './carrier-result.js';
 
 /** Only sanitized, allowlisted source data and messages may cross this boundary. */

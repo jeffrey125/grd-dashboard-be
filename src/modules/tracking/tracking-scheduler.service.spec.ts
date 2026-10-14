@@ -49,6 +49,7 @@ async function fixture(
 ) {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-13T00:00:00Z'));
+
   const work: TrackingWorkRepository = {
     findDue: vi.fn(async () => []),
     nextManual: vi.fn(async () => null),
@@ -95,7 +96,9 @@ async function fixture(
       { provide: ProjectLogger, useValue: logger },
     ],
   }).compile();
+
   await module.init();
+
   return { module, worker: module.get(TrackingSchedulerService), work };
 }
 
@@ -104,19 +107,27 @@ afterEach(() => vi.useRealTimers());
 describe('Worker scheduling with fake time', () => {
   it('starts immediately, scans every 60 seconds, and stops scheduling on shutdown', async () => {
     const f = await fixture();
+
     try {
       await f.worker.start();
       await f.worker.tick();
+
       expect(f.work.findDue).toHaveBeenCalledTimes(1);
+
       await vi.advanceTimersByTimeAsync(59_999);
+
       expect(f.work.findDue).toHaveBeenCalledTimes(1);
+
       await vi.advanceTimersByTimeAsync(1);
+
       expect(f.work.findDue).toHaveBeenCalledTimes(2);
       expect(f.work.findDue).toHaveBeenLastCalledWith(carrier.externalId, 60);
     } finally {
       await f.module.close();
     }
+
     await vi.advanceTimersByTimeAsync(120_000);
+
     expect(f.work.findDue).toHaveBeenCalledTimes(2);
     expect(f.worker.status()).toEqual({ state: 'stopped', reasonCode: null });
     expect(vi.getTimerCount()).toBe(0);
@@ -126,30 +137,39 @@ describe('Worker scheduling with fake time', () => {
     const gate = deferred<null>();
     const nextManual = vi.fn(async () => gate.promise);
     const f = await fixture({ work: { nextManual } });
+
     try {
       await f.worker.start();
       await vi.advanceTimersByTimeAsync(180_000);
+
       expect(nextManual).toHaveBeenCalledTimes(1);
       expect(f.work.findDue).not.toHaveBeenCalled();
+
       const sameRound = f.worker.tick();
+
       gate.resolve(null);
       await sameRound;
+
       expect(f.work.findDue).toHaveBeenCalledTimes(1);
     } finally {
       gate.resolve(null);
       await f.module.close();
     }
+
     await vi.advanceTimersByTimeAsync(100);
+
     expect(vi.getTimerCount()).toBe(0);
   });
 
   it('refuses startup before polling if an enabled adapter is missing', async () => {
     const f = await fixture({ missingAdapter: true });
+
     try {
       await expect(f.worker.start()).rejects.toThrow(
         'Enabled Carrier has no registered adapter: ups',
       );
       await vi.advanceTimersByTimeAsync(120_000);
+
       expect(f.worker.status()).toEqual({
         state: 'failed',
         reasonCode: 'ADAPTER_MISSING',
@@ -163,13 +183,19 @@ describe('Worker scheduling with fake time', () => {
   it('bounds shutdown even when a database operation never settles', async () => {
     const gate = deferred<null>();
     const f = await fixture({ work: { nextManual: async () => gate.promise } });
+
     await f.worker.start();
+
     const stop = f.module.close();
+
     await vi.advanceTimersByTimeAsync(30_000);
     await stop;
+
     expect(f.worker.status().state).toBe('stopped');
+
     gate.resolve(null);
     await f.worker.tick();
+
     expect(f.work.findDue).not.toHaveBeenCalled();
   });
 });

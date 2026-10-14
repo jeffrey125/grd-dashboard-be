@@ -10,6 +10,7 @@ describe('safeErrorFields', () => {
       cause: new Error('CANARY_CAUSE'),
       response: { headers: { authorization: 'CANARY_AUTHORIZATION' } },
     });
+
     error.stack = [
       'ProviderTimeoutError: CANARY_STACK_MESSAGE',
       '    at execute (src/modules/tracking/executor.ts:42:7)',
@@ -40,7 +41,9 @@ describe('safeErrorFields', () => {
       code: 'CANARY CODE WITH SPACES',
       httpStatus: 999,
     });
+
     error.stack = 'Error: CANARY\n    at dependency (node_modules/x.js:1:1)';
+
     expect(safeErrorFields(error)).toEqual({ errorName: 'Error' });
   });
 });

@@ -7,6 +7,7 @@ export class FfeRequestMode1792022400000 implements MigrationInterface {
       "UPDATE carriers SET fetch_mode = 'request' WHERE code = 'ffe'",
     );
   }
+
   async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       "UPDATE carriers SET fetch_mode = 'browser' WHERE code = 'ffe'",

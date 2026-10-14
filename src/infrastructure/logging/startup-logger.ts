@@ -6,6 +6,7 @@ import { safeErrorFields } from './safe-error-fields.js';
 
 function safeEnvironment() {
   const environment = process.env.NODE_ENV;
+
   return environment === 'development' ||
     environment === 'test' ||
     environment === 'production'
@@ -17,6 +18,7 @@ export function logStartupFailure(error: unknown, runtime: LogRuntime) {
   const logger = pino(
     createBaseLoggingOptions(safeEnvironment(), runtime, 'error'),
   );
+
   logger.error(
     {
       component: 'application',

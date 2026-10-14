@@ -8,12 +8,14 @@ export const TRACKING_PATH = '/Customer/ShipmentTracking';
 export const DATA_PATH = '/Customer/LoadShipmentTrackingData';
 export const TIMEOUT_MS = 30_000;
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
+
 export interface FfeSessionOptions {
   settings: FfeSettings;
   limiter: CarrierRequestLimiter;
   rpm: number | null;
   signal: AbortSignal;
 }
+
 const columns = [
   'orderNumber',
   'bolNumber',
@@ -30,6 +32,7 @@ const columns = [
   'unitLongitude',
   'orderStatusId',
 ];
+
 export function searchBody(reference: string, start: number, draw: number) {
   return {
     draw,
@@ -47,6 +50,7 @@ export function searchBody(reference: string, start: number, draw: number) {
     archiveLimit: '365',
   };
 }
+
 const envelope = z.object({
   draw: z.union([
     z.number().int().nonnegative(),
@@ -62,8 +66,10 @@ const envelope = z.object({
     )
     .max(200),
 });
+
 export function searchPage(input: unknown, draw: number, limit: number) {
   const result = envelope.safeParse(input);
+
   if (
     !result.success ||
     result.data.draw !== draw ||
@@ -71,8 +77,10 @@ export function searchPage(input: unknown, draw: number, limit: number) {
     result.data.data.length > Math.min(limit, result.data.recordsFiltered)
   )
     throw new FfeFailure('FFE_INVALID_RESPONSE');
+
   return result.data;
 }
+
 export function assertResponse(
   status: number,
   contentType: string,
@@ -80,10 +88,12 @@ export function assertResponse(
 ) {
   if ([401, 403].includes(status))
     throw new FfeFailure('FFE_AUTHENTICATION_FAILED');
+
   const pattern =
     kind === 'html'
       ? /^text\/html(?:;|$)/i
       : /^application\/(?:[\w.-]+\+)?json(?:;|$)/i;
+
   if (status !== 200 || !pattern.test(contentType))
     throw new FfeFailure('FFE_INVALID_RESPONSE');
 }

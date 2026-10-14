@@ -141,6 +141,7 @@ updated_at timestamptz NOT NULL DEFAULT now()
       `CREATE TRIGGER auth_user_identity BEFORE UPDATE ON auth_users FOR EACH ROW EXECUTE FUNCTION protect_auth_user_identity()`,
     );
   }
+
   async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TRIGGER auth_user_identity ON auth_users`);
     await queryRunner.query(`DROP FUNCTION protect_auth_user_identity()`);

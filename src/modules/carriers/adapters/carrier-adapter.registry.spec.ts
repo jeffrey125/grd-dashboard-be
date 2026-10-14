@@ -6,6 +6,7 @@ import { carrierReferencePolicy } from '@modules/carriers/carrier-reference-poli
 describe('Carrier adapter registry', () => {
   it('refuses an enabled Carrier without an adapter using safe diagnostics', () => {
     const registry = new CarrierAdapterRegistry([]);
+
     expect(() => registry.require('ups')).toThrow(
       'Enabled Carrier has no registered adapter: ups',
     );
@@ -25,11 +26,13 @@ describe('Carrier adapter registry', () => {
     };
     const registry = new CarrierAdapterRegistry([adapter]);
     let failure: unknown;
+
     try {
       registry.validate('ups');
     } catch (error) {
       failure = error;
     }
+
     expect(failure).toMatchObject({
       reasonCode: 'ADAPTER_CONFIGURATION_INVALID',
       carrierCode: 'ups',

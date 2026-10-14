@@ -3,7 +3,9 @@ import { z } from 'zod';
 export function authConfiguration(environment: Record<string, unknown>) {
   const origin = z.url().refine((value) => {
     if (!URL.canParse(value)) return false;
+
     const url = new URL(value);
+
     return (
       ['http:', 'https:'].includes(url.protocol) &&
       !url.username &&
@@ -26,7 +28,9 @@ export function authConfiguration(environment: Record<string, unknown>) {
       AUTH_TRUST_PROXY: z.enum(['false', 'loopback']).default('false'),
     })
     .safeParse(environment);
+
   if (!parsed.success) throw new Error('Invalid auth configuration');
+
   return {
     secret: parsed.data.AUTH_SECRET,
     baseURL: new URL(parsed.data.AUTH_BASE_URL).origin,
@@ -40,5 +44,7 @@ export function authConfiguration(environment: Record<string, unknown>) {
         : (false as const),
   };
 }
+
 export type AuthConfiguration = ReturnType<typeof authConfiguration>;
+
 export const AUTH_CONFIGURATION = Symbol('AUTH_CONFIGURATION');

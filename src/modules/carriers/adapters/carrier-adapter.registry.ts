@@ -33,31 +33,37 @@ export class CarrierAdapterRegistry {
           'DUPLICATE_ADAPTER',
           'Duplicate Carrier adapter registration',
         );
+
       this.adapters.set(adapter.code, adapter);
     }
   }
 
   require(code: string): CarrierAdapter {
     const adapter = this.adapters.get(code);
+
     if (!adapter)
       throw new AdapterConfigurationError(
         code,
         'ADAPTER_MISSING',
         `Enabled Carrier has no registered adapter: ${code}`,
       );
+
     return adapter;
   }
 
   validate(code: string, fetchMode?: FetchMode): CarrierAdapter {
     const adapter = this.require(code);
+
     try {
       if (fetchMode && !supportsFetchMode(code, fetchMode))
         throw new Error('Unsupported Carrier fetch mode');
+
       if (
         !Number.isSafeInteger(adapter.minimumIntervalMinutes) ||
         adapter.minimumIntervalMinutes < 0
       )
         throw new Error('Invalid minimum interval');
+
       adapter.validateConfiguration();
     } catch (error) {
       // Never retain provider errors, configuration values or their causes.
@@ -68,6 +74,7 @@ export class CarrierAdapterRegistry {
         safeErrorFields(error),
       );
     }
+
     return adapter;
   }
 }

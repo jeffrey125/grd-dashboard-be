@@ -13,10 +13,15 @@ import { ProjectLogger } from '@infrastructure/logging/logging.types.js';
 
 class SilentLogger extends ProjectLogger {
   debug() {}
+
   info() {}
+
   warn() {}
+
   error() {}
+
   setLevel() {}
+
   child() {
     return this;
   }
@@ -24,6 +29,7 @@ class SilentLogger extends ProjectLogger {
 
 describe('EchoShip outcomes persisted through the real executor', () => {
   let db: Awaited<ReturnType<typeof shipmentDatabase>>;
+
   beforeAll(async () => {
     db = await shipmentDatabase();
   });
@@ -44,7 +50,9 @@ describe('EchoShip outcomes persisted through the real executor', () => {
         notes: null,
       })),
     );
+
     if (created.kind !== 'created') throw new Error('Fixture creation failed');
+
     const tracking = new TrackingService(
       new TypeOrmTrackingRepository(db.source),
     );
@@ -56,6 +64,7 @@ describe('EchoShip outcomes persisted through the real executor', () => {
       requestedById: null,
     });
     const started = await tracking.startRun(previous.externalId);
+
     await tracking.finalizeFound({
       runExternalId: previous.externalId,
       shipmentExternalId: second.externalId,
@@ -75,9 +84,11 @@ describe('EchoShip outcomes persisted through the real executor', () => {
       'UPDATE shipments SET consecutive_not_found_count = 2 WHERE external_id = $1',
       [second.externalId],
     );
+
     const calls: string[] = [];
     const transport: AxiosAdapter = async (request) => {
       calls.push(request.url!);
+
       if (request.url!.endsWith('/69372728/tracking'))
         throw new AxiosError('PRIVATE', undefined, request, undefined, {
           config: request,
@@ -86,6 +97,7 @@ describe('EchoShip outcomes persisted through the real executor', () => {
           headers: {},
           data: {},
         });
+
       const reference = request.url!.includes('loadSummaries')
         ? request.params.searchQuery || '69451086'
         : request.url!.split('/').filter(Boolean)[3];
@@ -104,6 +116,7 @@ describe('EchoShip outcomes persisted through the real executor', () => {
                 },
               ]
             : { id: reference, pickupDate: '2026-10-08T16:23:00' };
+
       return {
         config: request,
         status: 200,
@@ -120,6 +133,7 @@ describe('EchoShip outcomes persisted through the real executor', () => {
       }),
       transport,
     );
+
     try {
       const executor = new TrackingExecutorService(
         tracking,
@@ -132,15 +146,18 @@ describe('EchoShip outcomes persisted through the real executor', () => {
         shipmentExternalIds: created.inserted.map((row) => row.externalId),
         requestedById: null,
       });
+
       await executor.execute(
         run.externalId,
         carrier,
         new AbortController().signal,
       );
+
       const outcomes = await db.source.query(
         `SELECT attempt.outcome, attempt.reason_code, attempt.source_data FROM tracking_attempts attempt JOIN tracking_runs run ON run.id=attempt.tracking_run_id WHERE run.external_id=$1 ORDER BY attempt.id`,
         [run.externalId],
       );
+
       expect(outcomes.map((row: { outcome: string }) => row.outcome)).toEqual([
         'found',
         'failed',
@@ -150,39 +167,47 @@ describe('EchoShip outcomes persisted through the real executor', () => {
         reason_code: 'ECHOSHIP_AUTHENTICATION_FAILED',
         source_data: null,
       });
+
       const [preserved] = await db.source.query(
         `SELECT s.consecutive_not_found_count, snapshot.carrier_status, snapshot.picked_up_on::text AS picked_up_on FROM shipments s JOIN shipment_tracking_snapshots snapshot ON snapshot.id=s.current_tracking_snapshot_id WHERE s.external_id=$1`,
         [second.externalId],
       );
+
       expect(preserved).toEqual({
         consecutive_not_found_count: 2,
         carrier_status: 'Previously known',
         picked_up_on: '2026-10-01',
       });
+
       const [record] = await db.source.query(
         'SELECT status,fetch_mode FROM tracking_runs WHERE external_id=$1',
         [run.externalId],
       );
+
       expect(record).toEqual({
         status: 'partially_succeeded',
         fetch_mode: 'request',
       });
       expect(calls.some((url) => url.includes('69173190'))).toBe(false);
+
       const repeated = await tracking.createRun({
         carrierExternalId: carrier.externalId,
         trigger: 'manual',
         shipmentExternalIds: [created.inserted[0]!.externalId],
         requestedById: null,
       });
+
       await executor.execute(
         repeated.externalId,
         carrier,
         new AbortController().signal,
       );
+
       const [same] = await db.source.query(
         'SELECT snapshot_changed FROM tracking_attempts attempt JOIN tracking_runs run ON run.id=attempt.tracking_run_id WHERE run.external_id=$1',
         [repeated.externalId],
       );
+
       expect(same.snapshot_changed).toBe(false);
     } finally {
       await adapter.onModuleDestroy();

@@ -2,6 +2,7 @@ import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class TrackingEvents1792195200000 implements MigrationInterface {
   name = 'TrackingEvents1792195200000';
+
   async up(runner: QueryRunner): Promise<void> {
     await runner.query(`CREATE FUNCTION grd_announce_change() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
@@ -22,6 +23,7 @@ export class TrackingEvents1792195200000 implements MigrationInterface {
     await runner.query(`CREATE TRIGGER attempts_announce_change AFTER UPDATE ON tracking_attempts
       FOR EACH ROW EXECUTE FUNCTION grd_announce_attempt()`);
   }
+
   async down(runner: QueryRunner): Promise<void> {
     await runner.query(
       'DROP TRIGGER attempts_announce_change ON tracking_attempts',

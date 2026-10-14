@@ -25,27 +25,33 @@ export class FfeAdapter implements CarrierAdapter, OnModuleDestroy {
   readonly referencePolicy = carrierReferencePolicy('ffe');
   private readonly limiter = new CarrierRequestLimiter();
   private readonly sessions = new Set<TrackingSession>();
+
   constructor(
     @Inject(FfeConfiguration) private readonly configuration: FfeConfiguration,
     @Inject(FFE_HTTP_ADAPTER) private readonly transport: AxiosAdapter,
     @Inject(FFE_BROWSER_LAUNCHER)
     private readonly launchBrowser: FfeBrowserLauncher = launchFfeBrowser,
   ) {}
+
   validateConfiguration() {
     this.configuration.read();
   }
+
   async openSession(
     options: Parameters<CarrierAdapter['openSession']>[0],
   ): Promise<TrackingSession> {
     options.signal.throwIfAborted();
+
     if (
       options.rateLimitPerMinute !== null &&
       (!Number.isSafeInteger(options.rateLimitPerMinute) ||
         options.rateLimitPerMinute < 1)
     )
       throw new FfeFailure('FFE_CONFIGURATION_INVALID', false);
+
     if (!['request', 'browser'].includes(options.fetchMode ?? ''))
       throw new FfeFailure('FFE_MODE_INVALID', false);
+
     const settings = {
       settings: this.configuration.read(),
       limiter: this.limiter,
@@ -56,35 +62,47 @@ export class FfeAdapter implements CarrierAdapter, OnModuleDestroy {
       options.fetchMode === 'browser'
         ? new FfeBrowser(settings, this.launchBrowser)
         : new FfeRequest(settings, this.transport);
+
     try {
       await portal.login(options.signal);
     } catch (error) {
       await portal.close();
+
       throw ffeFailure(error);
     }
+
     let authenticationFailed = false;
     let closed = false;
     const session: TrackingSession = {
       read: async (reference, signal) => {
         signal.throwIfAborted();
+
         if (closed) return failedResult(new FfeFailure('FFE_SESSION_CLOSED'));
+
         if (authenticationFailed)
           return failedResult(new FfeFailure('FFE_AUTHENTICATION_FAILED'));
+
         const parsed = trackingReferenceSchema.safeParse(reference);
+
         if (!parsed.success)
           return failedResult(new FfeFailure('FFE_INVALID_REFERENCE', false));
+
         try {
           return await portal.read(parsed.data, signal);
         } catch (error) {
           signal.throwIfAborted();
           options.signal.throwIfAborted();
+
           const failure = ffeFailure(error);
+
           authenticationFailed = failure.code === 'FFE_AUTHENTICATION_FAILED';
+
           return failedResult(failure);
         }
       },
       close: async () => {
         closed = true;
+
         try {
           await portal.close();
         } finally {
@@ -92,9 +110,12 @@ export class FfeAdapter implements CarrierAdapter, OnModuleDestroy {
         }
       },
     };
+
     this.sessions.add(session);
+
     return session;
   }
+
   async onModuleDestroy() {
     await Promise.all([...this.sessions].map((session) => session.close()));
     await this.limiter.close();

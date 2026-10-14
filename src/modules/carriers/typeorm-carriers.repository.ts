@@ -29,6 +29,7 @@ export class TypeOrmCarriersRepository implements CarriersRepository {
     const rows = await this.source
       .getRepository(CarrierEntity)
       .find({ order: { code: 'ASC' } });
+
     return rows.map(record);
   }
 
@@ -37,6 +38,7 @@ export class TypeOrmCarriersRepository implements CarriersRepository {
       where: { isActive: true },
       order: { code: 'ASC' },
     });
+
     return rows.map(record);
   }
 
@@ -44,6 +46,7 @@ export class TypeOrmCarriersRepository implements CarriersRepository {
     const row = await this.source
       .getRepository(CarrierEntity)
       .findOneBy({ externalId });
+
     return row ? record(row) : null;
   }
 
@@ -60,7 +63,9 @@ export class TypeOrmCarriersRepository implements CarriersRepository {
         { externalId, deletedAt: IsNull() },
         { ...changes, updatedById: actorId },
       );
+
       if (!result.affected) return null;
+
       return record(await rows.findOneByOrFail({ externalId }));
     });
   }

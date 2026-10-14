@@ -17,10 +17,12 @@ import type { Principal } from './auth.repository.js';
 @AuthPolicy('admin')
 export class AccountsController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+
   @Get()
   list(@CurrentPrincipal() principal: Principal) {
     return this.auth.listAccounts(principal);
   }
+
   @Get(':externalId')
   find(
     @CurrentPrincipal() principal: Principal,
@@ -28,10 +30,12 @@ export class AccountsController {
   ) {
     return this.auth.account(principal, id);
   }
+
   @Post()
   create(@CurrentPrincipal() principal: Principal, @Body() input: unknown) {
     return this.auth.createAccount(principal, input);
   }
+
   @Patch(':externalId')
   update(
     @CurrentPrincipal() principal: Principal,
@@ -40,6 +44,7 @@ export class AccountsController {
   ) {
     return this.auth.updateAccount(principal, id, input);
   }
+
   @Post(':externalId/password')
   @HttpCode(204)
   @AuthRateLimit('password')

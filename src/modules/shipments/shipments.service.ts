@@ -42,11 +42,14 @@ export class ShipmentsService {
     const envelope = parseShipmentInput(createShipmentsEnvelopeSchema, input);
     const details: ShipmentValidationDetail[] = [];
     const normalized: NewShipment[] = [];
+
     for (const [index, item] of envelope.items.entries()) {
       const result = createShipmentSchema.safeParse(item);
+
       if (!result.success) {
         for (const issue of result.error.issues) {
           const field = issue.path[0];
+
           details.push({
             row: index + 1,
             field:
@@ -58,17 +61,22 @@ export class ShipmentsService {
             message: 'Invalid field or unsupported input',
           });
         }
+
         continue;
       }
+
       const carrier = await this.carriers.find(result.data.carrierExternalId);
+
       if (!carrier?.isActive) {
         details.push({
           row: index + 1,
           field: 'carrierExternalId',
           message: 'Carrier is missing or disabled',
         });
+
         continue;
       }
+
       normalized.push({
         ...result.data,
         trackingReference: carrierReferencePolicy(carrier.code).normalize(
@@ -76,17 +84,22 @@ export class ShipmentsService {
         ),
       });
     }
+
     if (details.length) invalidShipmentRows(details);
+
     const unique = new Map<string, NewShipment>();
+
     for (const item of normalized)
       unique.set(
         JSON.stringify([item.carrierExternalId, item.trackingReference]),
         item,
       );
+
     const result = await this.repository.createMany(
       [...unique.values()],
       actorId,
     );
+
     if (result.kind === 'unavailable') {
       // Revalidation under the database lock closes the Carrier-disable race.
       invalidShipmentRows(
@@ -103,6 +116,7 @@ export class ShipmentsService {
         ),
       );
     }
+
     return { inserted: result.inserted, duplicates: result.duplicates };
   }
 
@@ -110,7 +124,9 @@ export class ShipmentsService {
     const result = await this.repository.find(
       parseShipmentInput(shipmentExternalIdSchema, externalId),
     );
+
     if (!result) throw new NotFoundException('Shipment not found');
+
     return result;
   }
 
@@ -122,7 +138,9 @@ export class ShipmentsService {
     const id = parseShipmentInput(shipmentExternalIdSchema, externalId);
     const { notes } = parseShipmentInput(updateShipmentNotesSchema, input);
     const result = await this.repository.updateNotes(id, notes, actorId);
+
     if (!result) throw new NotFoundException('Shipment not found');
+
     return result;
   }
 
@@ -143,14 +161,19 @@ export class ShipmentsService {
     actorId: number | null = null,
   ) {
     const id = parseShipmentInput(shipmentExternalIdSchema, externalId);
+
     parseShipmentInput(monitoringCommandSchema, input);
+
     const result = await this.repository.changeMonitoring(id, command, actorId);
+
     if (result.kind === 'missing')
       throw new NotFoundException('Shipment not found');
+
     if (result.kind === 'conflict')
       throw new ConflictException(
         'Shipment monitoring transition is not permitted',
       );
+
     return result.shipment;
   }
 }

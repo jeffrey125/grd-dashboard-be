@@ -11,6 +11,7 @@ const SAFE_NEST_CONTEXT = /^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/;
 
 function nestContext(optionalParams: unknown[]): string | undefined {
   const candidate = optionalParams.at(-1);
+
   return typeof candidate === 'string' && SAFE_NEST_CONTEXT.test(candidate)
     ? candidate
     : undefined;
@@ -32,8 +33,10 @@ export class NestLoggerAdapter implements LoggerService {
   log(message: unknown, ...optionalParams: unknown[]) {
     if (this.isDevelopment()) {
       this.nativeLogger.log(message, ...optionalParams);
+
       return;
     }
+
     this.logger.info(
       'nest.lifecycle',
       typeof message === 'string' ? message : 'Nest framework lifecycle event',
@@ -44,8 +47,10 @@ export class NestLoggerAdapter implements LoggerService {
   debug(message: unknown, ...optionalParams: unknown[]) {
     if (this.isDevelopment()) {
       this.nativeLogger.debug(message, ...optionalParams);
+
       return;
     }
+
     this.logger.debug(
       'nest.debug',
       typeof message === 'string' ? message : 'Nest framework debug event',
@@ -57,8 +62,10 @@ export class NestLoggerAdapter implements LoggerService {
     if (this.isDevelopment()) {
       // nestjs-pino maps verbose to trace, below the local debug default.
       this.nativeLogger.debug(message, ...optionalParams);
+
       return;
     }
+
     this.logger.debug(
       'nest.verbose',
       typeof message === 'string' ? message : 'Nest framework verbose event',
@@ -69,8 +76,10 @@ export class NestLoggerAdapter implements LoggerService {
   warn(message: unknown, ...optionalParams: unknown[]) {
     if (this.isDevelopment()) {
       this.nativeLogger.warn(message, ...optionalParams);
+
       return;
     }
+
     this.logger.warn(
       'nest.warning',
       'Nest framework warning',
@@ -81,8 +90,10 @@ export class NestLoggerAdapter implements LoggerService {
   error(message: unknown, ...optionalParams: unknown[]) {
     if (this.isDevelopment()) {
       this.nativeLogger.error(message, ...optionalParams);
+
       return;
     }
+
     this.logger.error(
       'nest.error',
       'Nest framework operation failed',
@@ -93,8 +104,10 @@ export class NestLoggerAdapter implements LoggerService {
   fatal(message: unknown, ...optionalParams: unknown[]) {
     if (this.isDevelopment()) {
       this.nativeLogger.fatal(message, ...optionalParams);
+
       return;
     }
+
     this.logger.error(
       'nest.fatal',
       'Nest framework fatal error',
@@ -108,6 +121,7 @@ export class NestLoggerAdapter implements LoggerService {
 
   private contextFields(optionalParams: unknown[]): LogFields {
     const context = nestContext(optionalParams);
+
     return context ? { nestContext: context } : {};
   }
 

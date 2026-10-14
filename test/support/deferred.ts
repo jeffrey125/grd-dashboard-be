@@ -4,5 +4,6 @@ export function deferred<T>() {
   const promise = new Promise<T>((done) => {
     resolve = done;
   });
+
   return { promise, resolve };
 }

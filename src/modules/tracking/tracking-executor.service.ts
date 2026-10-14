@@ -18,10 +18,12 @@ import type {
 function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const abort = () => reject(new Error('Tracking interrupted'));
+
     signal.addEventListener('abort', abort, { once: true });
     operation
       .then(resolve, reject)
       .finally(() => signal.removeEventListener('abort', abort));
+
     if (signal.aborted) abort();
   });
 }
@@ -53,6 +55,7 @@ export class TrackingExecutorService {
     signal: AbortSignal,
   ): Promise<void> {
     signal.throwIfAborted();
+
     const run = await this.tracking.startRun(runExternalId);
     const log = this.logger.child({
       component: 'tracking.executor',
@@ -61,13 +64,18 @@ export class TrackingExecutorService {
       trigger: run.trigger,
     });
     let session: TrackingSession | undefined;
+
     try {
       signal.throwIfAborted();
+
       if (!run.targets.length) {
         await this.tracking.finalizeRun(runExternalId);
+
         return;
       }
+
       if (!carrier) throw new Error('Carrier unavailable');
+
       const adapter = this.adapters.validate(
         run.carrierCode,
         run.fetchMode ?? undefined,
@@ -77,8 +85,10 @@ export class TrackingExecutorService {
         adapter.minimumIntervalMinutes,
       );
       const targets: TrackingExecutionTarget[] = [];
+
       for (const target of run.targets) {
         signal.throwIfAborted();
+
         try {
           targets.push({
             ...target,
@@ -99,10 +109,13 @@ export class TrackingExecutorService {
           );
         }
       }
+
       if (!targets.length) {
         await this.tracking.finalizeRun(runExternalId);
+
         return;
       }
+
       const opening = Promise.resolve().then(() =>
         adapter.openSession({
           fetchMode: run.fetchMode ?? undefined,
@@ -110,6 +123,7 @@ export class TrackingExecutorService {
           rateLimitPerMinute: carrier.rateLimitPerMinute,
         }),
       );
+
       // A late session must still be closed after cancellation won the race.
       void opening
         .then(async (opened) => {
@@ -122,6 +136,7 @@ export class TrackingExecutorService {
             safeErrorFields(error),
           ),
         );
+
       try {
         session = await abortable(opening, signal);
       } catch (error) {
@@ -131,6 +146,7 @@ export class TrackingExecutorService {
           'Carrier session could not be opened',
           safeErrorFields(error),
         );
+
         for (const target of targets) {
           signal.throwIfAborted();
           await this.persist(
@@ -140,11 +156,15 @@ export class TrackingExecutorService {
             interval,
           );
         }
+
         await this.tracking.finalizeRun(runExternalId);
+
         return;
       }
+
       if (session.readMany) {
         let results: ReadonlyMap<string, TrackingResult>;
+
         try {
           results = await abortable(
             session.readMany(
@@ -167,6 +187,7 @@ export class TrackingExecutorService {
             ]),
           );
         }
+
         for (const target of targets) {
           signal.throwIfAborted();
           await this.persist(
@@ -180,7 +201,9 @@ export class TrackingExecutorService {
       } else {
         for (const target of targets) {
           signal.throwIfAborted();
+
           let result: TrackingResult;
+
           try {
             result = await abortable(
               session.read(target.trackingReference, signal),
@@ -194,10 +217,12 @@ export class TrackingExecutorService {
             });
             result = technicalFailure('LOOKUP_FAILED');
           }
+
           signal.throwIfAborted();
           await this.persist(run, target, result, interval);
         }
       }
+
       await this.tracking.finalizeRun(runExternalId);
       log.info('tracking.run.completed', 'Tracking run completed', {
         attemptedCount: run.targets.length,
@@ -247,6 +272,7 @@ export class TrackingExecutorService {
       expectedLockVersion: target.expectedLockVersion,
       effectiveIntervalMinutes,
     };
+
     switch (result.outcome) {
       case 'found':
         await this.tracking.finalizeFound({

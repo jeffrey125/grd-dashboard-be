@@ -23,13 +23,16 @@ export class UpsConfiguration {
 
   read() {
     const parsed = schema.safeParse(this.environment);
+
     if (!parsed.success)
       throw new UpsFailure(
         'UPS_CONFIGURATION_INVALID',
         false,
         'UPS requires a valid environment, client ID, and client secret.',
       );
+
     const env = parsed.data;
+
     return {
       environment: env.UPS_ENVIRONMENT,
       origin:

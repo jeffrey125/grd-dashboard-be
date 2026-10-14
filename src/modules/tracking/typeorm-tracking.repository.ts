@@ -55,6 +55,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         FOR SHARE`,
       [externalId],
     );
+
     return rows[0] ?? null;
   }
 
@@ -77,6 +78,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         FOR SHARE`,
       [externalIds, carrierId],
     );
+
     return rows.map((row) => ({
       id: row.id,
       externalId: row.external_id,
@@ -92,6 +94,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
        RETURNING external_id`,
       [carrierId, command.trigger, command.requestedById],
     );
+
     return (await this.lockRun(rows[0]!.external_id))!;
   }
 
@@ -116,6 +119,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         FOR UPDATE OF run`,
       [externalId],
     );
+
     return rows[0] ? lockedRun(rows[0]) : null;
   }
 
@@ -160,6 +164,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         ORDER BY attempt.id`,
       [runId],
     );
+
     return rows.map((row) => ({
       attemptId: row.attempt_id,
       id: row.shipment_id,
@@ -176,6 +181,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     const rows: Array<{ completed_at: Date }> = await this.manager.query(
       'SELECT clock_timestamp() AS completed_at',
     );
+
     return rows[0]!.completed_at;
   }
 
@@ -228,7 +234,9 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
       [runExternalId, shipmentExternalId],
     );
     const row = rows[0];
+
     if (!row) return null;
+
     return {
       runId: row.run_id,
       runTrigger: row.run_trigger,
@@ -268,6 +276,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
       [shipmentId, snapshotId],
     );
     const row = rows[0];
+
     return row
       ? {
           carrierStatus: row.carrier_status,
@@ -300,6 +309,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         observedAt,
       ],
     );
+
     return rows[0]!.id;
   }
 
@@ -353,6 +363,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         input.expectedLockVersion,
       ],
     );
+
     return result[1] === 1;
   }
 
@@ -399,6 +410,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         input.expectedLockVersion,
       ],
     );
+
     return result[1] === 1;
   }
 
@@ -430,6 +442,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         input.expectedLockVersion,
       ],
     );
+
     return result[1] === 1;
   }
 
@@ -478,6 +491,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         WHERE tracking_run_id = $1`,
       [runId],
     );
+
     return rows[0]!;
   }
 

@@ -9,14 +9,19 @@ export class AuthVerificationEntity {
     generatedIdentity: 'ALWAYS',
   })
   id: number;
+
   @Column({ name: 'identifier', type: 'text' })
   identifier: string;
+
   @Column({ name: 'value', type: 'text' })
   value: string;
+
   @Column({ name: 'expires_at', type: 'timestamptz' })
   expiresAt: Date;
+
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;
+
   @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
   updatedAt: Date;
 }

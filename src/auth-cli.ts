@@ -22,18 +22,22 @@ async function prompt(label: string, hidden = false) {
     : stdout;
   const reader = createInterface({ input: stdin, output, terminal: true });
   const cancellation = new AbortController();
+
   reader.once('SIGINT', () => cancellation.abort());
   stdout.write(label);
+
   try {
     return await reader.question('', { signal: cancellation.signal });
   } finally {
     reader.close();
+
     if (hidden) stdout.write('\n');
   }
 }
 
 try {
   const command = process.argv[2];
+
   if (
     !stdin.isTTY ||
     !stdout.isTTY ||
@@ -44,6 +48,7 @@ try {
       'Use bootstrap or recover in an interactive terminal; credentials cannot be supplied as arguments.',
     );
   }
+
   const config = authConfiguration(process.env);
   const email = await prompt('Email: ');
   const names =
@@ -54,9 +59,12 @@ try {
         }
       : {};
   const password = await prompt('Issued password (hidden): ', true);
+
   if (password !== (await prompt('Confirm password (hidden): ', true)))
     throw new Error('Passwords do not match');
+
   await source.initialize();
+
   const auth = new AuthService(
     new TypeOrmAuthRepository(source),
     createAuthEngine(source, config),
@@ -73,9 +81,11 @@ try {
       }),
     ),
   );
+
   if (command === 'bootstrap')
     await auth.bootstrap({ ...names, email, password, role: 'admin' });
   else await auth.recoverAdmin(email, { password });
+
   stdout.write(
     'Administrator credential saved. A password change is required at next login.\n',
   );

@@ -4,6 +4,7 @@ import { EchoShipFailure } from './echoship.failure.js';
 const schema = z.object({
   ECHOSHIP_URL: z.url().refine((value) => {
     const url = new URL(value);
+
     return (
       url.origin === 'https://echoship.com' &&
       !url.username &&
@@ -30,8 +31,10 @@ export class EchoShipConfiguration {
 
   read() {
     const parsed = schema.safeParse(this.environment);
+
     if (!parsed.success)
       throw new EchoShipFailure('ECHOSHIP_CONFIGURATION_INVALID', false);
+
     return {
       origin: 'https://echoship.com',
       loginUrl: parsed.data.ECHOSHIP_URL,
@@ -41,4 +44,5 @@ export class EchoShipConfiguration {
     };
   }
 }
+
 export type EchoShipSettings = ReturnType<EchoShipConfiguration['read']>;

@@ -21,12 +21,14 @@ describe('composition roots', () => {
   it('keeps API and worker cache entries independent', async () => {
     for (const [key, value] of Object.entries(testEnvironment))
       vi.stubEnv(key, value);
+
     const api = await Test.createTestingModule({ imports: [AppModule] })
       .overrideModule(DatabaseModule)
       .useModule(TestDatabaseModule)
       .overrideProvider(AUTH_ENGINE)
       .useValue({})
       .compile();
+
     try {
       const worker = await Test.createTestingModule({ imports: [WorkerModule] })
         .overrideModule(DatabaseModule)
@@ -34,9 +36,11 @@ describe('composition roots', () => {
         .overrideProvider(AUTH_ENGINE)
         .useValue({})
         .compile();
+
       try {
         const apiCache = api.get<Cache>(CACHE_MANAGER);
         const workerCache = worker.get<Cache>(CACHE_MANAGER);
+
         await apiCache.set('shared-key', 'api');
         await expect(workerCache.get('shared-key')).resolves.toBeUndefined();
         await workerCache.set('shared-key', 'worker');
@@ -54,6 +58,7 @@ describe('composition roots', () => {
   it('does not create worker providers in the API', async () => {
     for (const [key, value] of Object.entries(testEnvironment))
       vi.stubEnv(key, value);
+
     const module = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -62,6 +67,7 @@ describe('composition roots', () => {
       .overrideProvider(AUTH_ENGINE)
       .useValue({})
       .compile();
+
     try {
       expect(module.get(HealthController)).toBeDefined();
       expect(() => module.get(TrackingSchedulerService)).toThrow();
@@ -73,7 +79,9 @@ describe('composition roots', () => {
   it('starts a controller-free worker and releases its scheduler timer on close', async () => {
     for (const [key, value] of Object.entries(testEnvironment))
       vi.stubEnv(key, value);
+
     vi.useFakeTimers();
+
     const module = await Test.createTestingModule({
       imports: [WorkerModule],
     })
@@ -82,17 +90,23 @@ describe('composition roots', () => {
       .overrideProvider(AUTH_ENGINE)
       .useValue({})
       .compile();
+
     try {
       expect(() => module.get(HealthController)).toThrow();
+
       await module.init();
+
       expect(vi.getTimerCount()).toBe(1);
+
       await expect(module.get(ReadinessService).check()).resolves.toMatchObject(
         { status: 'ok' },
       );
     } finally {
       await module.close();
     }
+
     expect(vi.getTimerCount()).toBe(0);
+
     await expect(module.get(ReadinessService).check()).rejects.toThrow();
   });
 });

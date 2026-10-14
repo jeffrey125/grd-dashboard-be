@@ -26,6 +26,7 @@ import { DatabaseLogger } from './database-logger.js';
         if (!options || !(options.logger instanceof DatabaseLogger)) {
           throw new Error('Missing database logger');
         }
+
         return new DatabaseDataSource(options, options.logger.project);
       },
     }),

@@ -62,6 +62,7 @@ async function find(
   const row = await readable(manager)
     .andWhere('shipment.external_id = :externalId', { externalId })
     .getOne();
+
   return row ? record(row as JoinedShipment) : null;
 }
 
@@ -73,6 +74,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
       .orderBy('shipment.created_at', 'DESC')
       .addOrderBy('shipment.id', 'DESC')
       .getMany();
+
     return rows.map((row) => record(row as JoinedShipment));
   }
 
@@ -92,6 +94,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
           { externalId, deletedAt: IsNull() },
           { notes, updatedById: actorId },
         );
+
       return result.affected ? find(manager, externalId) : null;
     });
   }
@@ -109,6 +112,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
       })
       .where('external_id = :externalId AND deleted_at IS NULL', { externalId })
       .execute();
+
     return Boolean(result.affected);
   }
 
@@ -124,13 +128,17 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
         .where('shipment.external_id = :externalId', { externalId })
         .setLock('pessimistic_write')
         .getOne();
+
       if (!row) return { kind: 'missing' };
+
       const permitted =
         command === 'pause'
           ? row.monitoringStatus === ShipmentMonitoringStatus.Active
           : row.monitoringStatus === ShipmentMonitoringStatus.Paused &&
             row.monitoringReason === ShipmentMonitoringReason.Manual;
+
       if (!permitted) return { kind: 'conflict' };
+
       await rows.update(
         { id: row.id, deletedAt: IsNull() },
         command === 'pause'
@@ -147,6 +155,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
               nextCheckAt: () => 'clock_timestamp()',
             },
       );
+
       return { kind: 'updated', shipment: (await find(manager, externalId))! };
     });
   }
@@ -159,8 +168,10 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
       const carrierIds = [
         ...new Set(items.map((item) => item.carrierExternalId)),
       ];
+
       if (!carrierIds.length)
         return { kind: 'created', inserted: [], duplicates: [] };
+
       // A shared Carrier lock serializes eligibility against disable/delete
       // writes, while allowing concurrent creations for the same Carrier.
       const carriers = await manager
@@ -177,6 +188,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
           .map((row) => [row.externalId, row]),
       );
       const unavailable = carrierIds.filter((id) => !available.has(id));
+
       if (unavailable.length)
         return { kind: 'unavailable', carrierExternalIds: unavailable };
 
@@ -191,10 +203,12 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
       const ordered = [...items].sort((a, b) =>
         key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0,
       );
+
       for (const item of ordered) {
         const carrierId = available.get(item.carrierExternalId)!.id;
         let externalId: string | undefined;
         let inserted = false;
+
         while (!externalId) {
           const created: Array<{ external_id: string }> = await manager.query(
             `INSERT INTO shipments (carrier_id, tracking_reference, notes, next_check_at, created_by_id, updated_by_id)
@@ -203,8 +217,10 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
              RETURNING external_id`,
             [carrierId, item.trackingReference, item.notes, actorId],
           );
+
           externalId = created[0]?.external_id;
           inserted = Boolean(externalId);
+
           if (!externalId) {
             // Use a new READ COMMITTED statement snapshot after ON CONFLICT
             // waits for another transaction. Lock duplicates until the response
@@ -215,20 +231,26 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
                AND tracking_reference = $2 AND deleted_at IS NULL FOR UPDATE`,
                 [carrierId, item.trackingReference],
               );
+
             externalId = existing[0]?.external_id;
           }
         }
+
         results.set(item, {
           inserted,
           shipment: (await find(manager, externalId))!,
         });
       }
+
       const inserted: ShipmentRecord[] = [];
       const duplicates: ShipmentRecord[] = [];
+
       for (const item of items) {
         const result = results.get(item)!;
+
         (result.inserted ? inserted : duplicates).push(result.shipment);
       }
+
       return { kind: 'created', inserted, duplicates };
     });
   }

@@ -23,6 +23,7 @@ import { emptySchema, parseAuth } from './auth.schemas.js';
 @Controller('auth')
 export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+
   @Post('sign-in')
   @HttpCode(200)
   @AuthPolicy('public')
@@ -32,14 +33,18 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.auth.signIn(input);
+
     response.setHeader('Set-Cookie', result.cookies);
+
     return result.user;
   }
+
   @Get('me')
   @AuthPolicy('session')
   current(@CurrentPrincipal() principal: Principal) {
     return this.auth.current(principal);
   }
+
   @Post('sign-out')
   @HttpCode(204)
   @AuthPolicy('session')
@@ -55,6 +60,7 @@ export class AuthController {
       await this.auth.signOut(principal, fromNodeHeaders(request.headers)),
     );
   }
+
   @Post('change-password')
   @HttpCode(204)
   @AuthPolicy('session')

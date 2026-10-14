@@ -59,6 +59,7 @@ describe('EchoShip request session', () => {
                 pickupDate: '2026-10-08T23:23:00-07:00',
                 secret: 'PRIVATE',
               };
+
       return {
         config: request,
         status: 200,
@@ -73,8 +74,10 @@ describe('EchoShip request session', () => {
       rateLimitPerMinute: null,
       fetchMode: 'request',
     });
+
     try {
       const result = await session.read('69451086', signal);
+
       expect(result).toMatchObject({
         outcome: 'found',
         snapshot: {
@@ -105,14 +108,17 @@ describe('EchoShip request session', () => {
     const calls: string[] = [];
     const transport: AxiosAdapter = async (request) => {
       calls.push(request.url!);
+
       const lookup =
         !request.url!.endsWith('signIn') &&
         !(
           request.url!.includes('loadSummaries') &&
           request.params.searchQuery === ''
         );
+
       if (lookup && options.failure)
         throw new AxiosError('SECRET', options.failure, request);
+
       if (lookup && options.status)
         throw new AxiosError('SECRET', undefined, request, undefined, {
           config: request,
@@ -121,6 +127,7 @@ describe('EchoShip request session', () => {
           headers: {},
           data: { secret: 'SECRET' },
         });
+
       const data = request.url!.endsWith('signIn')
         ? {}
         : request.url!.includes('loadSummaries')
@@ -141,6 +148,7 @@ describe('EchoShip request session', () => {
                 id: '69451086',
                 pickupDate: '2026-10-08T16:23:00',
               });
+
       return {
         config: request,
         status: 200,
@@ -156,6 +164,7 @@ describe('EchoShip request session', () => {
       rateLimitPerMinute: null,
       fetchMode: 'request',
     });
+
     return {
       calls,
       browser,
@@ -172,6 +181,7 @@ describe('EchoShip request session', () => {
     const f = await fixture({
       search: () => ({ results: [], totalRecordCount: 0 }),
     });
+
     try {
       expect(await f.session.read('69451086', signal)).toEqual({
         outcome: 'not_found',
@@ -190,6 +200,7 @@ describe('EchoShip request session', () => {
         totalRecordCount: 2,
       }),
     });
+
     try {
       expect(await f.session.read('69451086', signal)).toMatchObject({
         outcome: 'found',
@@ -255,6 +266,7 @@ describe('EchoShip request session', () => {
     'fails incomplete or malformed evidence without a partial snapshot: %j',
     async (options) => {
       const f = await fixture(options);
+
       try {
         expect(await f.session.read('69451086', signal)).toMatchObject({
           outcome: 'failed',
@@ -281,6 +293,7 @@ describe('EchoShip request session', () => {
         ],
       },
     });
+
     try {
       expect(await f.session.read('69451086', signal)).toMatchObject({
         outcome: 'found',
@@ -299,6 +312,7 @@ describe('EchoShip request session', () => {
         deliveryByDate: '2026-10-13T08:00:00',
       },
     });
+
     try {
       expect(await f.session.read('69451086', signal)).toMatchObject({
         outcome: 'found',
@@ -313,12 +327,15 @@ describe('EchoShip request session', () => {
     'stops authenticated reads after HTTP %s without re-login',
     async (status) => {
       const f = await fixture({ status });
+
       try {
         expect(await f.session.read('69451086', signal)).toMatchObject({
           outcome: 'failed',
           reasonCode: 'ECHOSHIP_AUTHENTICATION_FAILED',
         });
+
         const count = f.calls.length;
+
         expect(await f.session.read('69372728', signal)).toMatchObject({
           outcome: 'failed',
           reasonCode: 'ECHOSHIP_AUTHENTICATION_FAILED',
@@ -340,6 +357,7 @@ describe('EchoShip request session', () => {
     'never retries technical failures or treats detail HTTP errors as absence: %j',
     async (options) => {
       const f = await fixture(options);
+
       try {
         expect(await f.session.read('69451086', signal)).toMatchObject({
           outcome: 'failed',
@@ -354,13 +372,16 @@ describe('EchoShip request session', () => {
 
   it('starts a fresh login for every manual or scheduled session', async () => {
     const f = await fixture();
+
     try {
       const second = await f.adapter.openSession({
         signal,
         rateLimitPerMinute: null,
         fetchMode: 'request',
       });
+
       await second.close();
+
       expect(f.calls.filter((url) => url.endsWith('signIn'))).toHaveLength(2);
     } finally {
       await f.close();
@@ -369,11 +390,13 @@ describe('EchoShip request session', () => {
 
   it('aborts without I/O for cancelled reads and never sends after close', async () => {
     const f = await fixture();
+
     try {
       await expect(
         f.session.read('69451086', AbortSignal.abort()),
       ).rejects.toBeDefined();
       await f.session.close();
+
       expect(await f.session.read('69451086', signal)).toMatchObject({
         outcome: 'failed',
       });
@@ -387,6 +410,7 @@ describe('EchoShip request session', () => {
     const calls: InternalAxiosRequestConfig[] = [];
     const transport: AxiosAdapter = async (request) => {
       calls.push(request);
+
       if (calls.length > 1)
         throw new AxiosError('SECRET', undefined, request, undefined, {
           config: request,
@@ -395,6 +419,7 @@ describe('EchoShip request session', () => {
           headers: {},
           data: {},
         });
+
       return {
         config: request,
         status: 200,
@@ -404,6 +429,7 @@ describe('EchoShip request session', () => {
       };
     };
     const adapter = new EchoShipAdapter(config(), transport);
+
     try {
       await expect(
         adapter.openSession({
@@ -412,6 +438,7 @@ describe('EchoShip request session', () => {
           fetchMode: 'request',
         }),
       ).rejects.toMatchObject({ code: 'ECHOSHIP_AUTHENTICATION_FAILED' });
+
       expect(calls).toHaveLength(2);
     } finally {
       await adapter.onModuleDestroy();
@@ -422,6 +449,7 @@ describe('EchoShip request session', () => {
     const times: number[] = [];
     const transport: AxiosAdapter = async (request) => {
       times.push(Date.now());
+
       return {
         config: request,
         status: 200,
@@ -436,28 +464,37 @@ describe('EchoShip request session', () => {
       };
     };
     const adapter = new EchoShipAdapter(config(), transport);
+
     try {
       const first = await adapter.openSession({
         signal,
         fetchMode: 'request',
         rateLimitPerMinute: 600,
       });
+
       await first.close();
+
       const second = await adapter.openSession({
         signal,
         fetchMode: 'request',
         rateLimitPerMinute: 600,
       });
+
       expect(times).toHaveLength(4);
+
       for (let index = 1; index < times.length; index++)
         // Allow transport/interceptor clock jitter around the 100 ms dispatch spacing.
         expect(times[index]! - times[index - 1]!).toBeGreaterThanOrEqual(90);
+
       const controller = new AbortController();
       const reading = second.read('69451086', controller.signal);
       const rejected = expect(reading).rejects.toBeDefined();
+
       controller.abort();
       await rejected;
+
       expect(times).toHaveLength(4);
+
       await second.close();
     } finally {
       await adapter.onModuleDestroy();

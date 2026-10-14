@@ -23,9 +23,11 @@ export async function createTestApp(dependencies: ReadinessDependency[] = []) {
 
   try {
     await app.init();
+
     return app;
   } catch (error) {
     await app.close();
+
     throw error;
   }
 }

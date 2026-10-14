@@ -41,9 +41,12 @@ describe('Carrier HTTP API with PostgreSQL', () => {
 
   beforeAll(async () => {
     container = await startPostgresqlContainer();
+
     const environment = postgresqlEnvironment(container);
+
     for (const [key, value] of Object.entries(environment))
       vi.stubEnv(key, value);
+
     source = new DataSource({
       ...createDatabaseOptions(createConfiguration(environment)),
       entities: [
@@ -64,12 +67,14 @@ describe('Carrier HTTP API with PostgreSQL', () => {
     });
     await source.initialize();
     await source.runMigrations();
+
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideModule(DatabaseModule)
       .useModule(TestDatabaseModule)
       .overrideProvider(DataSource)
       .useValue(source)
       .compile();
+
     app = module.createNestApplication();
     await app.init();
     cookie = await administratorCookie(app);
@@ -80,7 +85,9 @@ describe('Carrier HTTP API with PostgreSQL', () => {
 
   afterAll(async () => {
     await app?.close();
+
     if (source?.isInitialized) await source.destroy();
+
     await container?.stop();
     vi.unstubAllEnvs();
   });
@@ -90,12 +97,15 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       .get('/carriers')
       .expect(200)
       .expect('Cache-Control', 'no-store');
+
     expect(response.body.map((row: { code: string }) => row.code)).toEqual([
       'echoship',
       'ffe',
       'ups',
     ]);
+
     const { body } = await http().get(`/carriers/${upsId}`).expect(200);
+
     expect(body).toEqual({
       externalId: upsId,
       code: 'ups',
@@ -115,6 +125,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       .patch(`/carriers/${upsId}`)
       .send({ name: ' UPS renamed ', isActive: false, pollIntervalMinutes: 60 })
       .expect(200);
+
     expect(body).toMatchObject({
       externalId: upsId,
       code: 'ups',
@@ -123,11 +134,14 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       pollIntervalMinutes: 60,
       rateLimitPerMinute: 10,
     });
+
     await http()
       .patch(`/carriers/${upsId}`)
       .send({ rateLimitPerMinute: null })
       .expect(200);
+
     const current = await http().get(`/carriers/${upsId}`).expect(200);
+
     expect(current.body).toMatchObject({
       isActive: false,
       pollIntervalMinutes: 60,
@@ -138,12 +152,16 @@ describe('Carrier HTTP API with PostgreSQL', () => {
   it('switches EchoShip transport through the API and rejects unsupported modes', async () => {
     const { body } = await http().get('/carriers').expect(200);
     const echo = body.find((row: { code: string }) => row.code === 'echoship');
+
     expect(echo.fetchMode).toBe('request');
+
     const updated = await http()
       .patch(`/carriers/${echo.externalId}`)
       .send({ fetchMode: 'browser' })
       .expect(200);
+
     expect(updated.body.fetchMode).toBe('browser');
+
     await http()
       .patch(`/carriers/${upsId}`)
       .send({ fetchMode: 'browser' })
@@ -157,12 +175,15 @@ describe('Carrier HTTP API with PostgreSQL', () => {
   it('defaults FFE to request and supports explicitly switching both modes', async () => {
     const { body } = await http().get('/carriers').expect(200);
     const ffe = body.find((row: { code: string }) => row.code === 'ffe');
+
     expect(ffe.fetchMode).toBe('request');
+
     for (const fetchMode of ['browser', 'request']) {
       const updated = await http()
         .patch(`/carriers/${ffe.externalId}`)
         .send({ fetchMode })
         .expect(200);
+
       expect(updated.body.fetchMode).toBe(fetchMode);
     }
   });
@@ -188,8 +209,11 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       .patch(`/carriers/${upsId}`)
       .send(input)
       .expect(400);
+
     expect(response.text).not.toContain('CANARY_CREDENTIAL');
+
     const after = await http().get(`/carriers/${upsId}`).expect(200);
+
     expect(after.body).toEqual(before.body);
   });
 
@@ -205,15 +229,19 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         .send({ isActive: true })
         .expect(400);
     }
+
     const missing = '00000000-0000-4000-8000-000000000000';
+
     await http().get(`/carriers/${missing}`).expect(404);
     await http()
       .patch(`/carriers/${missing}`)
       .send({ isActive: true })
       .expect(404);
+
     const deleted = await source
       .getRepository(CarrierEntity)
       .save({ code: 'retired', name: 'Retired', pollIntervalMinutes: 5 });
+
     await source
       .getRepository(CarrierEntity)
       .softDelete({ externalId: deleted.externalId });
@@ -222,7 +250,9 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       .patch(`/carriers/${deleted.externalId}`)
       .send({ isActive: true })
       .expect(404);
+
     const list = await http().get('/carriers').expect(200);
+
     expect(list.body).toHaveLength(3);
   });
 

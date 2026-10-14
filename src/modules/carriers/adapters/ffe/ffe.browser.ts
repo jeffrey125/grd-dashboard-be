@@ -21,6 +21,7 @@ import {
 } from './ffe.protocol.js';
 
 export type FfeBrowserLauncher = (settings: FfeSettings) => Promise<Browser>;
+
 export const launchFfeBrowser: FfeBrowserLauncher = (settings) =>
   chromium.launch({
     headless: true,
@@ -42,21 +43,28 @@ export class FfeBrowser {
   private readonly abort = () => {
     void this.close().catch(() => undefined);
   };
+
   constructor(
     private readonly options: FfeSessionOptions,
     private readonly launch: FfeBrowserLauncher,
   ) {}
+
   async login(signal: AbortSignal) {
     this.options.signal.addEventListener('abort', this.abort, { once: true });
     signal.throwIfAborted();
     this.browser = await this.launch(this.options.settings);
+
     if (this.closed || signal.aborted) {
       await this.browser.close();
       signal.throwIfAborted();
+
       throw new FfeFailure('FFE_SESSION_CLOSED');
     }
+
     this.context = await this.browser.newContext({ serviceWorkers: 'block' });
+
     const { page, network } = await this.createPage();
+
     try {
       await network.wait(
         page.goto(`${this.options.settings.origin}${LOGIN_PATH}`, {
@@ -64,11 +72,14 @@ export class FfeBrowser {
           timeout: 0,
         }),
       );
+
       const form = page
         .locator('form')
         .filter({ has: page.locator('#UserName') });
+
       if ((await form.getAttribute('action')) !== LOGIN_PATH)
         throw new FfeFailure('FFE_AUTHENTICATION_FAILED');
+
       await page.locator('#UserName').fill(this.options.settings.username);
       await page.locator('#Password').fill(this.options.settings.password);
       await page
@@ -85,14 +96,17 @@ export class FfeBrowser {
       throw network.failure ?? error;
     }
   }
+
   private async createPage() {
     this.network?.close();
     this.pageClosing = undefined;
+
     const page = await this.context!.newPage();
     const network = new FfeBrowserNetwork(this.options, () => {
       network.close();
       this.pageClosing = page.close().catch(() => undefined);
     });
+
     this.page = page;
     this.network = network;
     await network.attach(
@@ -117,8 +131,10 @@ export class FfeBrowser {
       )
         this.authenticationFailed = true;
     });
+
     return { page, network };
   }
+
   private async verify() {
     const response = await this.network!.wait(
       this.page!.goto(`${this.options.settings.origin}${TRACKING_PATH}`, {
@@ -126,13 +142,16 @@ export class FfeBrowser {
         timeout: 0,
       }),
     );
+
     if (
       this.authenticationFailed ||
       new URL(this.page!.url()).pathname === LOGIN_PATH ||
       (await this.page!.locator('#UserName').count())
     )
       throw new FfeFailure('FFE_AUTHENTICATION_FAILED');
+
     if (!response) throw new FfeFailure('FFE_INVALID_RESPONSE');
+
     assertResponse(
       response.status(),
       response.headers()['content-type'] ?? '',
@@ -140,19 +159,23 @@ export class FfeBrowser {
     );
     await this.page!.locator('#shipmentTrackingDataTable').waitFor();
   }
+
   private response(reference: string) {
     const waiting = this.network!.wait(
       this.page!.waitForResponse(
         (response) => {
           const url = new URL(response.url());
+
           if (
             url.origin !== this.options.settings.origin ||
             url.pathname !== DATA_PATH ||
             response.request().method() !== 'POST'
           )
             return false;
+
           try {
             const body = response.request().postDataJSON();
+
             return (
               body.archiveLimit === '365' &&
               body.start === 0 &&
@@ -166,17 +189,22 @@ export class FfeBrowser {
         { timeout: 0 },
       ),
     );
+
     void waiting.catch(() => undefined);
+
     return waiting;
   }
+
   private async json(response: Response) {
     assertResponse(
       response.status(),
       response.headers()['content-type'] ?? '',
       'json',
     );
+
     if (Number(response.headers()['content-length']) > MAX_BODY_BYTES)
       throw new FfeFailure('FFE_RESPONSE_TOO_LARGE');
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     const body = await Promise.race([
       response.body(),
@@ -188,9 +216,12 @@ export class FfeBrowser {
         }, TIMEOUT_MS);
       }),
     ]).finally(() => clearTimeout(timer));
+
     if (body.byteLength > MAX_BODY_BYTES)
       throw new FfeFailure('FFE_RESPONSE_TOO_LARGE');
+
     const request = response.request().postDataJSON();
+
     if (
       !Number.isSafeInteger(request.draw) ||
       !Number.isSafeInteger(request.length) ||
@@ -198,70 +229,98 @@ export class FfeBrowser {
       request.length > 200
     )
       throw new FfeFailure('FFE_INVALID_RESPONSE');
+
     return searchPage(
       JSON.parse(body.toString('utf8')),
       request.draw,
       request.length,
     );
   }
+
   async read(reference: string, signal: AbortSignal) {
     if (this.closed) throw new FfeFailure('FFE_SESSION_CLOSED');
+
     if (this.authenticationFailed)
       throw new FfeFailure('FFE_AUTHENTICATION_FAILED');
+
     signal.addEventListener('abort', this.abort, { once: true });
+
     try {
       signal.throwIfAborted();
       await this.pageClosing;
+
       // Recover a timed-out page with the existing authenticated context. Never
       // retry the failed reference or perform a second login during this run.
       if (this.page!.isClosed()) await this.createPage();
+
       await this.verify();
+
       const archive = this.page!.locator('#archive-toggle-value');
+
       if ((await archive.inputValue()) !== '365') {
         const changed = this.response('');
+
         await this.page!.locator('#archive-toggle-button').click();
+
         try {
           await this.json(await changed);
         } catch (error) {
           if (!this.closed && !this.pageClosing) await this.verify();
+
           throw error;
         }
       }
+
       if ((await archive.inputValue()) !== '365')
         throw new FfeFailure('FFE_INVALID_RESPONSE');
+
       const waiting = this.response(reference);
       const input = this.page!.getByPlaceholder('Order# Search', {
         exact: true,
       });
+
       await input.fill(reference);
       await input.press('Tab');
+
       let result: ReturnType<typeof searchPage>;
+
       try {
         result = await this.json(await waiting);
       } catch (error) {
         if (!this.closed && !this.pageClosing) await this.verify();
+
         throw error;
       }
+
       if (this.authenticationFailed)
         throw new FfeFailure('FFE_AUTHENTICATION_FAILED');
+
       const match = result.data.find((row) => row.orderNumber === reference);
+
       if (match) return mapFfe(reference, match);
+
       await this.verify();
+
       if (result.data.length !== result.recordsFiltered)
         throw new FfeFailure('FFE_INCOMPLETE_SEARCH');
+
       return { outcome: 'not_found' as const, sourceData: null };
     } catch (error) {
       if (this.network?.failure) {
         await this.pageClosing;
+
         throw this.network.failure;
       }
+
       if (this.authenticationFailed)
         throw new FfeFailure('FFE_AUTHENTICATION_FAILED');
+
       throw error;
     } finally {
       signal.removeEventListener('abort', this.abort);
     }
   }
+
   async close() {
     this.closed = true;
     this.network?.close();

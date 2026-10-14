@@ -31,16 +31,20 @@ const http = () =>
     .agent(app.getHttpServer() as Server)
     .set('Cookie', cookie)
     .set('Origin', 'http://dashboard.example.test');
+
 beforeAll(async () => {
   db = await shipmentDatabase();
+
   for (const [key, value] of Object.entries(db.environment))
     vi.stubEnv(key, value);
+
   const module = await Test.createTestingModule({ imports: [AppModule] })
     .overrideModule(DatabaseModule)
     .useModule(TestDatabaseModule)
     .overrideProvider(DataSource)
     .useValue(db.source)
     .compile();
+
   app = module.createNestApplication({ logger: false });
   await app.init();
   await app.listen(0, '127.0.0.1');
@@ -70,10 +74,13 @@ it('coalesces concurrent manual refreshes into one durable run and exposes safe 
         .expect(202),
     ),
   );
+
   expect(new Set(replies.map((reply) => reply.body.externalId)).size).toBe(1);
+
   const run = await http()
     .get(`/tracking-runs/${replies[0]!.body.externalId}`)
     .expect(200);
+
   expect(run.body).toMatchObject({
     status: 'queued',
     trigger: 'manual',
@@ -82,29 +89,37 @@ it('coalesces concurrent manual refreshes into one durable run and exposes safe 
   expect(JSON.stringify(run.body)).not.toMatch(
     /sourceData|requestedById|shipmentId|trackingRunId/,
   );
+
   const principal = await app
     .get(AuthService)
     .authenticate(new Headers({ cookie }));
   const stored = await db.source
     .getRepository(TrackingRunEntity)
     .findOneByOrFail({ externalId: run.body.externalId });
+
   expect(stored.requestedById).toBe(principal.id);
+
   const tracking = new TrackingService(
     new TypeOrmTrackingRepository(db.source),
   );
+
   await tracking.startRun(run.body.externalId);
+
   expect(
     (await http().post(`/shipments/${id}/refresh`).expect(202)).body.externalId,
   ).toBe(run.body.externalId);
+
   await tracking.interruptRun({
     runExternalId: run.body.externalId,
     retryable: true,
     reasonCode: 'WORKER_SHUTDOWN',
     message: 'Worker stopped.',
   });
+
   expect(
     (await http().post(`/shipments/${id}/refresh`).expect(202)).body.externalId,
   ).not.toBe(run.body.externalId);
+
   await http()
     .post(`/shipments/${id}/refresh`)
     .send({ requestedById: 1 })
@@ -118,39 +133,55 @@ it('coalesces concurrent manual refreshes into one durable run and exposes safe 
 async function stream() {
   const controller = new AbortController();
   const address = (app.getHttpServer() as Server).address();
+
   if (!address || typeof address === 'string') throw new Error('No address');
+
   const response = await fetch(`http://127.0.0.1:${address.port}/events`, {
     headers: { Cookie: cookie },
     signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]),
   });
+
   expect(response.status).toBe(200);
+
   const reader = response.body!.getReader();
   let buffer = '';
   const decoder = new TextDecoder();
+
   async function next(type: string): Promise<string | null> {
     for (;;) {
       const end = buffer.indexOf('\n\n');
+
       if (end >= 0) {
         const event = buffer.slice(0, end);
+
         buffer = buffer.slice(end + 2);
+
         if (event.startsWith(`event: ${type}\n`)) return event;
+
         continue;
       }
+
       const chunk = await reader.read();
+
       if (chunk.done) return null;
+
       buffer += decoder.decode(chunk.value, { stream: true });
     }
   }
+
   return { next, close: () => controller.abort() };
 }
 
 it('streams committed changes, reconnects with resync, and closes revoked sessions with heartbeat cleanup', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+
   const first = await stream();
+
   try {
     await first.next('resync');
     // First subscriber also receives resync after LISTEN becomes active.
     await first.next('resync');
+
     const created = await http()
       .post('/shipments')
       .send({
@@ -158,31 +189,44 @@ it('streams committed changes, reconnects with resync, and closes revoked sessio
       })
       .expect(201);
     const id = created.body.inserted[0].externalId;
+
     expect(await first.next('shipment.changed')).toContain(id);
+
     const queued = await http().post(`/shipments/${id}/refresh`).expect(202);
+
     expect(await first.next('run.changed')).toContain(queued.body.externalId);
+
     await vi.advanceTimersByTimeAsync(15000);
+
     expect(await first.next('heartbeat')).toContain('data: {}');
+
     first.close();
+
     const second = await stream();
+
     try {
       expect(await second.next('resync')).toBeTruthy();
+
       await http().get(`/tracking-runs/${queued.body.externalId}`).expect(200);
       await http().post('/auth/sign-out').expect(204);
       await vi.advanceTimersByTimeAsync(15000);
+
       expect(await second.next('heartbeat')).toBeNull();
     } finally {
       second.close();
     }
+
     await vi.waitFor(() => expect(vi.getTimerCount()).toBe(0));
   } finally {
     first.close();
     vi.useRealTimers();
   }
+
   const login = await app.get(AuthService).signIn({
     email: 'fixture@example.test',
     password: 'chosen fixture password',
   });
+
   cookie = login.cookies.map((value) => value.split(';')[0]).join('; ');
 });
 
@@ -196,6 +240,7 @@ it('rejects unavailable targets and protects status/events, including restricted
   await http()
     .get('/tracking-runs/11111111-1111-4111-8111-111111111111')
     .expect(404);
+
   const created = await http()
     .post('/shipments')
     .send({
@@ -203,13 +248,16 @@ it('rejects unavailable targets and protects status/events, including restricted
     })
     .expect(201);
   const id = created.body.inserted[0].externalId;
+
   await http().post(`/shipments/${id}/pause`).expect(200);
   await http().post(`/shipments/${id}/refresh`).expect(409);
   await http().delete(`/shipments/${id}`).expect(204);
   await http().post(`/shipments/${id}/refresh`).expect(404);
   await http().post('/shipments/refresh-all').expect(404);
+
   const auth = app.get(AuthService);
   const principal = await auth.authenticate(new Headers({ cookie }));
+
   await auth.createAccount(principal, {
     firstName: 'Test',
     lastName: 'Staff',
@@ -217,6 +265,7 @@ it('rejects unavailable targets and protects status/events, including restricted
     password: 'issued staff password',
     role: 'staff',
   });
+
   const issued = await auth.signIn({
     email: 'refresh-staff@example.test',
     password: 'issued staff password',
@@ -224,6 +273,7 @@ it('rejects unavailable targets and protects status/events, including restricted
   const restricted = issued.cookies
     .map((value) => value.split(';')[0])
     .join('; ');
+
   await request(app.getHttpServer() as Server)
     .get('/events')
     .set('Cookie', restricted)
@@ -233,13 +283,16 @@ it('rejects unavailable targets and protects status/events, including restricted
     .set('Cookie', restricted)
     .set('Origin', 'http://dashboard.example.test')
     .expect(403);
+
   const restrictedPrincipal = await auth.authenticate(
     new Headers({ cookie: restricted }),
   );
+
   await auth.changePassword(restrictedPrincipal, {
     currentPassword: 'issued staff password',
     newPassword: 'chosen staff password',
   });
+
   const signedIn = await auth.signIn({
     email: 'refresh-staff@example.test',
     password: 'chosen staff password',
@@ -258,6 +311,7 @@ it('rejects unavailable targets and protects status/events, including restricted
     .set('Cookie', staffCookie)
     .set('Origin', 'http://dashboard.example.test')
     .expect(202);
+
   await request(app.getHttpServer() as Server)
     .get(`/tracking-runs/${refreshed.body.externalId}`)
     .set('Cookie', staffCookie)
@@ -312,12 +366,15 @@ it('hands an authenticated HTTP refresh to the real worker scheduler through Pos
     new TrackingExecutorService(tracking, registry, logger),
     logger,
   );
+
   try {
     await worker.start();
     await worker.tick();
+
     const status = await http()
       .get(`/tracking-runs/${queued.body.externalId}`)
       .expect(200);
+
     expect(status.body).toMatchObject({
       status: 'succeeded',
       attempts: [{ shipmentExternalId: id, outcome: 'found' }],
@@ -329,10 +386,14 @@ it('hands an authenticated HTTP refresh to the real worker scheduler through Pos
 
 it('closes open SSE streams when the API shuts down', async () => {
   const connection = await stream();
+
   try {
     await connection.next('resync');
+
     const closing = app.close();
+
     expect(await connection.next('heartbeat')).toBeNull();
+
     await closing;
   } finally {
     connection.close();

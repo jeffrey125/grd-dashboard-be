@@ -21,6 +21,7 @@ describe('health lifecycle and dependency checks', () => {
       .overrideProvider(READINESS_DEPENDENCIES)
       .useValue(dependencies)
       .compile();
+
     return {
       controller: module.get(HealthController),
       readiness: module.get(ReadinessService),
@@ -34,7 +35,9 @@ describe('health lifecycle and dependency checks', () => {
 
   it('is live before initialization but ready only after bootstrap', async () => {
     const { controller } = await create();
+
     expect(controller.live()).toEqual({ status: 'ok' });
+
     await expect(controller.ready()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
@@ -51,6 +54,7 @@ describe('health lifecycle and dependency checks', () => {
     const { controller } = await create([
       { name: 'database', check: async () => {} },
     ]);
+
     await module!.init();
     await expect(controller.ready()).resolves.toMatchObject({
       status: 'ok',
@@ -73,10 +77,15 @@ describe('health lifecycle and dependency checks', () => {
           },
         },
       ]);
+
       await module!.init();
+
       const error = await controller.ready().catch((reason: unknown) => reason);
+
       expect(error).toBeInstanceOf(ServiceUnavailableException);
+
       const response = (error as ServiceUnavailableException).getResponse();
+
       expect(response).toMatchObject({
         status: 'error',
         error: { database: { status: 'down' } },
@@ -93,24 +102,29 @@ describe('health lifecycle and dependency checks', () => {
         name: 'database',
         check: (value) => {
           signal = value;
+
           return new Promise<void>(() => {});
         },
       },
     ]);
+
     await module!.init();
     await expect(controller.ready()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
+
     expect(signal?.aborted).toBe(true);
   });
 
   it('stops reporting readiness on shutdown', async () => {
     const { controller, readiness } = await create();
+
     await module!.init();
     readiness.beforeApplicationShutdown();
     await expect(controller.ready()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
+
     expect(controller.live()).toEqual({ status: 'ok' });
   });
 });

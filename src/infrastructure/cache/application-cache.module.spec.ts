@@ -18,11 +18,14 @@ describe('ApplicationCacheModule', () => {
 
   it('expires entries after the configured 60-second default', async () => {
     vi.useFakeTimers();
+
     const module = await Test.createTestingModule({
       imports: [ApplicationCacheModule],
     }).compile();
+
     try {
       const cache = module.get<Cache>(CACHE_MANAGER);
+
       await cache.set('default-ttl', 'cached');
       vi.advanceTimersByTime(59_999);
       await expect(cache.get('default-ttl')).resolves.toBe('cached');
@@ -37,8 +40,10 @@ describe('ApplicationCacheModule', () => {
     const module = await Test.createTestingModule({
       imports: [ApplicationCacheModule, ConsumerModule],
     }).compile();
+
     try {
       const { cache } = module.get(CacheConsumer);
+
       await cache.set('test:item', { value: 'cached' });
       await expect(cache.get('test:item')).resolves.toEqual({
         value: 'cached',

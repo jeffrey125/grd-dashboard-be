@@ -19,6 +19,7 @@ function readProperty(error: Error, key: string): unknown {
 
 function safeName(error: Error) {
   const name = readProperty(error, 'name');
+
   return typeof name === 'string' && SAFE_IDENTIFIER.test(name)
     ? name
     : 'Error';
@@ -26,6 +27,7 @@ function safeName(error: Error) {
 
 function safeCode(error: Error) {
   const code = readProperty(error, 'code');
+
   return typeof code === 'string' && SAFE_IDENTIFIER.test(code)
     ? code
     : undefined;
@@ -35,6 +37,7 @@ function safeStatus(error: Error) {
   const httpStatus = readProperty(error, 'httpStatus');
   const status =
     typeof httpStatus === 'number' ? httpStatus : readProperty(error, 'status');
+
   return typeof status === 'number' &&
     Number.isInteger(status) &&
     status >= 100 &&
@@ -45,14 +48,19 @@ function safeStatus(error: Error) {
 
 function safeLocation(error: Error) {
   const stack = readProperty(error, 'stack');
+
   if (typeof stack !== 'string') return undefined;
 
   for (const line of stack.split('\n').slice(1)) {
     const location = line.match(ERROR_LOCATION)?.[1];
+
     if (!location || location.includes('node_modules')) continue;
+
     const sourceStart = location.search(APPLICATION_SOURCE);
+
     if (sourceStart >= 0) return location.slice(sourceStart);
   }
+
   return undefined;
 }
 
@@ -68,8 +76,12 @@ export function safeErrorFields(error: unknown): SafeErrorFields {
   const errorCode = safeCode(error);
   const errorStatus = safeStatus(error);
   const errorLocation = safeLocation(error);
+
   if (errorCode !== undefined) fields.errorCode = errorCode;
+
   if (errorStatus !== undefined) fields.errorStatus = errorStatus;
+
   if (errorLocation !== undefined) fields.errorLocation = errorLocation;
+
   return fields;
 }

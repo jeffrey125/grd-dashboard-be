@@ -5,16 +5,19 @@ export function waitFor<T>(
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const abort = () => reject(signal.reason);
+
     signal.addEventListener('abort', abort, { once: true });
     void promise
       .then(resolve, reject)
       .finally(() => signal.removeEventListener('abort', abort));
+
     if (signal.aborted) abort();
   });
 }
 
 export function delay(ms: number, signal: AbortSignal): Promise<void> {
   signal.throwIfAborted();
+
   return new Promise((resolve, reject) => {
     const abort = () => {
       clearTimeout(timer);
@@ -24,6 +27,7 @@ export function delay(ms: number, signal: AbortSignal): Promise<void> {
       signal.removeEventListener('abort', abort);
       resolve();
     }, ms);
+
     signal.addEventListener('abort', abort, { once: true });
   });
 }

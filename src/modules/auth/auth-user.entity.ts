@@ -33,6 +33,7 @@ export class AuthUserEntity {
     generatedIdentity: 'ALWAYS',
   })
   id: number;
+
   @Column({
     name: 'external_id',
     type: 'uuid',
@@ -42,18 +43,25 @@ export class AuthUserEntity {
   })
   @Generated('uuid')
   externalId: string;
+
   @Column({ name: 'name', type: 'text' })
   name: string;
+
   @Column({ name: 'first_name', type: 'varchar', length: 100 })
   firstName: string;
+
   @Column({ name: 'last_name', type: 'varchar', length: 100 })
   lastName: string;
+
   @Column({ name: 'email', type: 'varchar', length: 254 })
   email: string;
+
   @Column({ name: 'email_verified', type: 'boolean', default: () => 'false' })
   emailVerified: boolean;
+
   @Column({ name: 'image', type: 'text', nullable: true })
   image: string | null;
+
   @Column({
     name: 'role',
     type: 'varchar',
@@ -61,20 +69,26 @@ export class AuthUserEntity {
     default: () => "'staff'",
   })
   role: 'admin' | 'staff';
+
   @Column({ name: 'active', type: 'boolean', default: () => 'true' })
   active: boolean;
+
   @Column({
     name: 'must_change_password',
     type: 'boolean',
     default: () => 'true',
   })
   mustChangePassword: boolean;
+
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()' })
   createdAt: Date;
+
   @Column({ name: 'updated_at', type: 'timestamptz', default: () => 'now()' })
   updatedAt: Date;
+
   @Column({ name: 'created_by_id', type: 'integer', nullable: true })
   createdById: number | null;
+
   @Column({ name: 'updated_by_id', type: 'integer', nullable: true })
   updatedById: number | null;
 }

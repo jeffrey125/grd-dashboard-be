@@ -94,9 +94,11 @@ export class AuthModule implements NestModule, OnApplicationBootstrap {
     @Inject(HttpAdapterHost) private readonly adapter: HttpAdapterHost,
     @Inject(AUTH_CONFIGURATION) private readonly config: AuthConfiguration,
   ) {}
+
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(AuthBrowserMiddleware).forRoutes('{*path}');
   }
+
   onApplicationBootstrap() {
     // An application context (e.g. bootstrap CLI) has no HTTP adapter.
     this.adapter.httpAdapter

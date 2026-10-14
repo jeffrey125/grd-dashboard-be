@@ -31,6 +31,7 @@ class LoggingTestController {
   async correlation() {
     await new Promise<void>((resolve) => setImmediate(resolve));
     this.logger.info('test.request.handled', 'Test request handled');
+
     return { status: 'ok' };
   }
 
@@ -63,8 +64,10 @@ describe('API structured request logging', () => {
     })) {
       vi.stubEnv(key, value);
     }
+
     vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
       output += String(chunk);
+
       return true;
     });
   });
@@ -91,6 +94,7 @@ describe('API structured request logging', () => {
         },
       ])
       .compile();
+
     app = module.createNestApplication();
     app.useLogger(app.get(NestLoggerAdapter));
     await app.init();
@@ -107,6 +111,7 @@ describe('API structured request logging', () => {
         .set('X-Request-ID', 'client-request-b')
         .expect(200),
     ]);
+
     await request(server).get('/health/live').expect(200);
     await request(server).get('/health/ready').expect(503);
     await request(server).get('/missing').expect(404);

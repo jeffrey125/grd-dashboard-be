@@ -27,6 +27,7 @@ export const createShipmentsEnvelopeSchema = z.strictObject({
 });
 export const updateShipmentNotesSchema = z.strictObject({ notes: notesSchema });
 export const monitoringCommandSchema = z.strictObject({});
+
 export type NewShipment = z.infer<typeof createShipmentSchema>;
 
 export const shipmentRecordSchema = z.strictObject({
@@ -71,6 +72,8 @@ export function invalidShipmentRows(
 
 export function parseShipmentInput<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
+
   if (!result.success) throw new BadRequestException('Invalid Shipment input');
+
   return result.data;
 }

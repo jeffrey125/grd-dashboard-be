@@ -15,17 +15,23 @@ const recordSchema = z.object({
 
 function calendarDate(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
+
   if (!trimmed || trimmed.startsWith('0001-01-01')) return null;
+
   const parsed = z
     .union([z.iso.date(), z.iso.datetime({ offset: true, local: true })])
     .safeParse(trimmed);
+
   return parsed.success ? parsed.data.slice(0, 10) : null;
 }
 
 export function mapFfe(reference: string, input: unknown) {
   const row = recordSchema.parse(input);
+
   if (row.orderNumber !== reference) throw new Error('FFE reference mismatch');
+
   const status = row.shipmentStatus?.replace(/\s+/g, ' ').trim() || null;
+
   return trackingResultSchema.parse({
     outcome: 'found',
     snapshot: {

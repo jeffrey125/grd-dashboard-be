@@ -23,6 +23,7 @@ export class TypeOrmEventsSource
   private connecting?: Promise<void>;
   private retry?: ReturnType<typeof setTimeout>;
   private stopped = false;
+
   constructor(
     @Inject(DataSource) private readonly source: DataSource,
     @Inject(ProjectLogger) private readonly logger: ProjectLogger,
@@ -32,19 +33,26 @@ export class TypeOrmEventsSource
 
   start() {
     if (this.stopped || this.client || this.connecting || this.retry) return;
+
     this.connecting = this.connect().finally(() => {
       this.connecting = undefined;
     });
   }
+
   private async connect() {
     let client: ListenerClient | undefined;
+
     try {
       client = await (this.source.driver as PostgresDriver).master.connect();
+
       if (!client) throw new Error('Listener unavailable');
+
       if (this.stopped) {
         client.release(true);
+
         return;
       }
+
       this.client = client;
       client.on('error', () => {
         if (this.client === client) this.disconnected();
@@ -56,10 +64,12 @@ export class TypeOrmEventsSource
         'notification',
         (message: { channel: string; payload?: string }) => {
           if (message.channel !== 'grd_changes') return;
+
           try {
             const parsed = changeSchema.safeParse(
               JSON.parse(message.payload ?? ''),
             );
+
             if (parsed.success) this.events.next(parsed.data);
           } catch {
             /* Ignore invalid signals; HTTP remains authoritative. */
@@ -68,22 +78,28 @@ export class TypeOrmEventsSource
       );
       await client.query("SET application_name = 'grd-events'");
       await client.query('LISTEN grd_changes');
+
       if (!this.stopped && this.client === client)
         this.events.next({ type: 'resync' });
     } catch {
       this.disconnected();
     }
   }
+
   private disconnected() {
     const client = this.client;
+
     this.client = undefined;
+
     if (client) {
       client.removeAllListeners('notification');
       client.removeAllListeners('end');
       // Retain the error handler until the destroyed socket has finished closing.
       client.release(true);
     }
+
     if (this.stopped || this.retry) return;
+
     this.logger.warn(
       'events.listener.disconnected',
       'Live event listener unavailable; clients must resync',
@@ -94,6 +110,7 @@ export class TypeOrmEventsSource
       this.start();
     }, 1000);
   }
+
   async onModuleDestroy() {
     this.stopped = true;
     clearTimeout(this.retry);

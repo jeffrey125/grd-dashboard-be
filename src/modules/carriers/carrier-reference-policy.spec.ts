@@ -6,6 +6,7 @@ describe('Carrier reference policy', () => {
     'preserves generic reference strings for %s',
     (code) => {
       const policy = carrierReferencePolicy(code);
+
       expect(policy.normalize(' 001aB / x ')).toBe('001aB / x');
       expect(() => policy.normalize('  ')).toThrow();
       expect(() => policy.normalize('x'.repeat(256))).toThrow();

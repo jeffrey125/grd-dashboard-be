@@ -21,6 +21,7 @@ import {
 export type EchoShipBrowserLauncher = (
   settings: EchoShipSettings,
 ) => Promise<Browser>;
+
 export const launchEchoShipBrowser: EchoShipBrowserLauncher = (settings) =>
   chromium.launch({
     headless: true,
@@ -53,11 +54,14 @@ export class EchoShipBrowser {
   async login(signal: AbortSignal) {
     this.runSignal.addEventListener('abort', this.abort, { once: true });
     this.browser = await this.launcher(this.settings);
+
     if (this.closed || signal.aborted) {
       await this.browser.close();
       signal.throwIfAborted();
+
       throw new EchoShipFailure('ECHOSHIP_SESSION_CLOSED');
     }
+
     this.context = await this.browser.newContext({ serviceWorkers: 'block' });
     await this.context.route('**/api/**', async (route) => {
       try {
@@ -106,6 +110,7 @@ export class EchoShipBrowser {
     await this.page.waitForURL(`${this.settings.origin}/new-quote/ltl`);
     await this.searchHome();
     this.authenticated = true;
+
     if (this.authenticationFailed)
       throw new EchoShipFailure('ECHOSHIP_AUTHENTICATION_FAILED');
   }
@@ -113,6 +118,7 @@ export class EchoShipBrowser {
   private async json(response: Response) {
     if ([401, 403].includes(response.status()))
       throw new EchoShipFailure('ECHOSHIP_AUTHENTICATION_FAILED');
+
     if (
       response.status() !== 200 ||
       !/^application\/(?:[\w.-]+\+)?json(?:;|$)/i.test(
@@ -120,9 +126,12 @@ export class EchoShipBrowser {
       )
     )
       throw new EchoShipFailure('ECHOSHIP_INVALID_RESPONSE');
+
     const length = Number(response.headers()['content-length']);
+
     if (length > MAX_BODY_BYTES)
       throw new EchoShipFailure('ECHOSHIP_RESPONSE_TOO_LARGE');
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     const body = await Promise.race([
       response.body(),
@@ -133,10 +142,14 @@ export class EchoShipBrowser {
         }, TIMEOUT_MS);
       }),
     ]).finally(() => clearTimeout(timer));
+
     if (body.byteLength > MAX_BODY_BYTES)
       throw new EchoShipFailure('ECHOSHIP_RESPONSE_TOO_LARGE');
+
     const data: unknown = JSON.parse(body.toString('utf8'));
+
     envelope(data);
+
     return data;
   }
 
@@ -144,18 +157,22 @@ export class EchoShipBrowser {
     // Attach rejection handling immediately: page actions may fail before the response arrives.
     const result = this.page!.waitForResponse((response) => {
       const url = new URL(response.url());
+
       return (
         url.origin === this.settings.origin &&
         url.pathname === path &&
         (search === undefined || url.searchParams.get('searchQuery') === search)
       );
     }).then((response) => this.json(response));
+
     void result.catch(() => undefined);
+
     return result;
   }
 
   private async searchHome() {
     const response = this.response(SEARCH_PATH);
+
     await this.page!.goto(`${this.settings.origin}/shipments/all`, {
       waitUntil: 'domcontentloaded',
     });
@@ -165,37 +182,50 @@ export class EchoShipBrowser {
 
   async read(reference: string, signal: AbortSignal) {
     if (this.closed) throw new EchoShipFailure('ECHOSHIP_SESSION_CLOSED');
+
     if (this.authenticationFailed)
       throw new EchoShipFailure('ECHOSHIP_AUTHENTICATION_FAILED');
+
     signal.addEventListener('abort', this.abort, { once: true });
+
     try {
       signal.throwIfAborted();
       await this.searchHome();
+
       const response = this.response(SEARCH_PATH, reference);
+
       await this.page!.locator('input#search-input').pressSequentially(
         reference,
         { delay: 50 },
       );
+
       const search = searchPage(await response);
       const ids = search.results.map((row) => row.id);
+
       if (
         new Set(ids).size !== ids.length ||
         ids.length > search.totalRecordCount
       )
         throw new EchoShipFailure('ECHOSHIP_INVALID_RESPONSE');
+
       if (!ids.includes(reference)) {
         // Unknown pagination widgets must not turn a partial page into false absence.
         if (ids.length !== search.totalRecordCount)
           throw new EchoShipFailure('ECHOSHIP_INCOMPLETE_SEARCH');
+
         return { outcome: 'not_found' as const, sourceData: null };
       }
+
       const detail = this.response(`/api/v1//loads/${reference}`);
       const tracking = this.response(`/api/v1//loads/${reference}/tracking`);
+
       await this.page!.getByText(reference, { exact: true }).first().click();
       await this.page!.waitForURL(
         `${this.settings.origin}/shipments/${reference}`,
       );
+
       const [load, events] = await Promise.all([detail, tracking]);
+
       // Both transports use the provider API as the authoritative source. Browser
       // mode differs only in how login/navigation obtains these responses; portal
       // DOM text may lag or use a feature-selected location-history projection.
@@ -203,6 +233,7 @@ export class EchoShipBrowser {
     } catch (error) {
       if (this.authenticationFailed)
         throw new EchoShipFailure('ECHOSHIP_AUTHENTICATION_FAILED');
+
       throw error;
     } finally {
       signal.removeEventListener('abort', this.abort);

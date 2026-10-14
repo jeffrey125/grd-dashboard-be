@@ -5,6 +5,7 @@ export const FFE_ORIGIN = 'https://www.ffeinc.com';
 const schema = z.object({
   FFE_URL: z.url().refine((value) => {
     const url = new URL(value);
+
     return (
       url.origin === FFE_ORIGIN &&
       url.pathname === '/Customer/ShipmentTracking' &&
@@ -29,10 +30,13 @@ export class FfeConfiguration {
   constructor(
     private readonly environment: Record<string, string | undefined>,
   ) {}
+
   read() {
     const parsed = schema.safeParse(this.environment);
+
     if (!parsed.success)
       throw new FfeFailure('FFE_CONFIGURATION_INVALID', false);
+
     return {
       origin: FFE_ORIGIN,
       username: parsed.data.FFE_USERNAME,
@@ -41,4 +45,5 @@ export class FfeConfiguration {
     };
   }
 }
+
 export type FfeSettings = ReturnType<FfeConfiguration['read']>;

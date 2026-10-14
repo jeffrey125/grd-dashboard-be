@@ -7,6 +7,7 @@ export class DatabaseDataSource extends DataSource {
 
   constructor(options: DataSourceOptions, logger: ProjectLogger) {
     const project = logger.child({ component: 'database' });
+
     super({
       ...options,
       logger: new DatabaseLogger(project),
@@ -25,15 +26,18 @@ export class DatabaseDataSource extends DataSource {
 
   override async initialize(): Promise<this> {
     this.project.info('database.connecting', 'Connecting to database');
+
     try {
       await super.initialize();
       this.project.info('database.connected', 'Database connected');
+
       return this;
     } catch {
       this.project.error(
         'database.connection.failed',
         'Database connection failed',
       );
+
       // Nest's retry logger must never receive the original driver error.
       throw new Error('Database connection failed');
     }
@@ -48,6 +52,7 @@ export class DatabaseDataSource extends DataSource {
         'database.disconnect.failed',
         'Database disconnect failed',
       );
+
       throw new Error('Database disconnect failed');
     }
   }

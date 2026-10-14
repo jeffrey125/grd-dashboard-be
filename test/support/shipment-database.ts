@@ -38,14 +38,18 @@ export async function shipmentDatabase() {
       TrackingEvents1792195200000,
     ],
   });
+
   try {
     await source.initialize();
     await source.runMigrations();
   } catch (error) {
     if (source.isInitialized) await source.destroy();
+
     await container.stop();
+
     throw error;
   }
+
   return {
     source,
     environment,

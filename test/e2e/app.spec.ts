@@ -25,14 +25,17 @@ describe('Application health HTTP endpoints', () => {
       .expect(200)
       .expect('Cache-Control', 'no-store')
       .expect({ status: 'ok' });
+
     const response = await request(app.getHttpServer() as Server)
       .get('/health/ready')
       .expect(200)
       .expect('Cache-Control', 'no-store');
+
     expect(response.body).toMatchObject({
       status: 'ok',
       details: { application: { status: 'up' } },
     });
+
     await request(app.getHttpServer() as Server)
       .get('/')
       .expect(404);
@@ -47,14 +50,17 @@ describe('Application health HTTP endpoints', () => {
         },
       },
     ]);
+
     const response = await request(app.getHttpServer() as Server)
       .get('/health/ready')
       .expect(503);
+
     expect(response.body).toMatchObject({
       status: 'error',
       error: { database: { status: 'down' } },
     });
     expect(response.text).not.toContain('CANARY_HTTP_SECRET');
+
     await request(app.getHttpServer() as Server)
       .get('/health/live')
       .expect(200);

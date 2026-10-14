@@ -19,25 +19,33 @@ export class TypeOrmTrackingHttpRepository implements TrackingHttpRepository {
         'SELECT pg_advisory_xact_lock(hashtextextended($1::uuid::text, 16))',
         [shipmentExternalId],
       );
+
       const carriers: Array<{ external_id: string }> = await manager.query(
         `SELECT carrier.external_id FROM carriers carrier JOIN shipments shipment ON shipment.carrier_id = carrier.id
          WHERE shipment.external_id = $1 AND shipment.deleted_at IS NULL`,
         [shipmentExternalId],
       );
+
       if (!carriers[0]) return { kind: 'missing' as const };
+
       const tx = new TypeOrmTrackingTransaction(manager);
       const carrier = await tx.lockAvailableCarrier(carriers[0].external_id);
+
       if (!carrier) return { kind: 'unavailable' as const };
+
       const shipment = (
         await tx.lockTargetShipments([shipmentExternalId], carrier.id)
       )[0];
+
       if (!shipment) return { kind: 'missing' as const };
+
       const existing: Array<{ external_id: string }> = await manager.query(
         `SELECT run.external_id FROM tracking_runs run JOIN tracking_attempts attempt ON attempt.tracking_run_id = run.id
          WHERE attempt.shipment_id = $1 AND run.trigger = 'manual' AND run.status IN ('queued', 'running')
          ORDER BY run.created_at, run.id LIMIT 1`,
         [shipment.id],
       );
+
       if (existing[0]) {
         // Read without locking the run: a worker may hold it while waiting for our Shipment share lock.
         const rows: TrackingRunRecord[] = await manager.query(
@@ -46,8 +54,10 @@ export class TypeOrmTrackingHttpRepository implements TrackingHttpRepository {
            FROM tracking_runs WHERE external_id = $1`,
           [existing[0].external_id],
         );
+
         return { kind: 'accepted' as const, run: rows[0]! };
       }
+
       if (
         shipment.monitoringStatus !== 'active' &&
         !(
@@ -56,6 +66,7 @@ export class TypeOrmTrackingHttpRepository implements TrackingHttpRepository {
         )
       )
         return { kind: 'unavailable' as const };
+
       const run = await tx.insertRun(
         {
           carrierExternalId: carriers[0].external_id,
@@ -65,7 +76,9 @@ export class TypeOrmTrackingHttpRepository implements TrackingHttpRepository {
         },
         carrier.id,
       );
+
       await tx.insertAttempts(run.id, [shipment.id]);
+
       return { kind: 'accepted' as const, run: trackingRunRecord(run, 1) };
     });
   }
@@ -85,6 +98,7 @@ export class TypeOrmTrackingHttpRepository implements TrackingHttpRepository {
        WHERE run.external_id = $1 GROUP BY run.id, carrier.external_id`,
       [externalId],
     );
+
     return rows[0] ?? null;
   }
 }

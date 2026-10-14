@@ -46,9 +46,12 @@ export const resetPasswordSchema = z
   .object({ password: passwordSchema })
   .strict();
 export const emptySchema = z.object({}).strict();
+
 export function parseAuth<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
+
   if (!result.success)
     throw new BadRequestException('Invalid authentication input');
+
   return result.data;
 }

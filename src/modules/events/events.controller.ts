@@ -12,6 +12,7 @@ export class EventsController {
     @Inject(EventsSource) private readonly events: EventsSource,
     @Inject(AuthService) private readonly auth: AuthService,
   ) {}
+
   @Get()
   stream(@Req() request: Request, @Res() response: Response) {
     response.set({
@@ -20,12 +21,14 @@ export class EventsController {
       'X-Accel-Buffering': 'no',
     });
     response.flushHeaders();
+
     const headers = fromNodeHeaders(request.headers);
     let closed = false;
     let queued = 0;
     let pending = Promise.resolve();
     const close = () => {
       if (closed) return;
+
       closed = true;
       clearInterval(timer);
       subscription.unsubscribe();
@@ -34,21 +37,28 @@ export class EventsController {
     };
     const send = (event: LiveEvent) => {
       if (closed) return;
+
       if (++queued > 100 || response.writableLength > 65536) {
         close();
+
         return;
       }
+
       pending = pending
         .then(async () => {
           if (closed) return;
+
           const principal = await this.auth.authenticate(headers);
+
           if (
             principal.mustChangePassword ||
             !['staff', 'admin'].includes(principal.role)
           ) {
             close();
+
             return;
           }
+
           if (!closed)
             response.write(
               `event: ${event.type}\ndata: ${JSON.stringify('externalId' in event ? { externalId: event.externalId } : {})}\n\n`,
@@ -64,6 +74,7 @@ export class EventsController {
       next: send,
       complete: () => queueMicrotask(close),
     });
+
     response.on('close', close);
     send({ type: 'resync' });
     this.events.start();

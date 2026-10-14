@@ -34,24 +34,30 @@ export class UpsTokenProvider
 
   async token(signal: AbortSignal, rejectedToken?: string): Promise<string> {
     signal.throwIfAborted();
+
     if (this.inFlight) {
       const value = await waitFor(this.inFlight, signal);
+
       if (value !== rejectedToken) return value;
     }
+
     this.inFlight ??= this.load(rejectedToken).finally(() => {
       this.inFlight = undefined;
     });
+
     return waitFor(this.inFlight, signal);
   }
 
   private async load(rejectedToken?: string): Promise<string> {
     const key = this.configuration.read().environment;
     let cached: Token | undefined;
+
     try {
       if (this.cacheHealthy) cached = await this.get(key);
     } catch {
       this.cacheHealthy = false;
     }
+
     if (
       cached &&
       typeof cached.accessToken === 'string' &&
@@ -62,21 +68,25 @@ export class UpsTokenProvider
       cached.accessToken !== rejectedToken
     )
       return cached.accessToken;
+
     try {
       if (this.cacheHealthy) await this.invalidate(key);
     } catch {
       this.cacheHealthy = false;
     }
+
     const started = Date.now();
     const result = upsOAuthSchema.safeParse(
       await this.client.oauth(this.stopped.signal),
     );
+
     if (!result.success)
       throw new UpsFailure(
         'UPS_INVALID_TOKEN_RESPONSE',
         true,
         'UPS returned an invalid authentication response.',
       );
+
     const ttl = Math.max(
       1,
       Math.floor(
@@ -85,6 +95,7 @@ export class UpsTokenProvider
       ),
     );
     const remaining = started + ttl - Date.now();
+
     try {
       if (this.cacheHealthy && remaining > 0)
         await this.set(
@@ -95,6 +106,7 @@ export class UpsTokenProvider
     } catch {
       this.cacheHealthy = false;
     }
+
     return result.data.access_token;
   }
 

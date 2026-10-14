@@ -96,18 +96,22 @@ describe('production migrations and repository foundation', () => {
 
   afterAll(async () => {
     await module?.close();
+
     if (source?.isInitialized) await source.destroy();
+
     await container?.stop();
   });
 
   it('retrieves a provisioned database-generated UUID through the production repository without exposing internal IDs', async () => {
     const seeded = await provision('contract', 'Contract Carrier');
     const record = await service.find(seeded.externalId);
+
     expect(record.externalId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(record).not.toHaveProperty('id');
     expect(await service.find(record.externalId)).toEqual(record);
+
     await expect(
       service.find('00000000-0000-4000-8000-000000000000'),
     ).rejects.toMatchObject({ status: 404 });
@@ -115,9 +119,12 @@ describe('production migrations and repository foundation', () => {
 
   it('maintains audit timestamps and excludes soft-deleted Carriers through the production repository', async () => {
     const created = await provision('audit', 'Before');
+
     await new Promise((resolve) => setTimeout(resolve, 10));
     await service.update(created.externalId, { name: 'After' });
+
     const updated = await service.find(created.externalId);
+
     expect(updated).toMatchObject({
       externalId: created.externalId,
       code: 'audit',
@@ -127,6 +134,7 @@ describe('production migrations and repository foundation', () => {
     expect(updated!.updatedAt.getTime()).toBeGreaterThan(
       created.updatedAt.getTime(),
     );
+
     await source
       .getRepository(CarrierEntity)
       .softDelete({ externalId: created.externalId });
@@ -136,6 +144,7 @@ describe('production migrations and repository foundation', () => {
     await expect(
       service.update(created.externalId, { name: 'Cannot revive' }),
     ).rejects.toMatchObject({ status: 404 });
+
     expect(
       (await service.list()).some(
         (row) => row.externalId === created.externalId,
@@ -146,10 +155,12 @@ describe('production migrations and repository foundation', () => {
         (row) => row.externalId === created.externalId,
       ),
     ).toBe(false);
+
     const deleted = await source.getRepository(CarrierEntity).findOne({
       where: { externalId: created.externalId },
       withDeleted: true,
     });
+
     expect(deleted!.deletedAt).toBeInstanceOf(Date);
     expect(deleted).toMatchObject({
       createdById: null,
@@ -157,6 +168,7 @@ describe('production migrations and repository foundation', () => {
       deletedById: null,
     });
     expect(deleted!.name).toBe('After');
+
     await expect(provision('audit', 'Duplicate')).rejects.toMatchObject({
       driverError: { code: '23505' },
     });
@@ -169,11 +181,13 @@ describe('production migrations and repository foundation', () => {
       carrierId: created.id,
       trackingReference: 'KEEP-RELATIONSHIP',
     });
+
     expect(
       (await service.listActive()).some(
         (row) => row.externalId === created.externalId,
       ),
     ).toBe(true);
+
     const updated = await service.update(created.externalId, {
       isActive: false,
       name: 'Renamed',
@@ -181,6 +195,7 @@ describe('production migrations and repository foundation', () => {
       pollIntervalMinutes: 32767,
       rateLimitPerMinute: 1,
     });
+
     expect(updated).toMatchObject({
       code: 'eligibility',
       isActive: false,
@@ -198,10 +213,12 @@ describe('production migrations and repository foundation', () => {
     expect(await shipments.findOneByOrFail({ id: shipment.id })).toEqual(
       shipment,
     );
+
     const enabled = await service.update(created.externalId, {
       isActive: true,
       rateLimitPerMinute: null,
     });
+
     expect(enabled).toMatchObject({
       isActive: true,
       rateLimitPerMinute: null,
@@ -212,21 +229,25 @@ describe('production migrations and repository foundation', () => {
 
   it('preserves independent concurrent setting updates and does not change codes through ORM writes', async () => {
     const created = await provision('concurrent-settings', 'Concurrent');
+
     await Promise.all([
       service.update(created.externalId, { name: 'New display' }),
       service.update(created.externalId, { pollIntervalMinutes: 15 }),
     ]);
+
     expect(await service.find(created.externalId)).toMatchObject({
       name: 'New display',
       pollIntervalMinutes: 15,
       code: 'concurrent-settings',
     });
+
     await source
       .getRepository(CarrierEntity)
       .update(
         { externalId: created.externalId },
         { code: 'changed-code', name: 'ORM display' },
       );
+
     expect(await service.find(created.externalId)).toMatchObject({
       code: 'concurrent-settings',
       name: 'ORM display',
@@ -244,7 +265,9 @@ describe('production migrations and repository foundation', () => {
         externalId: supplied,
       }),
     );
+
     expect(carrier.externalId).not.toBe(supplied);
+
     const shipments = source.getRepository(ShipmentEntity);
     const shipment = await shipments.save(
       shipments.create({
@@ -253,20 +276,26 @@ describe('production migrations and repository foundation', () => {
         externalId: supplied,
       }),
     );
+
     expect(shipment.externalId).not.toBe(supplied);
     expect(shipment.lockVersion).toBe(1);
+
     await shipments.update({ id: shipment.id }, { notes: 'Updated' });
+
     expect(await shipments.findOneByOrFail({ id: shipment.id })).toMatchObject({
       lockVersion: 2,
     });
+
     const snapshots = source.getRepository(ShipmentTrackingSnapshotEntity);
     const snapshot = await snapshots.save(
       snapshots.create({ shipmentId: shipment.id, deliveredOn: '2026-10-13' }),
     );
+
     expect(typeof snapshot.id).toBe('string');
     expect(
       (await snapshots.findOneByOrFail({ id: snapshot.id })).deliveredOn,
     ).toBe('2026-10-13');
+
     const runs = source.getRepository(TrackingRunEntity);
     const run = await runs.save(
       runs.create({
@@ -275,29 +304,36 @@ describe('production migrations and repository foundation', () => {
         externalId: supplied,
       }),
     );
+
     expect(run.externalId).not.toBe(supplied);
     expect(run.externalId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(typeof run.id).toBe('string');
     expect(run.requestedById).toBeNull();
+
     await new Promise((resolve) => setTimeout(resolve, 10));
     await runs.update(
       { id: run.id },
       { status: TrackingRunStatus.Running, startedAt: new Date() },
     );
+
     expect(
       (await runs.findOneByOrFail({ id: run.id })).updatedAt.getTime(),
     ).toBeGreaterThan(run.updatedAt.getTime());
+
     const attempts = source.getRepository(TrackingAttemptEntity);
     const attempt = await attempts.save(
       attempts.create({ trackingRunId: run.id, shipmentId: shipment.id }),
     );
+
     expect(typeof attempt.id).toBe('string');
+
     await carriers.update(
       { id: carrier.id },
       { name: 'Updated', externalId: supplied },
     );
+
     expect(
       (await carriers.findOneByOrFail({ id: carrier.id })).externalId,
     ).toBe(carrier.externalId);
@@ -307,7 +343,9 @@ describe('production migrations and repository foundation', () => {
     const carrier = await source
       .getRepository(CarrierEntity)
       .findOneByOrFail({ code: 'ffe' });
+
     expect(carrier.fetchMode).toBe('request');
+
     const runs = source.getRepository(TrackingRunEntity);
     const run = await runs.save(
       runs.create({
@@ -316,14 +354,18 @@ describe('production migrations and repository foundation', () => {
         fetchMode: 'browser',
       }),
     );
+
     await source.undoLastMigration(); // Event trigger migration.
     await source.undoLastMigration(); // Auth migration.
     await source.undoLastMigration();
+
     expect((await service.find(carrier.externalId)).fetchMode).toBe('browser');
     expect((await runs.findOneByOrFail({ id: run.id })).fetchMode).toBe(
       'browser',
     );
+
     await source.runMigrations();
+
     expect((await service.find(carrier.externalId)).fetchMode).toBe('request');
     expect((await runs.findOneByOrFail({ id: run.id })).fetchMode).toBe(
       'browser',
@@ -336,17 +378,22 @@ describe('production migrations and repository foundation', () => {
     await source.undoLastMigration();
     await source.undoLastMigration();
     await source.undoLastMigration();
+
     expect((await cli('migration:show')).stdout).toContain(
       '[ ] InitialSchema1791849600000',
     );
+
     const firstRun = await cli('migration:run');
+
     expect(firstRun.stdout).toContain('CREATE TABLE carriers');
     expect((await cli('migration:show')).stdout).toContain('[X]');
+
     await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');
+
     expect(
       await source.query(
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'migrations'",
@@ -362,7 +409,9 @@ describe('production migrations and repository foundation', () => {
         "SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace",
       ),
     ).toEqual([]);
+
     const directory = await mkdtemp(join(tmpdir(), 'grd-v1005-generation-'));
+
     try {
       expect(
         (
@@ -372,14 +421,19 @@ describe('production migrations and repository foundation', () => {
           ])
         ).stdout,
       ).toContain('CREATE TABLE');
+
       await cli('migration:run');
+
       expect(await source.showMigrations()).toBe(false);
+
       await expect(
         provision('second-migration', 'After second migration').then((row) =>
           service.find(row.externalId),
         ),
       ).resolves.toMatchObject({ name: 'After second migration' });
+
       expect(await source.getRepository(CarrierEntity).count()).toBe(4);
+
       await cli('migration:generate', [join(directory, 'Check'), '--check']);
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -388,8 +442,10 @@ describe('production migrations and repository foundation', () => {
 
   it('rolls back a failed migration against real tables and preserves full CLI diagnostics', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'grd-v1005-rollback-'));
+
     try {
       const failingSource = join(directory, 'failing-source.mjs');
+
       // Reuse the production source; no fixture build or fake table is needed.
       await writeFile(
         failingSource,
@@ -403,6 +459,7 @@ describe('production migrations and repository foundation', () => {
         }
         export default source.setOptions({migrations: [FailingMigration1791849600001]});`,
       );
+
       const result = await promisify(execFile)(
         process.execPath,
         [typeormCli, 'migration:run', '-d', failingSource],
@@ -410,6 +467,7 @@ describe('production migrations and repository foundation', () => {
       ).catch(
         (error: { code: number; stdout: string; stderr: string }) => error,
       );
+
       expect(result).toHaveProperty('code', 1);
       expect(result.stdout + result.stderr).toContain(
         'CANARY_MIGRATION_PARAMETER',
@@ -436,21 +494,27 @@ describe('production migrations and repository foundation', () => {
       [typeormCli, 'migration:show', '-d', productionSource],
       { env: { ...environment(), DB_NAME: missingDatabase } },
     ).catch((error: { code: number; stdout: string; stderr: string }) => error);
+
     expect(result).toHaveProperty('code', 1);
     expect(result.stdout + result.stderr).toContain(missingDatabase);
   });
 
   it('creates a reviewable TypeScript migration without connecting to PostgreSQL', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'grd-v1005-migration-'));
+
     try {
       await promisify(execFile)(
         process.execPath,
         [typeormCli, 'migration:create', join(directory, 'ReviewedChange')],
         { env: { PATH: process.env.PATH, NODE_ENV: 'test' } },
       );
+
       const [filename] = await readdir(directory);
+
       expect(filename).toMatch(/^\d+-ReviewedChange\.ts$/);
+
       const migration = await readFile(join(directory, filename), 'utf8');
+
       expect(migration).toContain('implements MigrationInterface');
       expect(migration).toContain('async down');
     } finally {

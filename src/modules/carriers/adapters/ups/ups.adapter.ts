@@ -25,6 +25,7 @@ export class UpsAdapter implements CarrierAdapter {
   get minimumIntervalMinutes(): number {
     return this.configuration.minimumIntervalMinutes;
   }
+
   validateConfiguration(): void {
     this.configuration.read();
   }
@@ -35,7 +36,9 @@ export class UpsAdapter implements CarrierAdapter {
   }): Promise<TrackingSession> {
     options.signal.throwIfAborted();
     await this.client.configureRateLimit(options.rateLimitPerMinute);
+
     const closed = new AbortController();
+
     return {
       read: async (reference, readSignal) => {
         const signal = AbortSignal.any([
@@ -43,7 +46,9 @@ export class UpsAdapter implements CarrierAdapter {
           readSignal,
           closed.signal,
         ]);
+
         signal.throwIfAborted();
+
         try {
           try {
             reference = this.referencePolicy.normalize(reference);
@@ -54,37 +59,50 @@ export class UpsAdapter implements CarrierAdapter {
               'UPS tracking reference is invalid.',
             );
           }
+
           if (reference.length < 7 || reference.length > 34)
             throw new UpsFailure(
               'INVALID_TRACKING_REFERENCE',
               false,
               'UPS tracking numbers must be 7 to 34 characters.',
             );
+
           this.client.assertAvailable();
+
           const token = await this.tokens.token(signal);
           let body: unknown;
+
           try {
             body = await this.client.track(reference, token, signal);
           } catch (error) {
             if (!axios.isAxiosError(error) || error.response?.status !== 401)
               throw error;
+
             const refreshed = await this.tokens.token(signal, token);
+
             body = await this.client.track(reference, refreshed, signal);
           }
+
           return mapUpsResponse(body, reference);
         } catch (error) {
           signal.throwIfAborted();
+
           let failure = error;
+
           try {
             this.client.assertAvailable();
           } catch (cooldown) {
             failure = cooldown;
           }
+
           if (failure instanceof UpsFailure) return failure.result();
+
           const status = axios.isAxiosError(failure)
             ? failure.response?.status
             : undefined;
+
           if (status === 404) return { outcome: 'not_found', sourceData: null };
+
           return upsHttpFailure(failure).result();
         }
       },

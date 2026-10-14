@@ -56,7 +56,9 @@ describe('Tracking PostgreSQL repository', () => {
       ],
       actorId,
     );
+
     if (result.kind !== 'created') throw new Error('Expected creation');
+
     return result.inserted[0]!;
   }
 
@@ -76,9 +78,11 @@ describe('Tracking PostgreSQL repository', () => {
       trigger: 'scheduled',
       attemptCount: 2,
     });
+
     const storedRun = await db.source
       .getRepository(TrackingRunEntity)
       .findOneByOrFail({ externalId: run.externalId });
+
     expect(
       await db.source.getRepository(TrackingAttemptEntity).countBy({
         trackingRunId: storedRun.id,
@@ -138,10 +142,13 @@ describe('Tracking PostgreSQL repository', () => {
       outcome: 'found',
       snapshotChanged: true,
     });
+
     if (changed.outcome !== 'found') throw new Error('Expected found outcome');
+
     const afterChanged = await db.source
       .getRepository(ShipmentEntity)
       .findOneByOrFail({ externalId: shipment.externalId });
+
     expect(afterChanged).toMatchObject({
       updatedById: null,
       createdById: actorId,
@@ -157,9 +164,11 @@ describe('Tracking PostgreSQL repository', () => {
       afterChanged.nextCheckAt!.getTime() -
         afterChanged.lastAttemptedAt!.getTime(),
     ).toBe(60 * 60 * 1000);
+
     const firstAttempt = await db.source
       .getRepository(TrackingAttemptEntity)
       .findOneByOrFail({ snapshotId: changed.snapshotId });
+
     expect(firstAttempt.sourceData).toEqual({
       providerStatus: 'IN_TRANSIT',
       nested: { safe: true },
@@ -216,6 +225,7 @@ describe('Tracking PostgreSQL repository', () => {
         requestedById: null,
       });
       const target = (await service.startRun(run.externalId)).targets[0]!;
+
       expect(
         await service.finalizeNotFound({
           runExternalId: run.externalId,
@@ -225,14 +235,17 @@ describe('Tracking PostgreSQL repository', () => {
           sourceData: { lookup: 'completed', matched: false },
         }),
       ).toMatchObject({ outcome: 'not_found', stale: false });
+
       await service.finalizeRun(run.externalId);
 
       const stored = await db.source
         .getRepository(ShipmentEntity)
         .findOneByOrFail({ externalId: shipment.externalId });
+
       expect(stored.updatedById).toBeNull();
       expect(stored.createdById).toBe(actorId);
       expect(stored.consecutiveNotFoundCount).toBe(count);
+
       if (count < 5) {
         expect(stored.monitoringStatus).toBe('active');
         expect(stored.monitoringReason).toBeNull();
@@ -247,6 +260,7 @@ describe('Tracking PostgreSQL repository', () => {
 
   it('persists failed attempts without changing the not-found counter or snapshot', async () => {
     const shipment = await createShipment('tracking-failed');
+
     await db.source.getRepository(ShipmentEntity).update(
       { externalId: shipment.externalId },
       {
@@ -254,6 +268,7 @@ describe('Tracking PostgreSQL repository', () => {
         verificationUrl: 'https://example.test/already-known',
       },
     );
+
     const run = await service.createRun({
       carrierExternalId: ups.externalId,
       trigger: 'scheduled',
@@ -281,6 +296,7 @@ describe('Tracking PostgreSQL repository', () => {
     const stored = await db.source
       .getRepository(ShipmentEntity)
       .findOneByOrFail({ externalId: shipment.externalId });
+
     expect(stored).toMatchObject({
       updatedById: null,
       createdById: actorId,
@@ -303,6 +319,7 @@ describe('Tracking PostgreSQL repository', () => {
             .findOneByOrFail({ externalId: run.externalId })
         ).id,
       });
+
     expect(attempt).toMatchObject({
       outcome: 'failed',
       retryable: true,
@@ -321,6 +338,7 @@ describe('Tracking PostgreSQL repository', () => {
       requestedById: null,
     });
     const target = (await service.startRun(run.externalId)).targets[0]!;
+
     await shipments.updateNotes(shipment.externalId, 'changed during lookup');
 
     expect(
@@ -351,6 +369,7 @@ describe('Tracking PostgreSQL repository', () => {
     const stored = await db.source
       .getRepository(ShipmentEntity)
       .findOneByOrFail({ externalId: shipment.externalId });
+
     expect(stored).toMatchObject({
       notes: 'changed during lookup',
       verificationUrl: null,
@@ -360,9 +379,11 @@ describe('Tracking PostgreSQL repository', () => {
       lockVersion: target.expectedLockVersion + 1,
     });
     expect(stored.lastAttemptedAt).toBeNull();
+
     const storedRun = await db.source
       .getRepository(TrackingRunEntity)
       .findOneByOrFail({ externalId: run.externalId });
+
     expect(
       await db.source.getRepository(TrackingAttemptEntity).findOneByOrFail({
         trackingRunId: storedRun.id,
@@ -384,6 +405,7 @@ describe('Tracking PostgreSQL repository', () => {
     });
     const deliveredTarget = (await service.startRun(deliveredRun.externalId))
       .targets[0]!;
+
     await service.finalizeFound({
       runExternalId: deliveredRun.externalId,
       shipmentExternalId: deliveredShipment.externalId,
@@ -398,6 +420,7 @@ describe('Tracking PostgreSQL repository', () => {
       },
       sourceData: null,
     });
+
     expect(
       await db.source
         .getRepository(ShipmentEntity)
@@ -409,6 +432,7 @@ describe('Tracking PostgreSQL repository', () => {
     });
 
     const pausedShipment = await createShipment('tracking-reactivate');
+
     await db.source.getRepository(ShipmentEntity).update(
       { externalId: pausedShipment.externalId },
       {
@@ -418,6 +442,7 @@ describe('Tracking PostgreSQL repository', () => {
         nextCheckAt: null,
       },
     );
+
     const manualRun = await service.createRun({
       carrierExternalId: ups.externalId,
       trigger: 'manual',
@@ -426,6 +451,7 @@ describe('Tracking PostgreSQL repository', () => {
     });
     const manualTarget = (await service.startRun(manualRun.externalId))
       .targets[0]!;
+
     await service.finalizeFound({
       runExternalId: manualRun.externalId,
       shipmentExternalId: pausedShipment.externalId,
@@ -440,9 +466,11 @@ describe('Tracking PostgreSQL repository', () => {
       },
       sourceData: null,
     });
+
     const reactivated = await db.source
       .getRepository(ShipmentEntity)
       .findOneByOrFail({ externalId: pausedShipment.externalId });
+
     expect(reactivated).toMatchObject({
       monitoringStatus: 'active',
       monitoringReason: null,
@@ -471,6 +499,7 @@ describe('Tracking PostgreSQL repository', () => {
     const started = await service.startRun(run.externalId);
     const target = (externalId: string) =>
       started.targets.find((item) => item.shipmentExternalId === externalId)!;
+
     await service.finalizeFound({
       runExternalId: run.externalId,
       shipmentExternalId: first.externalId,
@@ -501,6 +530,7 @@ describe('Tracking PostgreSQL repository', () => {
       reasonCode: 'NO_LONGER_ELIGIBLE',
       message: null,
     });
+
     expect(await service.finalizeRun(run.externalId)).toMatchObject({
       status: 'partially_succeeded',
     });
@@ -513,13 +543,17 @@ describe('Tracking PostgreSQL repository', () => {
       shipmentExternalIds: [cancelFirst.externalId, cancelSecond.externalId],
       requestedById: null,
     });
+
     await service.startRun(cancelRun.externalId);
+
     expect(await service.cancelRun(cancelRun.externalId)).toMatchObject({
       status: 'cancelled',
     });
+
     const cancelled = await db.source
       .getRepository(TrackingRunEntity)
       .findOneByOrFail({ externalId: cancelRun.externalId });
+
     expect(
       await db.source.getRepository(TrackingAttemptEntity).countBy({
         trackingRunId: cancelled.id,
@@ -534,7 +568,9 @@ describe('Tracking PostgreSQL repository', () => {
       shipmentExternalIds: [interruptedShipment.externalId],
       requestedById: null,
     });
+
     await service.startRun(interruptedRun.externalId);
+
     expect(
       await service.interruptRun({
         runExternalId: interruptedRun.externalId,
@@ -558,6 +594,7 @@ describe('Tracking PostgreSQL repository', () => {
     await expect(service.finalizeRun(run.externalId)).rejects.toMatchObject({
       code: 'INVALID_RUN_STATE',
     });
+
     expect(() =>
       service.finalizeFailed({
         runExternalId: run.externalId,
@@ -577,7 +614,9 @@ describe('Tracking PostgreSQL repository', () => {
     const attempt = await db.source
       .getRepository(TrackingAttemptEntity)
       .findOneByOrFail({ trackingRunId: storedRun.id });
+
     expect(attempt.outcome).toBe('pending');
+
     await expect(
       db.source.query(
         `UPDATE tracking_attempts SET source_data = '[]'::jsonb WHERE id = $1`,
@@ -596,6 +635,7 @@ describe('Tracking PostgreSQL repository', () => {
       requestedById: null,
     });
     const target = (await service.startRun(run.externalId)).targets[0]!;
+
     await db.source.query(`CREATE FUNCTION fail_tracking_attempt_finalize()
       RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
@@ -608,6 +648,7 @@ describe('Tracking PostgreSQL repository', () => {
     await db.source.query(`CREATE TRIGGER fail_tracking_attempt_finalize
       BEFORE UPDATE ON tracking_attempts
       FOR EACH ROW EXECUTE FUNCTION fail_tracking_attempt_finalize()`);
+
     try {
       await expect(
         service.finalizeFound({
@@ -635,6 +676,7 @@ describe('Tracking PostgreSQL repository', () => {
     const stored = await db.source
       .getRepository(ShipmentEntity)
       .findOneByOrFail({ externalId: shipment.externalId });
+
     expect(stored).toMatchObject({
       currentTrackingSnapshotId: null,
       verificationUrl: null,
@@ -645,14 +687,17 @@ describe('Tracking PostgreSQL repository', () => {
         .getRepository(ShipmentTrackingSnapshotEntity)
         .countBy({ shipmentId: stored.id }),
     ).toBe(0);
+
     const storedRun = await db.source
       .getRepository(TrackingRunEntity)
       .findOneByOrFail({ externalId: run.externalId });
+
     expect(
       await db.source.getRepository(TrackingAttemptEntity).findOneByOrFail({
         trackingRunId: storedRun.id,
       }),
     ).toMatchObject({ outcome: 'pending', snapshotId: null });
+
     await service.cancelRun(run.externalId);
   });
 
@@ -683,6 +728,7 @@ describe('Tracking PostgreSQL repository', () => {
     const attempt = await db.source
       .getRepository(TrackingAttemptEntity)
       .findOneByOrFail({ trackingRunId: storedRun.id });
+
     await expect(
       db.source.query(
         `UPDATE tracking_attempts
@@ -691,7 +737,9 @@ describe('Tracking PostgreSQL repository', () => {
         [attempt.id, snapshots[0]!.id],
       ),
     ).rejects.toMatchObject({ code: '23503' });
+
     expect(firstRow.currentTrackingSnapshotId).toBeNull();
+
     await service.cancelRun(run.externalId);
   });
 
@@ -703,15 +751,18 @@ describe('Tracking PostgreSQL repository', () => {
       shipmentExternalIds: [shipment.externalId],
       requestedById: null,
     });
+
     await shipments.changeMonitoring(shipment.externalId, 'pause');
 
     expect((await service.startRun(run.externalId)).targets).toEqual([]);
     expect(await service.finalizeRun(run.externalId)).toMatchObject({
       status: 'succeeded',
     });
+
     const storedRun = await db.source
       .getRepository(TrackingRunEntity)
       .findOneByOrFail({ externalId: run.externalId });
+
     expect(
       await db.source.getRepository(TrackingAttemptEntity).findOneByOrFail({
         trackingRunId: storedRun.id,
@@ -734,6 +785,7 @@ describe('Tracking PostgreSQL repository', () => {
       requestedById: null,
     });
     const target = (await service.startRun(run.externalId)).targets[0]!;
+
     await service.finalizeFound({
       runExternalId: run.externalId,
       shipmentExternalId: shipment.externalId,
@@ -748,9 +800,11 @@ describe('Tracking PostgreSQL repository', () => {
       },
       sourceData: null,
     });
+
     const after = await db.source
       .getRepository(ShipmentEntity)
       .findOneByOrFail({ externalId: shipment.externalId });
+
     expect(after.nextCheckAt?.getTime()).toBe(before.nextCheckAt?.getTime());
   });
 });

@@ -13,6 +13,7 @@ const date = z
     const month = Number(value.slice(4, 6));
     const day = Number(value.slice(6, 8));
     const parsed = new Date(Date.UTC(year, month - 1, day));
+
     return (
       parsed.getUTCFullYear() === year &&
       parsed.getUTCMonth() === month - 1 &&
