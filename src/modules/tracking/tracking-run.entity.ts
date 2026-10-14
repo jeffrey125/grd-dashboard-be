@@ -40,6 +40,11 @@ export enum TrackingRunStatus {
   OR (status IN ('succeeded', 'partially_succeeded', 'failed') AND started_at IS NOT NULL AND completed_at IS NOT NULL)
   OR (status = 'cancelled' AND completed_at IS NOT NULL)`,
 )
+@ForeignKey('AuthUserEntity', ['requestedById'], ['id'], {
+  name: 'fk_runs_requester',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_runs_requester', ['requestedById'])
 export class TrackingRunEntity {
   @PrimaryGeneratedColumn('identity', {
     type: 'bigint',

@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Unique } from 'typeorm';
+import { ForeignKey, Index, Check, Column, Entity, Unique } from 'typeorm';
 import type { FetchMode } from './carrier-fetch-mode.js';
 import { ExternallyIdentifiedEntity } from '@infrastructure/database/entities/externally-identified.entity.js';
 
@@ -11,6 +11,21 @@ import { ExternallyIdentifiedEntity } from '@infrastructure/database/entities/ex
   'ck_carriers_rate_limit',
   'rate_limit_per_minute IS NULL OR rate_limit_per_minute >= 1',
 )
+@ForeignKey('AuthUserEntity', ['createdById'], ['id'], {
+  name: 'fk_carriers_created_by_id',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_carriers_created_by_id', ['createdById'])
+@ForeignKey('AuthUserEntity', ['updatedById'], ['id'], {
+  name: 'fk_carriers_updated_by_id',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_carriers_updated_by_id', ['updatedById'])
+@ForeignKey('AuthUserEntity', ['deletedById'], ['id'], {
+  name: 'fk_carriers_deleted_by_id',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_carriers_deleted_by_id', ['deletedById'])
 export class CarrierEntity extends ExternallyIdentifiedEntity {
   @Column({ type: 'varchar', length: 50, update: false })
   readonly code: string;

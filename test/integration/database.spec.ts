@@ -1,3 +1,5 @@
+import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
+import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
@@ -64,6 +66,7 @@ describe('production migrations and repository foundation', () => {
         createConfiguration(postgresqlEnvironment(container)),
       ),
       entities: [
+        ...AUTH_ENTITIES,
         CarrierEntity,
         ShipmentEntity,
         ShipmentTrackingSnapshotEntity,
@@ -74,6 +77,7 @@ describe('production migrations and repository foundation', () => {
         InitialSchema1791849600000,
         CarrierFetchMode1791936000000,
         FfeRequestMode1792022400000,
+        EmployeeAuth1792108800000,
       ],
     });
     await source.initialize();
@@ -310,6 +314,7 @@ describe('production migrations and repository foundation', () => {
         fetchMode: 'browser',
       }),
     );
+    await source.undoLastMigration(); // Auth migration.
     await source.undoLastMigration();
     expect((await service.find(carrier.externalId)).fetchMode).toBe('browser');
     expect((await runs.findOneByOrFail({ id: run.id })).fetchMode).toBe(
@@ -326,12 +331,14 @@ describe('production migrations and repository foundation', () => {
     await source.undoLastMigration();
     await source.undoLastMigration();
     await source.undoLastMigration();
+    await source.undoLastMigration();
     expect((await cli('migration:show')).stdout).toContain(
       '[ ] InitialSchema1791849600000',
     );
     const firstRun = await cli('migration:run');
     expect(firstRun.stdout).toContain('CREATE TABLE carriers');
     expect((await cli('migration:show')).stdout).toContain('[X]');
+    await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');

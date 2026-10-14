@@ -47,6 +47,21 @@ export enum ShipmentMonitoringReason {
   OR (monitoring_status = 'paused' AND monitoring_reason IN ('manual', 'not_found_threshold'))
   OR (monitoring_status = 'completed' AND monitoring_reason = 'delivered')) IS TRUE`,
 )
+@ForeignKey('AuthUserEntity', ['createdById'], ['id'], {
+  name: 'fk_shipments_created_by_id',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_shipments_created_by_id', ['createdById'])
+@ForeignKey('AuthUserEntity', ['updatedById'], ['id'], {
+  name: 'fk_shipments_updated_by_id',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_shipments_updated_by_id', ['updatedById'])
+@ForeignKey('AuthUserEntity', ['deletedById'], ['id'], {
+  name: 'fk_shipments_deleted_by_id',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_shipments_deleted_by_id', ['deletedById'])
 export class ShipmentEntity extends ExternallyIdentifiedEntity {
   @Column({ name: 'carrier_id', type: 'integer' })
   carrierId: number;

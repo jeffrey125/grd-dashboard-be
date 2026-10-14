@@ -151,10 +151,14 @@ describe('initial application schema', () => {
     );
   });
 
-  it('maps exactly five production entities without schema drift', async () => {
+  it('maps all nine production entities without schema drift', async () => {
     expect(
       source.entityMetadatas.map((metadata) => metadata.tableName).sort(),
     ).toEqual([
+      'auth_accounts',
+      'auth_sessions',
+      'auth_users',
+      'auth_verifications',
       'carriers',
       'shipment_tracking_snapshots',
       'shipments',
@@ -619,16 +623,29 @@ describe('initial application schema', () => {
         'fk_attempts_run',
         'fk_attempts_shipment',
         'fk_attempts_snapshot',
+        'fk_auth_accounts_user',
+        'fk_auth_sessions_user',
+        'fk_auth_users_creator',
+        'fk_auth_users_updater',
+        'fk_carriers_created_by_id',
+        'fk_carriers_deleted_by_id',
+        'fk_carriers_updated_by_id',
+        'fk_runs_requester',
+        'fk_shipments_created_by_id',
+        'fk_shipments_deleted_by_id',
+        'fk_shipments_updated_by_id',
         'fk_runs_carrier',
         'fk_shipments_carrier',
         'fk_shipments_current_snapshot',
         'fk_snapshots_shipment',
-      ].map((conname) => ({
-        conname,
-        confdeltype: 'a',
-        confupdtype: 'a',
-        condeferrable: false,
-      })),
+      ]
+        .sort()
+        .map((conname) => ({
+          conname,
+          confdeltype: 'a',
+          confupdtype: 'a',
+          condeferrable: false,
+        })),
     );
     const indexes = await source.query(
       `SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public'`,
@@ -677,6 +694,15 @@ describe('initial application schema', () => {
     const audit =
       'id external_id created_at updated_at deleted_at created_by_id updated_by_id deleted_by_id';
     const expected = {
+      auth_users:
+        'id external_id name first_name last_name email email_verified image role active must_change_password created_at updated_at created_by_id updated_by_id',
+      auth_accounts:
+        'id user_id account_id provider_id password access_token refresh_token id_token scope access_token_expires_at refresh_token_expires_at created_at updated_at',
+      auth_sessions:
+        'id user_id token expires_at ip_address user_agent created_at updated_at',
+      auth_verifications:
+        'id identifier value expires_at created_at updated_at',
+
       carriers:
         audit +
         ' code name is_active not_found_pause_threshold poll_interval_minutes rate_limit_per_minute fetch_mode',
@@ -705,6 +731,10 @@ describe('initial application schema', () => {
       WHERE table_schema = 'public' AND column_name = 'id' AND table_name <> 'migrations' ORDER BY table_name`);
     expect(identities).toEqual(
       [
+        ['auth_accounts', 'integer'],
+        ['auth_sessions', 'integer'],
+        ['auth_users', 'integer'],
+        ['auth_verifications', 'integer'],
         ['carriers', 'integer'],
         ['shipment_tracking_snapshots', 'bigint'],
         ['shipments', 'integer'],

@@ -1,3 +1,5 @@
+import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
+import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -38,6 +40,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
     source = new DataSource({
       ...createDatabaseOptions(createConfiguration(environment)),
       entities: [
+        ...AUTH_ENTITIES,
         CarrierEntity,
         ShipmentEntity,
         ShipmentTrackingSnapshotEntity,
@@ -48,6 +51,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         InitialSchema1791849600000,
         CarrierFetchMode1791936000000,
         FfeRequestMode1792022400000,
+        EmployeeAuth1792108800000,
       ],
     });
     await source.initialize();

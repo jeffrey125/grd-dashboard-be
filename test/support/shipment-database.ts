@@ -1,3 +1,5 @@
+import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
+import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
 import { DataSource } from 'typeorm';
 import { createConfiguration } from '@config/configuration.js';
 import { createDatabaseOptions } from '@infrastructure/database/database-options.js';
@@ -20,6 +22,7 @@ export async function shipmentDatabase() {
   const source = new DataSource({
     ...createDatabaseOptions(createConfiguration(environment)),
     entities: [
+      ...AUTH_ENTITIES,
       CarrierEntity,
       ShipmentEntity,
       ShipmentTrackingSnapshotEntity,
@@ -30,6 +33,7 @@ export async function shipmentDatabase() {
       InitialSchema1791849600000,
       CarrierFetchMode1791936000000,
       FfeRequestMode1792022400000,
+      EmployeeAuth1792108800000,
     ],
   });
   try {
