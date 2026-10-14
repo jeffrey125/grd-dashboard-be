@@ -2,19 +2,19 @@
 
 ## Architecture decisions
 
-| Area               | V1 decision                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| Backend            | NestJS, TypeScript, PostgreSQL.                                                             |
-| Shape              | Feature-first modular monolith.                                                             |
-| Runtime            | One API entry point and one worker entry point from the same package/image.                 |
-| Scale              | One worker process in v1; multi-worker coordination is deferred.                            |
-| Package management | pnpm with one package; no workspace orchestrator.                                           |
-| Persistence        | TypeORM with repository contracts and reviewed migrations; `synchronize` is disabled.       |
-| Identifiers        | Internal identity integers plus immutable UUIDv4 `external_id` on API-addressable entities. |
-| Cache              | Nest cache manager with process-local memory only.                                          |
-| Logging            | Project-owned structured logging built directly on `pino`; JSON is the production format.   |
-| Messaging          | No Redis, RabbitMQ, Kafka, BullMQ, or external message broker.                              |
-| Deployment         | No deploy folder or infrastructure manifests in this scope.                                 |
+| Area               | V1 decision                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------- |
+| Backend            | NestJS, TypeScript, PostgreSQL.                                                                   |
+| Shape              | Feature-first modular monolith.                                                                   |
+| Runtime            | One API entry point and one worker entry point from the same package/image.                       |
+| Scale              | One worker process in v1; multi-worker coordination is deferred.                                  |
+| Package management | pnpm with one package; no workspace orchestrator.                                                 |
+| Persistence        | TypeORM with repository contracts and reviewed migrations; `synchronize` is disabled.             |
+| Identifiers        | Internal identity integers plus immutable UUIDv4 `external_id` on API-addressable entities.       |
+| Cache              | Nest cache manager with process-local memory only.                                                |
+| Logging            | Project-owned structured logging built directly on `pino`; JSON is the production format.         |
+| Messaging          | No Redis, RabbitMQ, Kafka, BullMQ, or external message broker.                                    |
+| Deployment         | Portable image/local Compose approved in V1-018; production manifests and deploy folder deferred. |
 
 Use a currently supported Node LTS release that satisfies the selected stable Nest CLI. Nest recommends an active LTS release, and production Node applications should use an LTS line. Pin Node, pnpm, Nest packages, and the lockfile during Ticket V1-001 rather than copying version numbers from this document. See [Nest first steps](https://docs.nestjs.com/first-steps) and [Node release status](https://nodejs.org/en/about/previous-releases).
 
@@ -81,7 +81,10 @@ parameter logging remains disabled.
   V1-007 revision. Only migrations accompanying implemented adapters add Carriers,
   using explicit stable codes. Carrier creation, deletion, and restoration APIs
   are excluded from V1-007; administrators can update settings and enable/disable.
-- PostgreSQL TLS support, explicitly deferred during V1-004. Connections currently use plaintext; see `TODO.md` for verified TLS and optional provider CA support before use across an untrusted network or with a provider requiring TLS.
+- PostgreSQL TLS was deferred during V1-004 and implemented in V1-018 using existing
+  pg/Node TLS: `DB_SSL_MODE=verify-full` and optional `DB_SSL_CA_FILE`. Configure
+  the actual provider CA/network access before production; plaintext remains the
+  explicit local default only.
 - Nx, Turborepo, and pnpm workspaces.
 - Redis/shared cache, durable job queue, multi-worker leases, and distributed rate limiting.
 - Knip until the project has stable entry points and meaningful modules.

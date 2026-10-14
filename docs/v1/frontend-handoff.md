@@ -1,0 +1,237 @@
+# Frontend handoff — backend v1
+
+## Start here
+
+Read [auth-api.md](auth-api.md), then this document. The frontend is a separate
+project; no frontend framework, package choice or UI implementation is selected
+by this ticket. The legacy UI is reference behavior, not this API's protocol.
+
+Backend intended origin: `https://api.globalresourcesdirect.com`.
+Frontend intended origin: `https://dashboard.globalresourcesdirect.com`.
+Local defaults: API `http://localhost:3000`, frontend `http://localhost:5173`.
+Use the [root README](../../README.md) to start/seed the backend and bootstrap an
+Admin. There is **no `/api` prefix** and no public signup.
+
+Hosting remains undecided. Caddy, production Compose, App Platform specifications,
+deployment workflows and CI/CD are deferred. Do not infer same-Droplet routing,
+copy the Tom application's proxy blindly, or build an Origin-stripping proxy.
+
+## Important contract gap
+
+**The current Shipment API does not expose its normalized Tracking Snapshot.**
+Carrier status/detail and pickup/estimated-delivery/delivered dates exist in
+PostgreSQL but are absent from Shipment GET/list and run-status responses. A full
+tracking-details dashboard needs a separately agreed backend read projection;
+do not invent response fields or label `monitoringStatus` as the Carrier's status.
+
+There is also no snapshot history, source-data diagnostic endpoint, latest-run
+lookup by Shipment, paginated Shipment list, refresh-all or scheduler start/stop
+endpoint. Manual refresh returns a run ID that can be read by the run endpoint.
+These limits are explicit handoff gaps, not frontend bugs to hide with mock data.
+
+## Browser session flow
+
+1. `POST /auth/sign-in` with `{ email, password }`. Successful JSON is the account
+   profile, not a token. Every API fetch uses `credentials: 'include'`.
+2. If `mustChangePassword` is true, show only password replacement and sign-out.
+   `POST /auth/change-password` accepts `{ currentPassword, newPassword }` and
+   returns 204. All sessions are revoked: clear cached state and sign in again.
+3. `GET /auth/me` restores the session/profile on reload. A 401 means sign-in is
+   required. On a business 403, refresh `/auth/me` to distinguish restricted
+   password replacement from role denial. Do not repeatedly retry auth failures.
+4. `POST /auth/sign-out` with `{}` returns 204; close SSE and clear cached data.
+   Sessions expire absolutely after 24 hours without rolling renewal. Password,
+   email, role and active-state changes can revoke sessions before then.
+
+Cookies are API-host-only, HttpOnly, SameSite=Lax and Secure in production. Never
+read/store a token in localStorage, supply actor IDs, or use Better Auth's generic
+client endpoints: only the application facade in [auth-api.md](auth-api.md) exists.
+The browser sets `Origin`; do not set it manually. All unsafe methods require an
+exact trusted Origin, including login. CORS permits credentials and `Content-Type`,
+not arbitrary custom headers. Use same-site HTTPS subdomains in production.
+
+Minimal request example (handle non-2xx and 204 in the real client):
+
+```ts
+const response = await fetch(`${apiOrigin}/auth/sign-in`, {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password }),
+});
+```
+
+Account management routes, exact account fields and validation are defined once
+in [auth-api.md](auth-api.md). Staff can use all Shipment actions; only Admins can
+manage accounts and change Carrier settings. Hide unauthorized controls, while
+still treating server authorization as authoritative. No self-deactivation or
+self-demotion; protected admin changes can return 409.
+
+## Shipment contract
+
+All route IDs are public UUIDv4 strings. Do not derive IDs from references or use
+internal integer IDs. JSON timestamps are ISO strings or null. Public fields:
+
+```ts
+type Shipment = {
+  externalId: string;
+  carrier: {
+    externalId: string;
+    code: string;
+    name: string;
+    isActive: boolean;
+  };
+  trackingReference: string;
+  notes: string | null;
+  verificationUrl: string | null;
+  monitoringStatus: 'active' | 'paused' | 'completed';
+  monitoringReason: 'manual' | 'not_found_threshold' | 'delivered' | null;
+  lastAttemptedAt: string | null;
+  nextCheckAt: string | null;
+  consecutiveNotFoundCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+```
+
+| Route                                 | Input → success                                                                                                                                           |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                   |
+| `GET /shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                  |
+| `POST /shipments`                     | `{ items: [{ carrierExternalId, trackingReference, notes? }] }` → `{ inserted: Shipment[], duplicates: Shipment[] }`; 201 if any inserted, otherwise 200. |
+| `PATCH /shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                          |
+| `DELETE /shipments/:externalId`       | No body → 204. Soft deletion; a second delete returns 404.                                                                                                |
+| `POST /shipments/:externalId/pause`   | `{}` → 200 Shipment; only active to manual pause.                                                                                                         |
+| `POST /shipments/:externalId/resume`  | `{}` → 200 Shipment; only manual pause to active/due now.                                                                                                 |
+| `POST /shipments/:externalId/refresh` | Empty or `{}` → 202 TrackingRun (below).                                                                                                                  |
+
+Creation accepts 1–10 rows atomically. References are trimmed, nonblank strings
+up to 255 UTF-16 code units, with no NUL; preserve leading zeros and case. The
+worker has additional provider-specific validation, so acceptance is not proof
+the Carrier can find it. Notes are trimmed, 1–500 code units, no NUL; use null
+to clear, not `""`. Unknown fields reject the input, including actor IDs.
+
+In-batch duplicate Carrier/reference pairs collapse with the last row's notes.
+An existing nondeleted pair is returned as a duplicate without modifying its
+notes/state, even when paused or completed. Soft-deleted pairs may be added again.
+Do not show success for a partially valid batch: invalid rows insert nothing.
+Row errors use `{ message, code: 'shipment_validation_failed', details:
+[{ row, field, message }] }`, where row numbers are **1-based**.
+
+`verificationUrl` remains null until a successful lookup populates it. Open
+external links with `noopener noreferrer`. A disabled Carrier prevents creation
+and refresh; existing Shipments remain visible. Delivered is terminal.
+Manual pause and threshold pause are distinct: threshold-paused Shipments can
+be refreshed and reactivate on found, but cannot use manual `resume`.
+
+## Carrier contract
+
+`GET /carriers` returns an array; `GET /carriers/:externalId` returns one record.
+Both include disabled nondeleted Carriers. Fields are `externalId`, immutable
+`code`, `name`, `isActive`, `fetchMode`, `notFoundPauseThreshold`,
+`pollIntervalMinutes`, `rateLimitPerMinute`, `createdAt`, `updatedAt`.
+
+Admin `PATCH /carriers/:externalId` accepts a nonempty subset of the mutable
+fields. Name: trimmed 1–100 characters. Threshold: integer 2–32767; interval:
+integer 1–32767 minutes; RPM: integer 1–32767 or null. Omitted fields retain their
+values; explicit null clears RPM only. Fetch mode is `request` for UPS, `request`
+or `browser` for EchoShip/FFE. Request is the current seed default for all three.
+No Carrier creation, deletion or restoration route exists.
+
+Polling is not exact wall-clock scheduling: one worker scans each minute and
+executes Carriers sequentially. Adapter minimums can exceed the displayed setting
+(UPS production 30 minutes/CIE 60; EchoShip/FFE five). Manual refresh bypasses due
+time, not provider rate limits, and does not delay an active scheduled check.
+
+## Run status and live updates
+
+`POST /shipments/:id/refresh` returns a TrackingRun. Duplicate queued/running
+requests coalesce and keep the original requester. An idle worker discovers the
+request on its next minute scan; 202 does not mean the Carrier has been queried.
+The response can already be terminal if it races worker completion.
+
+```ts
+type TrackingRun = {
+  externalId: string;
+  trigger: 'scheduled' | 'manual';
+  fetchMode: 'request' | 'browser' | null;
+  status:
+    | 'queued'
+    | 'running'
+    | 'succeeded'
+    | 'partially_succeeded'
+    | 'failed'
+    | 'cancelled';
+  attemptCount: number;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+type RunStatus = TrackingRun & {
+  carrierExternalId: string;
+  reasonCode: string | null;
+  attempts: Array<{
+    shipmentExternalId: string;
+    outcome: 'pending' | 'found' | 'not_found' | 'failed' | 'skipped';
+    snapshotChanged: boolean;
+    retryable: boolean | null;
+    reasonCode: string | null;
+    completedAt: string | null;
+  }>;
+};
+```
+
+`GET /tracking-runs/:externalId` returns RunStatus. Run success means processing
+finished without technical failures, not that a Shipment was found or delivered.
+Not-found is different from technical failure; failure preserves the known
+snapshot and not-found count. A skipped lookup can safely produce a successful
+run. Treat reason codes as diagnostics; unknown codes need a generic safe message.
+
+Open `new EventSource(apiOrigin + '/events', { withCredentials: true })` once
+authenticated. Named events:
+
+| Event              | Data             | Client action                                                                                      |
+| ------------------ | ---------------- | -------------------------------------------------------------------------------------------------- |
+| `resync`           | `{}`             | Reload authoritative Shipments and any displayed run. Sent on connection and DB listener recovery. |
+| `shipment.changed` | `{ externalId }` | Invalidate/refetch the affected Shipment/list; 404 means deleted.                                  |
+| `run.changed`      | `{ externalId }` | Refetch that displayed run.                                                                        |
+| `heartbeat`        | `{}`             | Liveness signal every 15 seconds; no data mutation.                                                |
+
+Subscribe before the initial HTTP fetch. Track invalidations arriving during
+each fetch and perform a follow-up fetch so a stale in-flight response cannot
+overwrite a newer event. Debounce bursts and clean up subscriptions on logout,
+navigation and unmount. Events are invalidations, not a replayable state log:
+`Last-Event-ID` has no replay semantics. Reconnect and refetch on every resync.
+
+On EventSource errors, check `/auth/me` once with backoff; close the stream for
+401/restricted sessions instead of an endless login loop. Slow consumers are
+disconnected; heartbeat revalidates quiet sessions. SSE proxies must preserve
+streaming without buffering and allow long-lived responses. Carrier-setting
+changes do not emit a Carrier event; refresh the Carrier list after edits and on
+page focus/reconnect if settings are displayed.
+
+## Errors and frontend acceptance checklist
+
+Use status codes, not raw library diagnostics: 400 invalid input; 401 session;
+403 origin/role/replacement; 404 missing/deleted; 409 forbidden state transition;
+429 rate limit; 5xx safe generic failure. Do not assume every error body shares
+the row-validation shape or contains a machine code. Do not automatically retry
+non-idempotent mutations. Display generic connectivity errors without inventing
+successful tracking results.
+
+Before frontend handoff, test these groups against the real local backend:
+
+1. Login, restricted-password flow, logout, expired/revoked session, refresh
+   restoration, Staff/Admin authorization and account protection conflicts.
+2. Batch add, row validation, duplicates, literal leading zeros, edit/clear notes,
+   soft delete/re-add and disabled Carrier behavior.
+3. Manual pause/resume, threshold-pause refresh, terminal delivery, duplicate
+   refresh coalescing and run queued/running/terminal rendering.
+4. SSE reconnect/resync, event-during-fetch reconciliation, deleted row, revoked
+   session and complete subscription cleanup.
+5. Credentialed browser CORS/cookies on the actual chosen production domains;
+   resolved snapshot read projection before claiming tracking-details parity.
+
+See backend test examples in `test/e2e/auth.spec.ts`, `shipments.spec.ts`,
+`carriers.spec.ts` and `refresh.spec.ts`. Tests are evidence, not a reason to copy
+their fixture credentials into frontend configuration.

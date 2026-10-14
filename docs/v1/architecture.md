@@ -19,6 +19,14 @@ The worker starts polling automatically after configuration and database readine
 
 ## Composition roots
 
+V1-018 packages these roots in one non-root Docker image. Local Compose gates the
+API/optional worker on a successful one-shot migration; it is not a production
+manifest. Both roots and operator CLIs share verified PostgreSQL TLS configuration
+when `DB_SSL_MODE=verify-full` is selected. See the [root README](../../README.md)
+for commands and the [release audit](release-readiness.md) for managed database
+and hosting gates. Caddy, production Compose and App Platform configuration remain
+deferred; no hosting topology is selected by this packaging.
+
 ```text
 AppModule
 ├── LoggingModule

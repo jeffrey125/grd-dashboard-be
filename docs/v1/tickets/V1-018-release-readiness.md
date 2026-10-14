@@ -4,6 +4,24 @@
 
 Depends on V1-002, V1-010, V1-013, V1-014, V1-015, V1-016, and V1-017.
 
+## Approved implementation amendments
+
+The user approved existing dependencies/built-ins, verified managed-PostgreSQL
+TLS, a portable API/worker image, local API/database Compose with optional worker,
+release tests/combined coverage, frontend handoff and AGENTS/CONTEXT updates.
+Grouped whitespace cleanup spans `src/` and `test/` and is separately reviewable.
+
+Production Compose, Caddy, App Platform configuration, deployment and new CI/CD
+workflows are explicitly deferred. The existing CI workflow remains unchanged.
+DigitalOcean managed PostgreSQL is selected; hosting is not. Intended public
+origins remain API `api.globalresourcesdirect.com` and frontend
+`dashboard.globalresourcesdirect.com`.
+
+See the [release audit](../release-readiness.md) and
+[implementation summary](../implementation-summary/V1-018-implementation-summary.md)
+for actual verification and unresolved rollout/product gates. Local test success
+must not be presented as a completed production deployment.
+
 ## Objective
 
 Prove the complete backend v1 works from a fresh checkout and empty PostgreSQL database, close documentation gaps, and report any unresolved production blocker.

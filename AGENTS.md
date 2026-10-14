@@ -3,3 +3,44 @@
 For every new foreign key, explicitly use `ON DELETE NO ACTION` in migrations
 and the corresponding ORM mapping. Use another delete action only when the user
 explicitly approves an override for that relationship.
+
+# Read before changing behavior
+
+Read `CONTEXT.md` for domain vocabulary and `docs/v1/README.md` for authoritative
+specifications. For ticket work, read its specification and prerequisite summaries
+under `docs/v1/implementation-summary/`; later approved decisions supersede
+historical ticket limitations.
+
+For HTTP/auth/frontend work, read `docs/v1/auth-api.md` and
+`docs/v1/frontend-handoff.md`. For runtime/database/container work, read `README.md`
+and `docs/v1/release-readiness.md`, including the deferred hosting decisions.
+
+# Implementation boundaries
+
+Keep API and worker composition separate: exactly one worker and one API replica
+in v1. Feature services use feature-owned repository contracts; TypeORM belongs
+in persistence implementations. Reuse installed dependencies; obtain approval
+before adding production packages. Schema changes must update
+`docs/v1/database-schema.md` and explain why the migration is needed.
+
+Preserve grouped statements: one blank line between imports, declarations,
+setup/actions/assertions, control-flow sections and methods; keep related lines
+together. Separate broad whitespace cleanup from behavior changes in review.
+
+Carrier tests use fixtures, never local provider credentials. Use disposable
+PostgreSQL for migration/integration checks. Keep secrets and diagnostic captures
+outside tracked files and the Docker build context. Production database TLS uses
+`verify-full`; never resolve a certificate failure by disabling verification.
+
+# Completion evidence
+
+Run the applicable commands from `README.md`; release/container changes also need
+the combined coverage and opt-in container checks. Report exact results, skipped
+checks and unresolved rollout blockers. A unit-only coverage report is not a
+whole-backend coverage report. Keep frontend handoffs aligned with actual response
+schemas, especially fields/endpoints still missing.
+
+Use the seven-heading implementation handoff required by the ticket skill.
+Separate unrelated worktree changes and propose single-purpose commits; obtain
+explicit final approval before staging/committing. Deployment and CI/CD changes
+remain a separate task, not an implied release-verification step.

@@ -4,6 +4,48 @@ GRD employees manage Shipments and monitor their progress through Carriers.
 
 ## Language
 
+### Shipment monitoring
+
+**Shipment**:
+A Carrier and Tracking Reference pair that employees monitor, with optional notes
+and a monitoring state. Soft deletion removes it from the dashboard while retaining
+its history; the same pair may then be added as a new Shipment.
+
+**Carrier**:
+A shipping provider whose tracking information GRD monitors. Disabling a Carrier
+stops new lookups without deleting its Shipments.
+
+**Tracking Reference**:
+The Carrier's identifier for a Shipment, treated as text with case and leading
+zeros preserved. Different Carriers may use the same reference.
+
+**Tracking Snapshot**:
+An immutable observation of known Carrier status, status detail, pickup,
+estimated-delivery and delivered dates. Missing new information preserves known
+values; unchanged observations reuse the current snapshot.
+
+**Tracking Run**:
+One scheduled or manually requested unit of tracking work for a Carrier.
+A run contains one Tracking Attempt for each selected Shipment.
+
+**Tracking Attempt**:
+One logical lookup of a Shipment within a Tracking Run. Its outcome is found,
+not found, failed or skipped; transport retries are not separate attempts.
+
+**Manual Refresh**:
+An employee's request to check one Shipment without waiting for its scheduled
+check. Repeated requests while that refresh is pending refer to the same work.
+
+**Monitoring State**:
+Whether a Shipment is active, paused or completed. A pause can be manual or follow
+consecutive confirmed not-found results; completed means delivery is known.
+
+**Not-found Threshold**:
+The number of consecutive confirmed absent results that automatically pauses a
+Shipment. A technical lookup failure is not evidence of absence.
+
+### Employee access
+
 **Employee Account**:
 An administrator-provisioned identity for a GRD employee. An account can be active
 or deactivated; deactivation preserves attribution of the employee's past work.

@@ -1,9 +1,13 @@
-- Setup agents.md
-  - Add a rule in agents.md to add documentation regarding any changes on the schema and explain the db schema.
-- Implement caddy on docker
-- Setup CICD for the project read nestjs cicd integration
-- Add observemodule to the project
-- Add verified PostgreSQL TLS support (deferred from V1-004 by user decision).
-  - V1-004 uses plaintext database connections; add TLS before connecting over an untrusted network or to a database provider that requires it.
-  - Support server certificate verification and an optional provider CA certificate, with configuration validation and connection tests.
-- Implement MCP
+# Follow-up work
+
+See [release-readiness.md](release-readiness.md) for rollout gates.
+
+- Choose hosting; App Platform is a candidate, not a selected deployment target.
+  Caddy and production Compose are deferred by user decision.
+- Create deployment/CI/CD separately; preserve the current workflow in V1-018.
+- Agree a normalized Tracking Snapshot read projection for frontend status/dates.
+- Add observability/worker operational alerting and evaluate MCP separately.
+
+V1-018 adds verified PostgreSQL TLS with optional provider CA, local API/database
+Compose, portable image, frontend handoff and repository instructions. Managed DB
+CA/network configuration and production verification still require operator work.
