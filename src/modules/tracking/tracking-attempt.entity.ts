@@ -33,6 +33,7 @@ export enum TrackingAttemptOutcome {
   { name: 'fk_attempts_snapshot', onDelete: 'NO ACTION' },
 )
 @Unique('uq_attempts_run_shipment', ['trackingRunId', 'shipmentId'])
+@Index('ix_attempts_shipment_completed', { synchronize: false })
 @Index('ix_attempts_shipment_started', { synchronize: false })
 @Index('ix_attempts_run_outcome', ['trackingRunId', 'outcome'])
 @Check(

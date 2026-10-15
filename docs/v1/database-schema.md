@@ -188,16 +188,17 @@ the existing attempt/run tables and requires no additional column or migration.
 
 One immutable row is the complete normalized tracking state first observed when the known tracking facts changed. Polls that return identical normalized data do not create another snapshot.
 
-| Column                  | Type                                  | Null | Default/meaning                                           |
-| ----------------------- | ------------------------------------- | ---- | --------------------------------------------------------- |
-| `id`                    | `bigint generated always as identity` | No   | Primary key.                                              |
-| `shipment_id`           | `integer`                             | No   | FK to `shipments.id`; `ON DELETE NO ACTION`.              |
-| `carrier_status`        | `varchar(255)`                        | Yes  | Carrier-provided display status.                          |
-| `carrier_status_detail` | `text`                                | Yes  | Additional Carrier status text.                           |
-| `picked_up_on`          | `date`                                | Yes  | Normalized pickup calendar date.                          |
-| `estimated_delivery_on` | `date`                                | Yes  | Normalized estimated-delivery calendar date.              |
-| `delivered_on`          | `date`                                | Yes  | Normalized actual-delivery calendar date.                 |
-| `observed_at`           | `timestamptz`                         | No   | `now()`; when this normalized version was first observed. |
+| Column                  | Type                                  | Null | Default/meaning                                                          |
+| ----------------------- | ------------------------------------- | ---- | ------------------------------------------------------------------------ |
+| `id`                    | `bigint generated always as identity` | No   | Primary key.                                                             |
+| `external_id`           | `uuid`                                | No   | BE-V1-001: unique, immutable public UUIDv4, default `gen_random_uuid()`. |
+| `shipment_id`           | `integer`                             | No   | FK to `shipments.id`; `ON DELETE NO ACTION`.                             |
+| `carrier_status`        | `varchar(255)`                        | Yes  | Carrier-provided display status.                                         |
+| `carrier_status_detail` | `text`                                | Yes  | Additional Carrier status text.                                          |
+| `picked_up_on`          | `date`                                | Yes  | Normalized pickup calendar date.                                         |
+| `estimated_delivery_on` | `date`                                | Yes  | Normalized estimated-delivery calendar date.                             |
+| `delivered_on`          | `date`                                | Yes  | Normalized actual-delivery calendar date.                                |
+| `observed_at`           | `timestamptz`                         | No   | `now()`; when this normalized version was first observed.                |
 
 Rules:
 
@@ -205,7 +206,8 @@ Rules:
 - Normalize Carrier dates to valid `YYYY-MM-DD` values before persistence; PostgreSQL stores them as `date`.
 - Missing Carrier values preserve the previous known value before comparison and insertion.
 - Do not store Carrier credentials, full responses, XML, HTML, or screenshots here.
-- No external UUID, soft deletion, `updated_at`, or actor fields; snapshots are immutable.
+- BE-V1-001 adds immutable public `external_id` UUIDv4 identities. No soft deletion,
+  `updated_at`, or actor fields; snapshot facts and identities remain immutable.
 - Index `(shipment_id, observed_at DESC, id DESC)` for history queries.
 - Add unique `(shipment_id, id)` to support ownership-safe composite foreign keys from Shipment and Attempt rows.
 
@@ -382,3 +384,26 @@ reference `auth_users.id` with indexed `ON DELETE NO ACTION` foreign keys.
 Historical and worker/system actors remain nullable. Users are deactivated,
 never deleted. API clients cannot supply actor IDs. The initial schema migration
 is unchanged; the extension is separately reversible and TypeORM-mapped.
+
+## Tracking read projection extension (BE-V1-001)
+
+Migration `1792281600000-TrackingReadProjection` adds snapshot `external_id` with
+`NOT NULL`, `gen_random_uuid()` and named unique constraint
+`uq_snapshots_external_id`. The additive column gives every existing snapshot an
+independent public identity without changing internal IDs, facts, observation
+times, current pointers or attempt references. The existing whole-row immutable
+trigger also protects the new UUID; it is never disabled. ORM writes cannot
+supply or update the UUID. Existing foreign keys retain `ON DELETE NO ACTION`.
+
+The volatile default requires a table rewrite/lock for populated history; schedule
+the migration before API rollout and allow sufficient operator migration time.
+This uses PostgreSQL's [ADD COLUMN default semantics](https://www.postgresql.org/docs/18/ddl-alter.html)
+and built-in [UUIDv4 generation](https://www.postgresql.org/docs/18/functions-uuid.html).
+Rollback removes public snapshot identities; reapplying generates different UUIDs.
+Treat rollback after client exposure as an identity reset requiring client resync.
+
+The partial index `ix_attempts_shipment_completed` on `(shipment_id,
+completed_at DESC, id DESC) WHERE completed_at IS NOT NULL` supports deterministic
+latest-completed-attempt reads. Latest associated runs use attempt membership and
+`tracking_runs.created_at DESC, id DESC`; current tracking always uses the existing
+Shipment pointer. Public projection adds no worker behavior or new foreign key.

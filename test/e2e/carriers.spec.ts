@@ -1,3 +1,4 @@
+import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { administratorCookie } from '@test/support/authentication.js';
 import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
@@ -63,6 +64,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         FfeRequestMode1792022400000,
         EmployeeAuth1792108800000,
         TrackingEvents1792195200000,
+        TrackingReadProjection1792281600000,
       ],
     });
     await source.initialize();

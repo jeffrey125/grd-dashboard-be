@@ -4,6 +4,7 @@ import {
   CreateDateColumn,
   Entity,
   ForeignKey,
+  Generated,
   Index,
   PrimaryGeneratedColumn,
   Unique,
@@ -14,6 +15,7 @@ import {
   name: 'fk_snapshots_shipment',
   onDelete: 'NO ACTION',
 })
+@Unique('uq_snapshots_external_id', ['externalId'])
 @Unique('uq_snapshots_owner', ['shipmentId', 'id'])
 // TypeORM cannot model mixed ASC/DESC keys. The migration and catalog tests own this index.
 @Index('ix_snapshots_history', { synchronize: false })
@@ -28,6 +30,16 @@ export class ShipmentTrackingSnapshotEntity {
     generatedIdentity: 'ALWAYS',
   })
   readonly id: string;
+
+  @Column({
+    name: 'external_id',
+    type: 'uuid',
+    default: () => 'gen_random_uuid()',
+    insert: false,
+    update: false,
+  })
+  @Generated('uuid')
+  readonly externalId: string;
 
   @Column({ name: 'shipment_id', type: 'integer', update: false })
   readonly shipmentId: number;

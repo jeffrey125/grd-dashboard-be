@@ -1,3 +1,4 @@
+import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { AUTH_ENGINE, type AuthEngine } from '@modules/auth/auth.engine.js';
 import type { PostgresDriver } from 'typeorm/driver/postgres/PostgresDriver.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
@@ -74,6 +75,7 @@ beforeAll(async () => {
       FfeRequestMode1792022400000,
       EmployeeAuth1792108800000,
       TrackingEvents1792195200000,
+      TrackingReadProjection1792281600000,
     ],
   });
 
