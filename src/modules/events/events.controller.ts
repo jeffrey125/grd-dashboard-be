@@ -5,6 +5,17 @@ import { AuthPolicy } from '@modules/auth/auth.policy.js';
 import { AuthService } from '@modules/auth/auth.service.js';
 import { EventsSource, type LiveEvent } from './events.source.js';
 
+function eventData(event: LiveEvent) {
+  if (event.type === 'tracking.changed')
+    return {
+      externalId: event.externalId,
+      snapshotExternalId: event.snapshotExternalId,
+      observedAt: event.observedAt.toISOString(),
+    };
+
+  return 'externalId' in event ? { externalId: event.externalId } : {};
+}
+
 @Controller('events')
 @AuthPolicy('staff')
 export class EventsController {
@@ -61,7 +72,7 @@ export class EventsController {
 
           if (!closed)
             response.write(
-              `event: ${event.type}\ndata: ${JSON.stringify('externalId' in event ? { externalId: event.externalId } : {})}\n\n`,
+              `event: ${event.type}\ndata: ${JSON.stringify(eventData(event))}\n\n`,
             );
         })
         .catch(close)

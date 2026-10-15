@@ -215,7 +215,7 @@ rate limiting. Other Shipments are unaffected.
 
 - Configuration/session startup errors expose a concise safe message and preserve the technical cause only in backend logs.
 - Per-Shipment failures are isolated and stored on attempts; one failure does not discard successful results from the same run.
-- SSE may announce run/Shipment changes, but PostgreSQL is the reconnect source of truth.
+- SSE announces run/Shipment changes, while PostgreSQL remains the reconnect source of truth.
 - Notification failure must not roll back tracking persistence.
 - V1-016 explicitly approves the existing Axios package for ntfy. Publishing has
   a 15-second deadline, no redirects/retries, and shutdown cancellation. Optional
@@ -242,6 +242,12 @@ rate limiting. Other Shipments are unaffected.
   triggers signal committed writes across API/worker processes. Attempt completion
   also signals run changes. Signals follow commit order; clients must tolerate
   coalescing and fetch current state, not assume every intermediate state appears.
+- `tracking.changed` contains the Shipment `externalId`, `snapshotExternalId`,
+  and canonical UTC `observedAt`. It is emitted transactionally only when the
+  current snapshot pointer changes to a non-null owned snapshot, including first
+  acquisition. Unchanged success, failed/not-found results, notes, scheduling,
+  pause and resume do not emit it; generic Shipment invalidations remain intact.
+  The public snapshot UUID is the deduplication identity.
 - `resync` with `{}` occurs on every connection and database listener recovery.
   Refetch Shipments and any watched run URLs. Subscribe before the initial HTTP
   fetch and refetch again for changes arriving during it. `Last-Event-ID` does not

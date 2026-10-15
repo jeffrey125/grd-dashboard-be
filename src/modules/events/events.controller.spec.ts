@@ -62,6 +62,24 @@ describe('SSE bounded delivery and fresh authorization', () => {
     expect(events.observed).toBe(false);
   });
 
+  it('serializes a precise tracking change with canonical public fields', async () => {
+    const { events, response } = stream();
+
+    await vi.waitFor(() => expect(response.write).toHaveBeenCalledOnce());
+    response.write.mockClear();
+    events.next({
+      type: 'tracking.changed',
+      externalId: '8c70a1c2-1ba2-4b85-a973-97ca73c676e4',
+      snapshotExternalId: 'aa920a20-af06-46cd-bb22-4596857bcb20',
+      observedAt: new Date('2026-10-16T08:00:00+08:00'),
+    });
+
+    await vi.waitFor(() => expect(response.write).toHaveBeenCalledOnce());
+    expect(response.write).toHaveBeenCalledWith(
+      'event: tracking.changed\ndata: {"externalId":"8c70a1c2-1ba2-4b85-a973-97ca73c676e4","snapshotExternalId":"aa920a20-af06-46cd-bb22-4596857bcb20","observedAt":"2026-10-16T00:00:00.000Z"}\n\n',
+    );
+  });
+
   it('bounds queued events while authorization is slow and ignores late completion', async () => {
     const { events, response, authenticate } = stream();
     let resolve!: (value: unknown) => void;

@@ -13,7 +13,8 @@ afterAll(async () => {
 });
 
 it('backfills unique immutable public identities without changing populated history or ownership', async () => {
-  await db.source.undoLastMigration();
+  await db.source.undoLastMigration(); // Precise event migration.
+  await db.source.undoLastMigration(); // Tracking projection migration.
 
   const [shipment] = await db.source
     .query(`INSERT INTO shipments (carrier_id, tracking_reference)
@@ -119,7 +120,8 @@ it('backfills unique immutable public identities without changing populated hist
     )[0].external_id,
   ).toBe(after[0].external_id);
 
-  await db.source.undoLastMigration();
+  await db.source.undoLastMigration(); // Precise event migration.
+  await db.source.undoLastMigration(); // Tracking projection migration.
 
   expect(
     await db.source.query(

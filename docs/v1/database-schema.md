@@ -466,3 +466,21 @@ upcoming delivery, and global recent-snapshot ordering. The required aggregate
 scan remains linear in the nondeleted set, and the existing indexes cover lookup
 paths. Another index would not remove that scan, so no migration, index, or foreign
 key is justified for BE-V1-004.
+
+## Precise tracking-change events (BE-V1-005)
+
+Migration `1792368000000-TrackingChangeEvents` adds the
+`grd_announce_tracking_change()` trigger function and the
+`shipments_announce_tracking_change` trigger. After an update changes
+`current_tracking_snapshot_id` from any prior value to a non-null value, the
+function verifies the pointed snapshot belongs to that Shipment and publishes a
+`tracking.changed` PostgreSQL notification containing only the Shipment public
+UUID, snapshot public UUID and snapshot observation timestamp.
+
+PostgreSQL delivers `NOTIFY` messages only after transaction commit, so rolled
+back pointer changes do not reach SSE clients. The existing broad Shipment trigger
+continues to publish `shipment.changed` for compatible invalidation behavior.
+Snapshot inserts alone, unchanged pointer assignments, null pointer updates and
+updates to notes, scheduling or monitoring state do not publish the precise event.
+The migration adds no table, column, index or foreign key and is independently
+reversible by dropping its trigger and function.

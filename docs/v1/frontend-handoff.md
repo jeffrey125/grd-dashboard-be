@@ -16,7 +16,7 @@ Hosting remains undecided. Caddy, production Compose, App Platform specification
 deployment workflows and CI/CD are deferred. Do not infer same-Droplet routing,
 copy the Tom application's proxy blindly, or build an Origin-stripping proxy.
 
-## Tracking projection, search, history, overview and remaining gaps
+## Tracking projection, search, history, overview and live changes
 
 BE-V1-001 adds stored `currentTracking`, `latestLookup`, and `latestRun` to every
 Shipment response, including inserted/duplicate batches and notes/pause/resume.
@@ -26,9 +26,10 @@ Carrier status is distinct from `monitoringStatus` and lookup outcome.
 BE-V1-002 adds authenticated, paginated whole-dataset search at
 `GET /shipments/search`. BE-V1-003 adds normalized snapshot history at
 `GET /shipments/:externalId/history`. BE-V1-004 adds the operational overview at
-`GET /dashboard/overview`. Source-data diagnostics, precise tracking-change
-events, refresh-all and scheduler controls remain unavailable. Manual refresh
-returns a run ID that stays independently readable through
+`GET /dashboard/overview`. BE-V1-005 adds precise committed tracking-change
+events to the existing live stream. Source-data diagnostics, refresh-all and
+scheduler controls remain unavailable. Manual refresh returns a run ID that
+stays independently readable through
 `GET /tracking-runs/:externalId`.
 
 ## Browser session flow
@@ -356,18 +357,29 @@ run. Treat reason codes as diagnostics; unknown codes need a generic safe messag
 Open `new EventSource(apiOrigin + '/events', { withCredentials: true })` once
 authenticated. Named events:
 
-| Event              | Data             | Client action                                                                                      |
-| ------------------ | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `resync`           | `{}`             | Reload authoritative Shipments and any displayed run. Sent on connection and DB listener recovery. |
-| `shipment.changed` | `{ externalId }` | Invalidate/refetch the affected Shipment/list; 404 means deleted.                                  |
-| `run.changed`      | `{ externalId }` | Refetch that displayed run.                                                                        |
-| `heartbeat`        | `{}`             | Liveness signal every 15 seconds; no data mutation.                                                |
+| Event              | Data                                             | Client action                                                                                      |
+| ------------------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `resync`           | `{}`                                             | Reload authoritative Shipments and any displayed run. Sent on connection and DB listener recovery. |
+| `shipment.changed` | `{ externalId }`                                 | Invalidate/refetch the affected Shipment/list; 404 means deleted.                                  |
+| `run.changed`      | `{ externalId }`                                 | Refetch that displayed run.                                                                        |
+| `tracking.changed` | `{ externalId, snapshotExternalId, observedAt }` | Record the new public snapshot revision, then refetch authoritative Shipment and overview data.    |
+| `heartbeat`        | `{}`                                             | Liveness signal every 15 seconds; no data mutation.                                                |
+
+`tracking.changed` is emitted after commit when a Shipment's current snapshot
+pointer changes to a non-null snapshot, including its first successful tracking
+observation. `externalId` and `snapshotExternalId` are public UUIDv4 values;
+`observedAt` is a canonical UTC ISO timestamp such as
+`2026-10-16T00:00:00.000Z`. Notes, scheduling, pause/resume, failed/not-found
+lookups and successful unchanged lookups do not emit this precise event. The
+same tracking update still emits the compatible generic `shipment.changed` event.
 
 Subscribe before the initial HTTP fetch. Track invalidations arriving during
 each fetch and perform a follow-up fetch so a stale in-flight response cannot
 overwrite a newer event. Debounce bursts and clean up subscriptions on logout,
 navigation and unmount. Events are invalidations, not a replayable state log:
 `Last-Event-ID` has no replay semantics. Reconnect and refetch on every resync.
+Use `snapshotExternalId` as the deduplication/revision key for alerts and
+highlights; an event timestamp is observation data, not an ordering cursor.
 
 On EventSource errors, check `/auth/me` once with backoff; close the stream for
 401/restricted sessions instead of an endless login loop. Slow consumers are

@@ -22,7 +22,7 @@ manual refresh/events/notifications, and verified TLS are now implemented.
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | V1-001–002: supported scaffold, frozen dependencies, local gates | Pinned Node/pnpm, frozen lockfile, existing quality scripts and CI; fresh multi-stage image install/build; `pnpm check`. Existing hooks/workflow remain unchanged.                                                                                                              |
 | V1-003–004: independent runtimes/config/health/persistence       | `runtime/composition.spec.ts`, `test/integration/runtime.spec.ts`, `test/e2e/app.spec.ts`, database options/CA tests and `test/integration/database-tls.spec.ts`; `test/container/runtime.test.ts`.                                                                             |
-| V1-005: schema, seeds, migrations and data integrity             | `test/integration/database.spec.ts`, `schema.spec.ts`; fresh migration, all five reversals/reapply, schema drift, constraints, ownership and foreign keys. Container test also exercises compiled CLI with production-only dependencies.                                        |
+| V1-005: schema, seeds, migrations and data integrity             | `test/integration/database.spec.ts`, `schema.spec.ts`; fresh migration, all seven reversals/reapply, schema drift, constraints, ownership and foreign keys. Container test also exercises compiled CLI with production-only dependencies.                                       |
 | V1-006: process-local cache                                      | `infrastructure/cache/*.spec.ts`, composition and UPS cache/session tests; no external cache store.                                                                                                                                                                             |
 | V1-007–008: Carriers/Shipments                                   | Unit service tests, real repository tests and `test/e2e/carriers.spec.ts` / `shipments.spec.ts`: strict input, public projections, atomic batches, duplicate races, soft deletion, pause/resume.                                                                                |
 | V1-009–010: employee auth                                        | Accepted ADR, `auth-api.md`, auth unit/integration/e2e tests: default-deny, roles, Origin/CORS, cookies, expiry/revocation, password lifecycle and transactional admin protection. Interactive CLI's previous PTY verification is historical evidence, not current V8 coverage. |
@@ -121,9 +121,10 @@ not justify falsifying coverage exclusions or claiming 100% coverage.
    lookup and latest associated run to Shipment responses after its additive
    migration. BE-V1-002 adds paginated Shipment search, and BE-V1-003 adds
    normalized snapshot history. BE-V1-004 adds bounded operational overview
-   aggregates. Source diagnostics and precise tracking-change events still have
-   no public API. The [frontend handoff](frontend-handoff.md) describes the
-   available fields.
+   aggregates. BE-V1-005 adds precise committed tracking-change SSE events.
+   Source diagnostics still have no public API. The
+   [frontend handoff](frontend-handoff.md) describes the available fields and
+   live-event payloads.
 5. **External verification:** remote CI, actual-domain browser integration,
    production image/OS security scan, performance/load testing and live provider/
    notification checks are not performed here. No new CI/deployment workflow,

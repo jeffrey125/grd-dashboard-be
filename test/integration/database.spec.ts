@@ -1,4 +1,5 @@
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
+import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
 import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
 import { TrackingEvents1792195200000 } from '@infrastructure/database/migrations/1792195200000-TrackingEvents.js';
@@ -82,6 +83,7 @@ describe('production migrations and repository foundation', () => {
         EmployeeAuth1792108800000,
         TrackingEvents1792195200000,
         TrackingReadProjection1792281600000,
+        TrackingChangeEvents1792368000000,
       ],
     });
     await source.initialize();
@@ -357,6 +359,7 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Precise tracking event migration.
     await source.undoLastMigration(); // Tracking projection migration.
     await source.undoLastMigration(); // Event trigger migration.
     await source.undoLastMigration(); // Auth migration.
@@ -382,6 +385,7 @@ describe('production migrations and repository foundation', () => {
     await source.undoLastMigration();
     await source.undoLastMigration();
     await source.undoLastMigration();
+    await source.undoLastMigration();
 
     expect((await cli('migration:show')).stdout).toContain(
       '[ ] InitialSchema1791849600000',
@@ -392,6 +396,7 @@ describe('production migrations and repository foundation', () => {
     expect(firstRun.stdout).toContain('CREATE TABLE carriers');
     expect((await cli('migration:show')).stdout).toContain('[X]');
 
+    await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');

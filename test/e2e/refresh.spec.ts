@@ -130,14 +130,14 @@ it('coalesces concurrent manual refreshes into one durable run and exposes safe 
     .expect(401);
 });
 
-async function stream() {
+async function stream(sessionCookie = cookie) {
   const controller = new AbortController();
   const address = (app.getHttpServer() as Server).address();
 
   if (!address || typeof address === 'string') throw new Error('No address');
 
   const response = await fetch(`http://127.0.0.1:${address.port}/events`, {
-    headers: { Cookie: cookie },
+    headers: { Cookie: sessionCookie },
     signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]),
   });
 
@@ -191,6 +191,24 @@ it('streams committed changes, reconnects with resync, and closes revoked sessio
     const id = created.body.inserted[0].externalId;
 
     expect(await first.next('shipment.changed')).toContain(id);
+
+    const snapshots = await db.source.query(
+      `INSERT INTO shipment_tracking_snapshots (shipment_id, carrier_status, observed_at)
+       SELECT shipment.id, 'Moving', '2026-10-16T08:00:00+08:00'
+         FROM shipments shipment
+        WHERE shipment.external_id = $1
+       RETURNING id, external_id`,
+      [id],
+    );
+
+    await db.source.query(
+      'UPDATE shipments SET current_tracking_snapshot_id = $1 WHERE external_id = $2',
+      [snapshots[0].id, id],
+    );
+
+    expect(await first.next('tracking.changed')).toBe(
+      `event: tracking.changed\ndata: {"externalId":"${id}","snapshotExternalId":"${snapshots[0].external_id}","observedAt":"2026-10-16T00:00:00.000Z"}`,
+    );
 
     const queued = await http().post(`/shipments/${id}/refresh`).expect(202);
 
@@ -300,6 +318,14 @@ it('rejects unavailable targets and protects status/events, including restricted
   const staffCookie = signedIn.cookies
     .map((value) => value.split(';')[0])
     .join('; ');
+  const staffEvents = await stream(staffCookie);
+
+  try {
+    expect(await staffEvents.next('resync')).toBeTruthy();
+  } finally {
+    staffEvents.close();
+  }
+
   const staffShipment = await http()
     .post('/shipments')
     .send({
