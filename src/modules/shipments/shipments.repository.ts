@@ -1,7 +1,15 @@
 import type { z } from 'zod';
-import type { NewShipment, shipmentRecordSchema } from './shipments.schemas.js';
+import type {
+  NewShipment,
+  ShipmentSearchQuery,
+  shipmentRecordSchema,
+  shipmentSearchResponseSchema,
+} from './shipments.schemas.js';
 
 export type ShipmentRecord = z.infer<typeof shipmentRecordSchema>;
+export type ShipmentSearchResponse = z.infer<
+  typeof shipmentSearchResponseSchema
+>;
 
 export interface BulkShipmentResult {
   inserted: ShipmentRecord[];
@@ -21,6 +29,7 @@ export type MonitoringResult =
 
 export interface ShipmentsRepository {
   list(): Promise<ShipmentRecord[]>;
+  search(query: ShipmentSearchQuery): Promise<ShipmentSearchResponse>;
   find(externalId: string): Promise<ShipmentRecord | null>;
   createMany(
     items: NewShipment[],

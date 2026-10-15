@@ -407,3 +407,24 @@ completed_at DESC, id DESC) WHERE completed_at IS NOT NULL` supports determinist
 latest-completed-attempt reads. Latest associated runs use attempt membership and
 `tracking_runs.created_at DESC, id DESC`; current tracking always uses the existing
 Shipment pointer. Public projection adds no worker behavior or new foreign key.
+
+## Shipment search read query (BE-V1-002)
+
+BE-V1-002 makes no schema change. `GET /shipments/search` uses one PostgreSQL
+statement with materialized filtered and selected sets so page items, selected
+total and all five tab counts share one statement snapshot. The non-tab filters
+are applied before tab selection and pagination. Latest completed attempts use
+`ix_attempts_shipment_completed`; current tracking uses the ownership-safe
+Shipment snapshot pointer. Latest-run projection is deferred until after the
+requested page is selected and uses the existing attempt membership indexes.
+
+The representative PostgreSQL 18.3 plan for 10,000 active Shipments used the
+existing partial active-reference, snapshot-history, completed-attempt,
+attempt-membership and run-attempt indexes. The measured warm-cache
+`EXPLAIN (ANALYZE, BUFFERS)` execution was 25.312 ms with 10,275 shared-buffer
+hits; latest-run lookup executed only for the 100 returned
+rows. The required counts scan the complete filtered set and the sort handled
+10,000 rows in about 5 ms. This is disposable-database plan evidence, not a
+production latency guarantee. A new index would add write/storage cost without
+removing the full-set count or materialized sort in this workload, so no index
+migration is justified for BE-V1-002.

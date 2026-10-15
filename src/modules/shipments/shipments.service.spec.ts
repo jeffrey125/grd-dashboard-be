@@ -26,6 +26,13 @@ async function setup() {
     createMany: vi
       .fn()
       .mockResolvedValue({ kind: 'created', inserted: [], duplicates: [] }),
+    search: vi.fn().mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 25,
+      total: 0,
+      tabCounts: { all: 0, active: 0, paused: 0, delivered: 0, attention: 0 },
+    }),
   };
   const carriers = { find: vi.fn().mockResolvedValue(carrier) };
   const module = await Test.createTestingModule({
@@ -38,6 +45,91 @@ async function setup() {
 
   return { service: module.get(ShipmentsService), repository, carriers };
 }
+
+describe('Shipment search', () => {
+  it('applies defaults and normalizes the public query', async () => {
+    const { service, repository } = await setup();
+
+    await service.search({});
+    await service.search({
+      tab: 'all',
+      q: '  001Ab  ',
+      carrierExternalId: carrierExternalId.toUpperCase(),
+      lookupOutcome: 'never_checked',
+      createdFrom: '2026-03-08',
+      createdTo: '2026-11-01',
+      estimatedDeliveryFrom: '2026-03-08',
+      estimatedDeliveryTo: '2026-11-01',
+      undeliveredOnly: 'true',
+      page: '2',
+      pageSize: '100',
+      sortBy: 'estimatedDeliveryOn',
+      sortDirection: 'asc',
+    });
+
+    expect(repository.search).toHaveBeenNthCalledWith(1, {
+      tab: 'active',
+      q: undefined,
+      carrierExternalId: undefined,
+      lookupOutcome: undefined,
+      createdFrom: undefined,
+      createdTo: undefined,
+      estimatedDeliveryFrom: undefined,
+      estimatedDeliveryTo: undefined,
+      undeliveredOnly: false,
+      page: 1,
+      pageSize: 25,
+      sortBy: 'createdAt',
+      sortDirection: 'desc',
+    });
+    expect(repository.search).toHaveBeenNthCalledWith(2, {
+      tab: 'all',
+      q: '001Ab',
+      carrierExternalId,
+      lookupOutcome: 'never_checked',
+      createdFrom: '2026-03-08',
+      createdTo: '2026-11-01',
+      estimatedDeliveryFrom: '2026-03-08',
+      estimatedDeliveryTo: '2026-11-01',
+      undeliveredOnly: true,
+      page: 2,
+      pageSize: 100,
+      sortBy: 'estimatedDeliveryOn',
+      sortDirection: 'asc',
+    });
+  });
+
+  it.each([
+    { unknown: 'field' },
+    { tab: 'unknown' },
+    { q: 'x'.repeat(256) },
+    { q: 'bad\u0000search' },
+    { carrierExternalId: 'not-a-uuid' },
+    { lookupOutcome: 'pending' },
+    { createdFrom: '2026-02-29' },
+    { createdFrom: '2026-03-09', createdTo: '2026-03-08' },
+    { estimatedDeliveryFrom: '2026-11-02', estimatedDeliveryTo: '2026-11-01' },
+    { undeliveredOnly: 'yes' },
+    { page: '0' },
+    { page: '1.5' },
+    { page: ['1', '2'] },
+    { page: String(Number.MAX_SAFE_INTEGER) },
+    { pageSize: '10' },
+    { pageSize: '101' },
+    { sortBy: 'notes' },
+    { sortDirection: 'sideways' },
+  ])(
+    'rejects an invalid or unknown query without reading: %j',
+    async (query) => {
+      const { service, repository } = await setup();
+
+      expect(() => service.search(query)).toThrow(
+        expect.objectContaining({ status: 400 }),
+      );
+      expect(repository.search).not.toHaveBeenCalled();
+    },
+  );
+});
 
 describe('Shipment creation', () => {
   it('preserves strings and case, normalizes UUIDs, and uses the last repeated pair including omitted notes', async () => {

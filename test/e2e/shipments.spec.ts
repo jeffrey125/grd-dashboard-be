@@ -259,6 +259,60 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       .expect(403);
   });
 
+  it('serves the static search route with strict query validation and legacy compatibility', async () => {
+    const created = await create([
+      item('search-http-001', 'Literal %_ search note'),
+    ]).expect(201);
+
+    await request(app.getHttpServer() as Server)
+      .get('/shipments/search')
+      .expect(401);
+
+    const response = await http()
+      .get('/shipments/search')
+      .query({
+        tab: 'all',
+        q: '%_ SEARCH',
+        page: 1,
+        pageSize: 25,
+        sortBy: 'trackingReference',
+        sortDirection: 'asc',
+      })
+      .expect('Cache-Control', 'no-store')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      page: 1,
+      pageSize: 25,
+      total: 1,
+      tabCounts: {
+        all: 1,
+        active: 1,
+        paused: 0,
+        delivered: 0,
+        attention: 0,
+      },
+    });
+    expect(response.body.items).toEqual([
+      expect.objectContaining({
+        externalId: created.body.inserted[0].externalId,
+        trackingReference: 'search-http-001',
+      }),
+    ]);
+    expect(
+      Array.isArray((await http().get('/shipments').expect(200)).body),
+    ).toBe(true);
+
+    for (const query of [
+      { unknown: 'field' },
+      { page: 0 },
+      { pageSize: 101 },
+      { sortBy: 'privateColumn' },
+      { createdFrom: '2026-03-09', createdTo: '2026-03-08' },
+    ])
+      await http().get('/shipments/search').query(query).expect(400);
+  });
+
   it('creates, reads, edits, pauses, resumes and deletes by external UUID', async () => {
     const response = await create([item(' 000Ab ', ' Initial ')])
       .expect(201)

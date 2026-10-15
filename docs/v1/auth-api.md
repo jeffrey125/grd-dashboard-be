@@ -22,7 +22,7 @@ are never returned. Dates serialize to ISO timestamps. Responses use no-store.
 | PATCH `/admin/accounts/:externalId`         | nonempty subset of `{ firstName, lastName, email, role, active }` | Unrestricted Admin; 200 profile                                                               |
 | POST `/admin/accounts/:externalId/password` | `{ password }`                                                    | Unrestricted Admin; 204, require replacement and revoke all sessions                          |
 
-GET Carrier routes and every existing Shipment route require unrestricted Staff
+GET Carrier routes and every Shipment route, including `/shipments/search`, require unrestricted Staff
 or Admin; Carrier PATCH requires Admin. Minimal health GETs are public. Other
 controller handlers require an explicit policy; absence denies access. V1-016
 manual refresh and live events will require unrestricted Staff/Admin; diagnostic

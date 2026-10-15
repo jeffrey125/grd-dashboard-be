@@ -20,6 +20,7 @@ import {
   invalidShipmentRows,
   monitoringCommandSchema,
   parseShipmentInput,
+  shipmentSearchQuerySchema,
   shipmentExternalIdSchema,
   updateShipmentNotesSchema,
   type NewShipment,
@@ -36,6 +37,12 @@ export class ShipmentsService {
 
   list() {
     return this.repository.list();
+  }
+
+  search(query: unknown) {
+    return this.repository.search(
+      parseShipmentInput(shipmentSearchQuerySchema, query),
+    );
   }
 
   async create(input: unknown, actorId: number | null = null) {

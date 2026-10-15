@@ -7,6 +7,7 @@ import {
 } from './shipment.entity.js';
 import type { NewShipment } from './shipments.schemas.js';
 import { readShipments } from './typeorm-shipment-read.js';
+import { searchShipments } from './typeorm-shipment-search.js';
 import {
   SHIPMENTS_REPOSITORY,
   type MonitoringCommand,
@@ -28,6 +29,10 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
 
   async list() {
     return readShipments(this.source.manager);
+  }
+
+  search(query: Parameters<ShipmentsRepository['search']>[0]) {
+    return searchShipments(this.source.manager, query);
   }
 
   find(externalId: string) {

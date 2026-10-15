@@ -16,14 +16,15 @@ Hosting remains undecided. Caddy, production Compose, App Platform specification
 deployment workflows and CI/CD are deferred. Do not infer same-Droplet routing,
 copy the Tom application's proxy blindly, or build an Origin-stripping proxy.
 
-## Tracking projection and remaining gaps
+## Tracking projection, search and remaining gaps
 
 BE-V1-001 adds stored `currentTracking`, `latestLookup`, and `latestRun` to every
 Shipment response, including inserted/duplicate batches and notes/pause/resume.
 Apply migration `1792281600000-TrackingReadProjection` before running this API.
 Carrier status is distinct from `monitoringStatus` and lookup outcome.
 
-Snapshot history, source-data diagnostics, paginated Shipment queries, overview
+BE-V1-002 adds authenticated, paginated whole-dataset search at
+`GET /shipments/search`. Snapshot history, source-data diagnostics, overview
 aggregates, precise tracking-change events, refresh-all and scheduler controls
 remain unavailable. Manual refresh returns a run ID that stays independently
 readable through `GET /tracking-runs/:externalId`.
@@ -138,9 +139,52 @@ null tracking/lookup and a non-null run. Reads use one database statement snapsh
 responses remain `no-store`. Public projections omit internal IDs, actors,
 source data, credentials, lock versions and provider diagnostic messages.
 
+The list frontend should use `GET /shipments/search`; the legacy array endpoint
+remains available for existing consumers. Its response is:
+
+```ts
+type ShipmentSearchResponse = {
+  items: Shipment[];
+  page: number;
+  pageSize: 25 | 50 | 100;
+  total: number;
+  tabCounts: {
+    all: number;
+    active: number;
+    paused: number;
+    delivered: number;
+    attention: number;
+  };
+};
+```
+
+Search query fields are strict: unknown fields return 400. `tab` is `all`,
+`active` (default), `paused`, `delivered`, or `attention`. `q` is a trimmed,
+case-insensitive literal substring of reference or notes, up to 255 code units;
+`%`, `_`, and `\\` have no wildcard meaning. `carrierExternalId` is one UUIDv4.
+`lookupOutcome` is `never_checked`, `found`, `not_found`, `failed`, or `skipped`;
+pending-only Shipments are `never_checked`.
+
+`createdFrom`/`createdTo` are inclusive `YYYY-MM-DD` dates in
+`America/New_York`. `estimatedDeliveryFrom`/`estimatedDeliveryTo` are inclusive
+calendar dates and exclude null ETAs. `undeliveredOnly=true` excludes completed
+Shipments. Reversed or invalid ranges return 400. Pagination defaults to page 1
+and 25 rows; only 25/50/100 are accepted. Sorting defaults to `createdAt desc`;
+`trackingReference`, `estimatedDeliveryOn`, and `lastAttemptedAt` plus `asc` or
+`desc` are also accepted. Null sortable values always appear last.
+
+`total` includes the selected tab and all filters. `tabCounts` applies every
+non-tab filter and ignores the selected tab. Attention is intentionally
+overlapping: it means a non-completed Shipment whose latest completed lookup
+failed, or a threshold-paused Shipment. Active Shipments stay Active when their
+Carrier is disabled. Search items, total, and counts come from one PostgreSQL
+statement snapshot. Separate page requests remain live offset reads rather than
+a frozen result set.
+
 | Route                                 | Input → success                                                                                                                                           |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                   |
+| `GET /shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                        |
 | `GET /shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                  |
 | `POST /shipments`                     | `{ items: [{ carrierExternalId, trackingReference, notes? }] }` → `{ inserted: Shipment[], duplicates: Shipment[] }`; 201 if any inserted, otherwise 200. |
 | `PATCH /shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                          |

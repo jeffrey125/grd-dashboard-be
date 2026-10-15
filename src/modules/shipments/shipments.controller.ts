@@ -11,6 +11,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -28,6 +29,12 @@ export class ShipmentsController {
   @Header('Cache-Control', 'no-store')
   list() {
     return this.shipments.list();
+  }
+
+  @Get('search')
+  @Header('Cache-Control', 'no-store')
+  search(@Query() query: unknown) {
+    return this.shipments.search(query);
   }
 
   @Post()
