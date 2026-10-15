@@ -16,18 +16,17 @@ Hosting remains undecided. Caddy, production Compose, App Platform specification
 deployment workflows and CI/CD are deferred. Do not infer same-Droplet routing,
 copy the Tom application's proxy blindly, or build an Origin-stripping proxy.
 
-## Important contract gap
+## Tracking projection and remaining gaps
 
-**The current Shipment API does not expose its normalized Tracking Snapshot.**
-Carrier status/detail and pickup/estimated-delivery/delivered dates exist in
-PostgreSQL but are absent from Shipment GET/list and run-status responses. A full
-tracking-details dashboard needs a separately agreed backend read projection;
-do not invent response fields or label `monitoringStatus` as the Carrier's status.
+BE-V1-001 adds stored `currentTracking`, `latestLookup`, and `latestRun` to every
+Shipment response, including inserted/duplicate batches and notes/pause/resume.
+Apply migration `1792281600000-TrackingReadProjection` before running this API.
+Carrier status is distinct from `monitoringStatus` and lookup outcome.
 
-There is also no snapshot history, source-data diagnostic endpoint, latest-run
-lookup by Shipment, paginated Shipment list, refresh-all or scheduler start/stop
-endpoint. Manual refresh returns a run ID that can be read by the run endpoint.
-These limits are explicit handoff gaps, not frontend bugs to hide with mock data.
+Snapshot history, source-data diagnostics, paginated Shipment queries, overview
+aggregates, precise tracking-change events, refresh-all and scheduler controls
+remain unavailable. Manual refresh returns a run ID that stays independently
+readable through `GET /tracking-runs/:externalId`.
 
 ## Browser session flow
 
@@ -84,6 +83,9 @@ type Shipment = {
   trackingReference: string;
   notes: string | null;
   verificationUrl: string | null;
+  currentTracking: TrackingSnapshot | null;
+  latestLookup: LatestLookup | null;
+  latestRun: TrackingRun | null;
   monitoringStatus: 'active' | 'paused' | 'completed';
   monitoringReason: 'manual' | 'not_found_threshold' | 'delivered' | null;
   lastAttemptedAt: string | null;
@@ -93,6 +95,48 @@ type Shipment = {
   updatedAt: string;
 };
 ```
+
+The added projection types are:
+
+```ts
+type TrackingSnapshot = {
+  externalId: string; // Immutable public UUIDv4, including historical snapshots.
+  carrierStatus: string | null;
+  carrierStatusDetail: string | null;
+  pickedUpOn: string | null;
+  estimatedDeliveryOn: string | null;
+  deliveredOn: string | null;
+  observedAt: string;
+};
+type LatestLookup = {
+  runExternalId: string;
+  outcome: 'found' | 'not_found' | 'failed' | 'skipped';
+  snapshotChanged: boolean;
+  retryable: boolean | null;
+  reasonCode: string | null;
+  completedAt: string;
+};
+```
+
+`currentTracking` follows the Shipment's current snapshot pointer. Carrier dates
+are calendar strings (`YYYY-MM-DD`), never timezone-shift them. `observedAt` is an
+ISO timestamp for the first observation of that normalized version, **not the
+last successful lookup time**. Unchanged successful checks reuse its UUID and
+observation time; failed, not-found and skipped checks preserve known tracking.
+Partial Carrier data retains explicit nulls and the existing known-value merge.
+
+`latestLookup` is the most recently completed attempt by `completed_at DESC,
+id DESC`; pending attempts never replace it. `latestRun` is the newest run with
+an attempt for this Shipment by `created_at DESC, id DESC`, including queued,
+running or terminal runs. The tie-breaker IDs remain server-only. Its shape is
+`TrackingRun` below, and `attemptCount` covers the entire run, not just this
+Shipment. A newer associated run does not change an explicitly requested manual
+run's identity or status endpoint.
+
+A new Shipment has all three fields null. A Shipment with only pending work has
+null tracking/lookup and a non-null run. Reads use one database statement snapshot;
+responses remain `no-store`. Public projections omit internal IDs, actors,
+source data, credentials, lock versions and provider diagnostic messages.
 
 | Route                                 | Input → success                                                                                                                                           |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -230,7 +274,7 @@ Before frontend handoff, test these groups against the real local backend:
 4. SSE reconnect/resync, event-during-fetch reconciliation, deleted row, revoked
    session and complete subscription cleanup.
 5. Credentialed browser CORS/cookies on the actual chosen production domains;
-   resolved snapshot read projection before claiming tracking-details parity.
+   snapshot UUID/null/date semantics across reads and mutation responses.
 
 See backend test examples in `test/e2e/auth.spec.ts`, `shipments.spec.ts`,
 `carriers.spec.ts` and `refresh.spec.ts`. Tests are evidence, not a reason to copy

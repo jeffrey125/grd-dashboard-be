@@ -185,4 +185,4 @@ unchanged. Intended origins remain `api.globalresourcesdirect.com` (BE) and
 One API and one worker are required for v1; memory-only auth throttles and provider
 rate limits are not multi-replica-safe. See the [release gates](docs/v1/release-readiness.md)
 before rollout, including trusted proxy/client-IP handling, TLS/CA mounting,
-migration control, backups, monitoring, and the missing frontend tracking fields.
+migration control, backups, monitoring, and remaining frontend API gaps.

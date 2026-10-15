@@ -5,7 +5,8 @@ import {
   ShipmentMonitoringReason,
   ShipmentMonitoringStatus,
 } from './shipment.entity.js';
-import { shipmentRecordSchema, type NewShipment } from './shipments.schemas.js';
+import type { NewShipment } from './shipments.schemas.js';
+import { readShipments } from './typeorm-shipment-read.js';
 import {
   SHIPMENTS_REPOSITORY,
   type MonitoringCommand,
@@ -15,67 +16,18 @@ import {
   type ShipmentRecord,
 } from './shipments.repository.js';
 
-type JoinedShipment = ShipmentEntity & { carrier: CarrierEntity };
-
-function record(row: JoinedShipment): ShipmentRecord {
-  return shipmentRecordSchema.parse({
-    externalId: row.externalId,
-    carrier: {
-      externalId: row.carrier.externalId,
-      code: row.carrier.code,
-      name: row.carrier.name,
-      isActive: row.carrier.isActive,
-    },
-    trackingReference: row.trackingReference,
-    notes: row.notes,
-    verificationUrl: row.verificationUrl,
-    monitoringStatus: row.monitoringStatus,
-    monitoringReason: row.monitoringReason,
-    lastAttemptedAt: row.lastAttemptedAt,
-    nextCheckAt: row.nextCheckAt,
-    consecutiveNotFoundCount: row.consecutiveNotFoundCount,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  });
-}
-
-function readable(manager: EntityManager) {
-  // Carrier retirement never hides its existing Shipments. Only the Shipment's
-  // deletion flag controls access, and all joined fields are projected explicitly.
-  return manager
-    .getRepository(ShipmentEntity)
-    .createQueryBuilder('shipment')
-    .withDeleted()
-    .innerJoinAndMapOne(
-      'shipment.carrier',
-      CarrierEntity,
-      'carrier',
-      'carrier.id = shipment.carrier_id',
-    )
-    .where('shipment.deleted_at IS NULL');
-}
-
 async function find(
   manager: EntityManager,
   externalId: string,
 ): Promise<ShipmentRecord | null> {
-  const row = await readable(manager)
-    .andWhere('shipment.external_id = :externalId', { externalId })
-    .getOne();
-
-  return row ? record(row as JoinedShipment) : null;
+  return (await readShipments(manager, [externalId]))[0] ?? null;
 }
 
 export class TypeOrmShipmentsRepository implements ShipmentsRepository {
   constructor(private readonly source: DataSource) {}
 
   async list() {
-    const rows = await readable(this.source.manager)
-      .orderBy('shipment.created_at', 'DESC')
-      .addOrderBy('shipment.id', 'DESC')
-      .getMany();
-
-    return rows.map((row) => record(row as JoinedShipment));
+    return readShipments(this.source.manager);
   }
 
   find(externalId: string) {
@@ -194,7 +146,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
 
       const results = new Map<
         NewShipment,
-        { inserted: boolean; shipment: ShipmentRecord }
+        { inserted: boolean; externalId: string }
       >();
       // Acquire conflicting pair locks in a global order, including batches
       // submitted in reverse order, to prevent cross-request deadlocks.
@@ -238,17 +190,28 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
 
         results.set(item, {
           inserted,
-          shipment: (await find(manager, externalId))!,
+          externalId,
         });
       }
 
+      // Resolve all public records in one statement after pair writes/locks.
+      const records = new Map(
+        (
+          await readShipments(
+            manager,
+            [...results.values()].map((result) => result.externalId),
+          )
+        ).map((row) => [row.externalId, row]),
+      );
       const inserted: ShipmentRecord[] = [];
       const duplicates: ShipmentRecord[] = [];
 
       for (const item of items) {
         const result = results.get(item)!;
 
-        (result.inserted ? inserted : duplicates).push(result.shipment);
+        (result.inserted ? inserted : duplicates).push(
+          records.get(result.externalId)!,
+        );
       }
 
       return { kind: 'created', inserted, duplicates };

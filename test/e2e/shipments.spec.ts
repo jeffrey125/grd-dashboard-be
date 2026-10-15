@@ -1,3 +1,6 @@
+import { AuthService } from '@modules/auth/auth.service.js';
+import { TrackingService } from '@modules/tracking/tracking.service.js';
+import { TypeOrmTrackingRepository } from '@modules/tracking/typeorm-tracking.repository.js';
 import { administratorCookie } from '@test/support/authentication.js';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -58,6 +61,204 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     vi.unstubAllEnvs();
   });
 
+  it('returns the same safe tracking projection from every Shipment response for Admin and Staff', async () => {
+    const created = await create([item('projection-http')]).expect(201);
+    const id = created.body.inserted[0].externalId;
+    const path = `/shipments/${id}`;
+    const queued = await http().post(`${path}/refresh`).expect(202);
+
+    expect((await http().get(path).expect(200)).body).toMatchObject({
+      currentTracking: null,
+      latestLookup: null,
+      latestRun: queued.body,
+    });
+
+    const tracking = new TrackingService(
+      new TypeOrmTrackingRepository(db.source),
+    );
+    const target = (await tracking.startRun(queued.body.externalId))
+      .targets[0]!;
+
+    await tracking.finalizeFound({
+      runExternalId: queued.body.externalId,
+      shipmentExternalId: id,
+      expectedLockVersion: target.expectedLockVersion,
+      effectiveIntervalMinutes: 30,
+      snapshot: {
+        carrierStatus: 'Moving',
+        carrierStatusDetail: null,
+        pickedUpOn: '2026-03-08',
+        estimatedDeliveryOn: '2026-11-01',
+        deliveredOn: null,
+      },
+      sourceData: { internalCanary: 'private-provider-value' },
+    });
+    await tracking.finalizeRun(queued.body.externalId);
+
+    const known = (await http().get(path).expect(200)).body;
+    const projection = {
+      currentTracking: known.currentTracking,
+      latestLookup: known.latestLookup,
+      latestRun: known.latestRun,
+    };
+
+    expect(known.currentTracking).toEqual({
+      externalId: expect.any(String),
+      carrierStatus: 'Moving',
+      carrierStatusDetail: null,
+      pickedUpOn: '2026-03-08',
+      estimatedDeliveryOn: '2026-11-01',
+      deliveredOn: null,
+      observedAt: expect.any(String),
+    });
+    expect(known.latestLookup).toEqual({
+      runExternalId: queued.body.externalId,
+      outcome: 'found',
+      snapshotChanged: true,
+      retryable: null,
+      reasonCode: null,
+      completedAt: expect.any(String),
+    });
+    expect(known.latestRun).toEqual({
+      ...queued.body,
+      fetchMode: 'request',
+      status: 'succeeded',
+      startedAt: expect.any(String),
+      completedAt: expect.any(String),
+    });
+    expect(new Date(known.currentTracking.observedAt).toISOString()).toBe(
+      known.currentTracking.observedAt,
+    );
+    expect(Object.keys(known).sort()).toEqual(
+      [
+        'externalId',
+        'carrier',
+        'trackingReference',
+        'notes',
+        'verificationUrl',
+        'currentTracking',
+        'latestLookup',
+        'latestRun',
+        'monitoringStatus',
+        'monitoringReason',
+        'lastAttemptedAt',
+        'nextCheckAt',
+        'consecutiveNotFoundCount',
+        'createdAt',
+        'updatedAt',
+      ].sort(),
+    );
+    expect(JSON.stringify(known)).not.toMatch(
+      /internalCanary|private-provider-value|sourceData|source_data|snapshotId|requestedById|lockVersion|createdById/,
+    );
+    expect((await http().get('/shipments').expect(200)).body).toContainEqual(
+      known,
+    );
+
+    for (const notes of ['Changed', null]) {
+      expect(
+        (await http().patch(path).send({ notes }).expect(200)).body,
+      ).toMatchObject(projection);
+    }
+
+    for (const action of ['pause', 'resume']) {
+      expect(
+        (await http().post(`${path}/${action}`).expect(200)).body,
+      ).toMatchObject(projection);
+    }
+
+    const duplicate = await create([item('projection-http', 'ignored')]).expect(
+      200,
+    );
+    const mixed = await create([
+      item('projection-http'),
+      item('projection-new'),
+    ]).expect(201);
+
+    expect(duplicate.body.duplicates[0]).toMatchObject({
+      ...projection,
+      notes: null,
+    });
+    expect(mixed.body.duplicates[0]).toMatchObject(projection);
+    expect(mixed.body.inserted[0]).toMatchObject({
+      currentTracking: null,
+      latestLookup: null,
+      latestRun: null,
+    });
+
+    const auth = app.get(AuthService);
+    const admin = await auth.authenticate(new Headers({ cookie }));
+
+    await auth.createAccount(admin, {
+      firstName: 'Projection',
+      lastName: 'Staff',
+      email: 'projection@example.test',
+      password: 'issued projection password',
+      role: 'staff',
+    });
+
+    const cookieValue = (cookies: string[]) =>
+      cookies.map((value) => value.split(';')[0]).join('; ');
+    const restricted = cookieValue(
+      (
+        await auth.signIn({
+          email: 'projection@example.test',
+          password: 'issued projection password',
+        })
+      ).cookies,
+    );
+
+    await request(app.getHttpServer() as Server)
+      .get(path)
+      .expect(401);
+    await request(app.getHttpServer() as Server)
+      .get(path)
+      .set('Cookie', restricted)
+      .expect(403);
+
+    await auth.changePassword(
+      await auth.authenticate(new Headers({ cookie: restricted })),
+      {
+        currentPassword: 'issued projection password',
+        newPassword: 'chosen projection password',
+      },
+    );
+
+    const staff = cookieValue(
+      (
+        await auth.signIn({
+          email: 'projection@example.test',
+          password: 'chosen projection password',
+        })
+      ).cookies,
+    );
+
+    expect(
+      (
+        await request(app.getHttpServer() as Server)
+          .get(path)
+          .set('Cookie', staff)
+          .expect(200)
+      ).body,
+    ).toMatchObject(projection);
+    expect(
+      (
+        await request(app.getHttpServer() as Server)
+          .patch(path)
+          .set('Cookie', staff)
+          .set('Origin', 'http://dashboard.example.test')
+          .send({ notes: 'Staff notes' })
+          .expect(200)
+      ).body,
+    ).toMatchObject(projection);
+    await request(app.getHttpServer() as Server)
+      .patch(`/carriers/${carrierExternalId}`)
+      .set('Cookie', staff)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({ name: 'Denied' })
+      .expect(403);
+  });
+
   it('creates, reads, edits, pauses, resumes and deletes by external UUID', async () => {
     const response = await create([item(' 000Ab ', ' Initial ')])
       .expect(201)
@@ -76,6 +277,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       trackingReference: '000Ab',
       notes: 'Initial',
       verificationUrl: null,
+      currentTracking: null,
+      latestLookup: null,
+      latestRun: null,
       monitoringStatus: 'active',
       monitoringReason: null,
       consecutiveNotFoundCount: 0,

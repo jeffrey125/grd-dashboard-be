@@ -1,25 +1,12 @@
+import type { z } from 'zod';
+import type { trackingRunRecordSchema } from './tracking-read.schemas.js';
 import type { FetchMode } from '@modules/carriers/carrier-fetch-mode.js';
 import type {
   CreateTrackingRun,
   NormalizedTrackingState,
 } from './tracking.schemas.js';
 
-export interface TrackingRunRecord {
-  fetchMode: FetchMode | null;
-  externalId: string;
-  trigger: 'scheduled' | 'manual';
-  status:
-    | 'queued'
-    | 'running'
-    | 'succeeded'
-    | 'partially_succeeded'
-    | 'failed'
-    | 'cancelled';
-  attemptCount: number;
-  createdAt: Date;
-  startedAt: Date | null;
-  completedAt: Date | null;
-}
+export type TrackingRunRecord = z.infer<typeof trackingRunRecordSchema>;
 
 export interface TrackingExecutionTarget {
   shipmentExternalId: string;
@@ -223,7 +210,7 @@ export interface TrackingRepository {
 }
 
 export function trackingRunRecord(
-  run: LockedTrackingRun,
+  run: Omit<TrackingRunRecord, 'attemptCount'>,
   attemptCount: number,
 ): TrackingRunRecord {
   return {

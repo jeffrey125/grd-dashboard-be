@@ -117,10 +117,11 @@ not justify falsifying coverage exclusions or claiming 100% coverage.
    running process alone does not prove active scheduling after a worker failure.
    The local verification image measured about 1.97 GB with Chromium; account for
    registry/startup transfer and evaluate size optimization after hosting is chosen.
-4. **Frontend data:** agree and implement a normalized snapshot read projection
-   before promising Carrier status and pickup/delivery dates in the dashboard.
-   Source diagnostics, history and pagination also have no public API yet. The
-   [frontend handoff](frontend-handoff.md) describes only available fields.
+4. **Frontend data:** BE-V1-001 adds normalized current tracking, latest completed
+   lookup and latest associated run to Shipment responses after its additive
+   migration. Source diagnostics, history, pagination, overview aggregates and
+   precise tracking-change events still have no public API. The
+   [frontend handoff](frontend-handoff.md) describes the available fields.
 5. **External verification:** remote CI, actual-domain browser integration,
    production image/OS security scan, performance/load testing and live provider/
    notification checks are not performed here. No new CI/deployment workflow,

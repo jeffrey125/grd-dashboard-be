@@ -1,5 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
+import {
+  trackingSnapshotRecordSchema,
+  latestLookupRecordSchema,
+  trackingRunRecordSchema,
+} from '@modules/tracking/tracking-read.schemas.js';
 import { trackingReferenceSchema } from '@modules/carriers/carrier-reference-policy.js';
 import {
   ShipmentMonitoringReason,
@@ -41,6 +46,9 @@ export const shipmentRecordSchema = z.strictObject({
   trackingReference: z.string(),
   notes: z.string().nullable(),
   verificationUrl: z.string().nullable(),
+  currentTracking: trackingSnapshotRecordSchema.nullable(),
+  latestLookup: latestLookupRecordSchema.nullable(),
+  latestRun: trackingRunRecordSchema.nullable(),
   monitoringStatus: z.enum(ShipmentMonitoringStatus),
   monitoringReason: z.enum(ShipmentMonitoringReason).nullable(),
   lastAttemptedAt: z.date().nullable(),
