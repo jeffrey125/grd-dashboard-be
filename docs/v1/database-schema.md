@@ -442,3 +442,27 @@ The existing `ix_snapshots_history` index on `(shipment_id, observed_at DESC,
 id DESC)` supplies the ownership prefix and exact stable history order. The
 existing unique public snapshot identity supports client row identity. No new
 index, foreign key or migration is justified for this read path.
+
+## Dashboard overview read query (BE-V1-004)
+
+BE-V1-004 makes no schema change. `GET /dashboard/overview` uses one parameterized
+PostgreSQL statement so the five Shipment counts, attention total/items, upcoming
+total/items, recent snapshots, `asOf`, and New York date window share one statement
+snapshot. A materialized nondeleted Shipment set projects current tracking and the
+latest completed lookup once. Counts and attention reuse the exact search tab
+predicates. Latest-run expansion happens only for the at-most 20 bounded Shipment
+panel rows.
+
+The business date is derived from the fixed response `asOf` instant with
+`America/New_York`; the inclusive upcoming range is today through day +6. Recent
+changes read persisted normalized snapshots for nondeleted Shipments and order by
+`observed_at DESC, id DESC`. Existing current-snapshot, completed-attempt,
+attempt-membership, run-attempt, and snapshot-history indexes support the joins.
+
+A disposable PostgreSQL plan over 10,000 active Shipments, 10,000 current
+snapshots, and 10,000 completed attempts returned one envelope row in one statement
+with all three panels capped at 10. The plan exercises latest lookup, latest run,
+upcoming delivery, and global recent-snapshot ordering. The required aggregate
+scan remains linear in the nondeleted set, and the existing indexes cover lookup
+paths. Another index would not remove that scan, so no migration, index, or foreign
+key is justified for BE-V1-004.

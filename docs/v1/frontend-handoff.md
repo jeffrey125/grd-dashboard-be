@@ -16,7 +16,7 @@ Hosting remains undecided. Caddy, production Compose, App Platform specification
 deployment workflows and CI/CD are deferred. Do not infer same-Droplet routing,
 copy the Tom application's proxy blindly, or build an Origin-stripping proxy.
 
-## Tracking projection, search and remaining gaps
+## Tracking projection, search, history, overview and remaining gaps
 
 BE-V1-001 adds stored `currentTracking`, `latestLookup`, and `latestRun` to every
 Shipment response, including inserted/duplicate batches and notes/pause/resume.
@@ -25,10 +25,11 @@ Carrier status is distinct from `monitoringStatus` and lookup outcome.
 
 BE-V1-002 adds authenticated, paginated whole-dataset search at
 `GET /shipments/search`. BE-V1-003 adds normalized snapshot history at
-`GET /shipments/:externalId/history`. Source-data diagnostics, overview aggregates,
-precise tracking-change events, refresh-all and scheduler controls remain
-unavailable. Manual refresh returns a run ID that stays independently readable
-through `GET /tracking-runs/:externalId`.
+`GET /shipments/:externalId/history`. BE-V1-004 adds the operational overview at
+`GET /dashboard/overview`. Source-data diagnostics, precise tracking-change
+events, refresh-all and scheduler controls remain unavailable. Manual refresh
+returns a run ID that stays independently readable through
+`GET /tracking-runs/:externalId`.
 
 ## Browser session flow
 
@@ -207,11 +208,61 @@ failed, not-found or skipped lookup leaves existing history available. Items,
 total and Shipment existence come from one PostgreSQL statement snapshot; separate
 pages remain live offset reads.
 
+## Dashboard overview contract
+
+`GET /dashboard/overview` is available to unrestricted Staff and Admin sessions,
+uses `Cache-Control: no-store`, accepts no body, and returns:
+
+```ts
+type OverviewResponse = {
+  asOf: string;
+  timezone: 'America/New_York';
+  upcomingWindow: { from: string; to: string };
+  counts: {
+    all: number;
+    active: number;
+    paused: number;
+    delivered: number;
+    attention: number;
+  };
+  attention: { total: number; items: Shipment[] };
+  upcomingDeliveries: { total: number; items: Shipment[] };
+  recentChanges: Array<{
+    shipmentExternalId: string;
+    trackingReference: string;
+    carrier: { externalId: string; code: string; name: string };
+    snapshot: TrackingSnapshot;
+  }>;
+};
+```
+
+All values come from one PostgreSQL statement snapshot identified by `asOf`.
+Counts cover nondeleted Shipments and include Shipments whose Carrier is disabled.
+They use the same monitoring and attention predicates as Shipment search.
+Attention is a non-completed Shipment whose latest completed lookup failed, or a
+threshold-paused Shipment; the panel is newest-created first and is unrelated to
+delivery lateness.
+
+`upcomingWindow` is the inclusive New York business-date range from today through
+day +6. Upcoming deliveries are non-completed Shipments whose current normalized
+snapshot has a non-null ETA in that range. The panel sorts ETA ascending, then
+creation time and a server-only identity ascending. Drill down with
+`GET /shipments/search?tab=all&undeliveredOnly=true&estimatedDeliveryFrom=<from>&estimatedDeliveryTo=<to>&sortBy=estimatedDeliveryOn&sortDirection=asc`.
+
+`attention.total` and `upcomingDeliveries.total` cover every matching Shipment,
+while each panel returns at most 10 full safe Shipment projections. Recent changes
+returns at most the 10 newest persisted normalized snapshots for nondeleted
+Shipments, ordered by `observedAt desc` and a server-only identity tie-breaker.
+It includes first observations and changed observations; unchanged, failed,
+not-found and skipped polls do not create entries. Counts are current monitoring
+state totals, not delivered-today, on-time performance or analytics metrics.
+
 | Route                                 | Input → success                                                                                                                                           |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                   |
 | `GET /shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                        |
 | `GET /shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                             |
+| `GET /dashboard/overview`             | No input → 200 OverviewResponse with bounded operational panels and full attention/upcoming totals.                                                       |
 | `GET /shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                  |
 | `POST /shipments`                     | `{ items: [{ carrierExternalId, trackingReference, notes? }] }` → `{ inserted: Shipment[], duplicates: Shipment[] }`; 201 if any inserted, otherwise 200. |
 | `PATCH /shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                          |

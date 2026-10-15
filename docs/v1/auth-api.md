@@ -22,12 +22,12 @@ are never returned. Dates serialize to ISO timestamps. Responses use no-store.
 | PATCH `/admin/accounts/:externalId`         | nonempty subset of `{ firstName, lastName, email, role, active }` | Unrestricted Admin; 200 profile                                                               |
 | POST `/admin/accounts/:externalId/password` | `{ password }`                                                    | Unrestricted Admin; 204, require replacement and revoke all sessions                          |
 
-GET Carrier routes and every Shipment route, including search and history,
-require unrestricted Staff or Admin; Carrier PATCH requires Admin. Minimal health
-GETs are public. Other
-controller handlers require an explicit policy; absence denies access. V1-016
-manual refresh and live events will require unrestricted Staff/Admin; diagnostic
-source-data access requires Admin. No machine API credentials in v1.
+GET Carrier routes, every Shipment route including search and history, and
+`GET /dashboard/overview` require unrestricted Staff or Admin; Carrier PATCH
+requires Admin. Minimal health GETs are public. Other controller handlers require
+an explicit policy; absence denies access. Manual refresh and live events require
+unrestricted Staff/Admin; diagnostic source-data access requires Admin. No machine
+API credentials in v1.
 
 Use 400 for invalid input, 401 for missing/expired/revoked/inactive sessions and
 generic login failures, 403 for role/origin/password-replacement restrictions,

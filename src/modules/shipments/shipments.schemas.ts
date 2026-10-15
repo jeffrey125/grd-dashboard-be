@@ -158,18 +158,19 @@ export const bulkShipmentResultSchema = z.strictObject({
   inserted: z.array(shipmentRecordSchema),
   duplicates: z.array(shipmentRecordSchema),
 });
+export const shipmentTabCountsSchema = z.strictObject({
+  all: z.int().nonnegative(),
+  active: z.int().nonnegative(),
+  paused: z.int().nonnegative(),
+  delivered: z.int().nonnegative(),
+  attention: z.int().nonnegative(),
+});
 export const shipmentSearchResponseSchema = z.strictObject({
   items: z.array(shipmentRecordSchema),
   page: z.int().positive(),
   pageSize: z.union([z.literal(25), z.literal(50), z.literal(100)]),
   total: z.int().nonnegative(),
-  tabCounts: z.strictObject({
-    all: z.int().nonnegative(),
-    active: z.int().nonnegative(),
-    paused: z.int().nonnegative(),
-    delivered: z.int().nonnegative(),
-    attention: z.int().nonnegative(),
-  }),
+  tabCounts: shipmentTabCountsSchema,
 });
 export const shipmentHistoryResponseSchema = z.strictObject({
   items: z.array(trackingSnapshotRecordSchema),

@@ -9,6 +9,7 @@ import { CarriersModule } from '@modules/carriers/carriers.module.js';
 import { ShipmentsModule } from '@modules/shipments/shipments.module.js';
 import { TrackingHttpModule } from '@modules/tracking/tracking-http.module.js';
 import { EventsModule } from '@modules/events/events.module.js';
+import { DashboardModule } from '@modules/dashboard/dashboard.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { EventsModule } from '@modules/events/events.module.js';
     ShipmentsModule,
     TrackingHttpModule,
     EventsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

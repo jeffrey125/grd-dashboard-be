@@ -120,9 +120,10 @@ not justify falsifying coverage exclusions or claiming 100% coverage.
 4. **Frontend data:** BE-V1-001 adds normalized current tracking, latest completed
    lookup and latest associated run to Shipment responses after its additive
    migration. BE-V1-002 adds paginated Shipment search, and BE-V1-003 adds
-   normalized snapshot history. Source diagnostics, overview aggregates and
-   precise tracking-change events still have no public API. The [frontend
-   handoff](frontend-handoff.md) describes the available fields.
+   normalized snapshot history. BE-V1-004 adds bounded operational overview
+   aggregates. Source diagnostics and precise tracking-change events still have
+   no public API. The [frontend handoff](frontend-handoff.md) describes the
+   available fields.
 5. **External verification:** remote CI, actual-domain browser integration,
    production image/OS security scan, performance/load testing and live provider/
    notification checks are not performed here. No new CI/deployment workflow,

@@ -1,13 +1,14 @@
 import type { EntityManager } from 'typeorm';
 import {
-  shipmentRecordSchema,
   shipmentSearchResponseSchema,
   type ShipmentSearchQuery,
 } from './shipments.schemas.js';
-import type {
-  ShipmentRecord,
-  ShipmentSearchResponse,
-} from './shipments.repository.js';
+import type { ShipmentSearchResponse } from './shipments.repository.js';
+import {
+  SHIPMENT_TAB_PREDICATES,
+  shipmentTabPredicate,
+} from './shipment-read-predicates.js';
+import { shipmentJsonSql, shipmentRecord } from './typeorm-shipment-record.js';
 
 interface SearchEnvelopeRow {
   items: unknown[];
@@ -17,57 +18,6 @@ interface SearchEnvelopeRow {
   paused_count: number;
   delivered_count: number;
   attention_count: number;
-}
-
-type JsonObject = Record<string, unknown>;
-
-const TAB_PREDICATES = {
-  all: 'TRUE',
-  active: "monitoring_status = 'active'",
-  paused: "monitoring_status = 'paused'",
-  delivered: "monitoring_status = 'completed'",
-  attention: `monitoring_status <> 'completed'
-    AND (lookup_outcome = 'failed'
-      OR (monitoring_status = 'paused' AND monitoring_reason = 'not_found_threshold'))`,
-} as const satisfies Record<ShipmentSearchQuery['tab'], string>;
-
-function asNullableDate(value: unknown): Date | null {
-  return value === null ? null : new Date(String(value));
-}
-
-function shipmentRecord(value: unknown): ShipmentRecord {
-  const item = value as JsonObject;
-  const currentTracking = item.currentTracking as JsonObject | null;
-  const latestLookup = item.latestLookup as JsonObject | null;
-  const latestRun = item.latestRun as JsonObject | null;
-
-  return shipmentRecordSchema.parse({
-    ...item,
-    currentTracking: currentTracking
-      ? {
-          ...currentTracking,
-          observedAt: new Date(String(currentTracking.observedAt)),
-        }
-      : null,
-    latestLookup: latestLookup
-      ? {
-          ...latestLookup,
-          completedAt: new Date(String(latestLookup.completedAt)),
-        }
-      : null,
-    latestRun: latestRun
-      ? {
-          ...latestRun,
-          createdAt: new Date(String(latestRun.createdAt)),
-          startedAt: asNullableDate(latestRun.startedAt),
-          completedAt: asNullableDate(latestRun.completedAt),
-        }
-      : null,
-    lastAttemptedAt: asNullableDate(item.lastAttemptedAt),
-    nextCheckAt: asNullableDate(item.nextCheckAt),
-    createdAt: new Date(String(item.createdAt)),
-    updatedAt: new Date(String(item.updatedAt)),
-  });
 }
 
 function orderBy(query: ShipmentSearchQuery): string {
@@ -83,10 +33,6 @@ function orderBy(query: ShipmentSearchQuery): string {
     case 'createdAt':
       return `selected.created_at ${direction}, selected.shipment_id ${direction}`;
   }
-}
-
-function tabPredicate(tab: ShipmentSearchQuery['tab']): string {
-  return TAB_PREDICATES[tab];
 }
 
 function statement(query: ShipmentSearchQuery) {
@@ -204,13 +150,13 @@ function statement(query: ShipmentSearchQuery) {
     ), counts AS (
       SELECT
         count(*)::integer AS all_count,
-        count(*) FILTER (WHERE ${TAB_PREDICATES.active})::integer AS active_count,
-        count(*) FILTER (WHERE ${TAB_PREDICATES.paused})::integer AS paused_count,
-        count(*) FILTER (WHERE ${TAB_PREDICATES.delivered})::integer AS delivered_count,
-        count(*) FILTER (WHERE ${TAB_PREDICATES.attention})::integer AS attention_count
+        count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.active})::integer AS active_count,
+        count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.paused})::integer AS paused_count,
+        count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.delivered})::integer AS delivered_count,
+        count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.attention})::integer AS attention_count
       FROM filtered
     ), selected AS MATERIALIZED (
-      SELECT * FROM filtered WHERE ${tabPredicate(query.tab)}
+      SELECT * FROM filtered WHERE ${shipmentTabPredicate(query.tab)}
     ), page_rows AS (
       SELECT
         selected.*,
@@ -256,52 +202,7 @@ function statement(query: ShipmentSearchQuery) {
     SELECT
       coalesce((
         SELECT jsonb_agg(
-          jsonb_build_object(
-            'externalId', shipment_external_id,
-            'carrier', jsonb_build_object(
-              'externalId', carrier_external_id,
-              'code', carrier_code,
-              'name', carrier_name,
-              'isActive', carrier_is_active
-            ),
-            'trackingReference', tracking_reference,
-            'notes', notes,
-            'verificationUrl', verification_url,
-            'currentTracking', CASE WHEN snapshot_external_id IS NULL THEN NULL ELSE jsonb_build_object(
-              'externalId', snapshot_external_id,
-              'carrierStatus', snapshot_carrier_status,
-              'carrierStatusDetail', snapshot_carrier_status_detail,
-              'pickedUpOn', snapshot_picked_up_on,
-              'estimatedDeliveryOn', snapshot_estimated_delivery_on,
-              'deliveredOn', snapshot_delivered_on,
-              'observedAt', snapshot_observed_at
-            ) END,
-            'latestLookup', CASE WHEN lookup_id IS NULL THEN NULL ELSE jsonb_build_object(
-              'runExternalId', lookup_run_external_id,
-              'outcome', lookup_outcome,
-              'snapshotChanged', lookup_snapshot_changed,
-              'retryable', lookup_retryable,
-              'reasonCode', lookup_reason_code,
-              'completedAt', lookup_completed_at
-            ) END,
-            'latestRun', CASE WHEN latest_run_id IS NULL THEN NULL ELSE jsonb_build_object(
-              'externalId', latest_run_external_id,
-              'trigger', latest_run_trigger,
-              'fetchMode', latest_run_fetch_mode,
-              'status', latest_run_status,
-              'attemptCount', latest_run_attempt_count,
-              'createdAt', latest_run_created_at,
-              'startedAt', latest_run_started_at,
-              'completedAt', latest_run_completed_at
-            ) END,
-            'monitoringStatus', monitoring_status,
-            'monitoringReason', monitoring_reason,
-            'lastAttemptedAt', last_attempted_at,
-            'nextCheckAt', next_check_at,
-            'consecutiveNotFoundCount', consecutive_not_found_count,
-            'createdAt', created_at,
-            'updatedAt', updated_at
-          ) ORDER BY page_position
+          ${shipmentJsonSql('paged')} ORDER BY paged.page_position
         ) FROM paged
       ), '[]'::jsonb) AS items,
       (SELECT count(*)::integer FROM selected) AS total,
