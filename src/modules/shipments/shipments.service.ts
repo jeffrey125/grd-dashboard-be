@@ -20,6 +20,7 @@ import {
   invalidShipmentRows,
   monitoringCommandSchema,
   parseShipmentInput,
+  shipmentHistoryQuerySchema,
   shipmentSearchQuerySchema,
   shipmentExternalIdSchema,
   updateShipmentNotesSchema,
@@ -43,6 +44,16 @@ export class ShipmentsService {
     return this.repository.search(
       parseShipmentInput(shipmentSearchQuerySchema, query),
     );
+  }
+
+  async history(externalId: string, query: unknown) {
+    const id = parseShipmentInput(shipmentExternalIdSchema, externalId);
+    const pagination = parseShipmentInput(shipmentHistoryQuerySchema, query);
+    const result = await this.repository.history(id, pagination);
+
+    if (!result) throw new NotFoundException('Shipment not found');
+
+    return result;
   }
 
   async create(input: unknown, actorId: number | null = null) {

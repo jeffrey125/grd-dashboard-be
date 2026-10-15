@@ -428,3 +428,17 @@ rows. The required counts scan the complete filtered set and the sort handled
 production latency guarantee. A new index would add write/storage cost without
 removing the full-set count or materialized sort in this workload, so no index
 migration is justified for BE-V1-002.
+
+## Shipment history read query (BE-V1-003)
+
+BE-V1-003 makes no schema change. `GET /shipments/:externalId/history` uses one
+parameterized PostgreSQL statement for nondeleted Shipment existence, total and
+page data. It restricts snapshots by the requested Shipment's internal identity,
+orders by `observed_at DESC, id DESC`, and exposes only the normalized public
+snapshot fields. Missing and soft-deleted Shipments produce no response row;
+known Shipments without snapshots produce an empty page with total zero.
+
+The existing `ix_snapshots_history` index on `(shipment_id, observed_at DESC,
+id DESC)` supplies the ownership prefix and exact stable history order. The
+existing unique public snapshot identity supports client row identity. No new
+index, foreign key or migration is justified for this read path.

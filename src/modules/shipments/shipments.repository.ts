@@ -1,7 +1,9 @@
 import type { z } from 'zod';
 import type {
   NewShipment,
+  ShipmentHistoryQuery,
   ShipmentSearchQuery,
+  shipmentHistoryResponseSchema,
   shipmentRecordSchema,
   shipmentSearchResponseSchema,
 } from './shipments.schemas.js';
@@ -9,6 +11,9 @@ import type {
 export type ShipmentRecord = z.infer<typeof shipmentRecordSchema>;
 export type ShipmentSearchResponse = z.infer<
   typeof shipmentSearchResponseSchema
+>;
+export type ShipmentHistoryResponse = z.infer<
+  typeof shipmentHistoryResponseSchema
 >;
 
 export interface BulkShipmentResult {
@@ -30,6 +35,10 @@ export type MonitoringResult =
 export interface ShipmentsRepository {
   list(): Promise<ShipmentRecord[]>;
   search(query: ShipmentSearchQuery): Promise<ShipmentSearchResponse>;
+  history(
+    externalId: string,
+    query: ShipmentHistoryQuery,
+  ): Promise<ShipmentHistoryResponse | null>;
   find(externalId: string): Promise<ShipmentRecord | null>;
   createMany(
     items: NewShipment[],

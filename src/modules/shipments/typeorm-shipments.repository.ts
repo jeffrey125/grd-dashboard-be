@@ -6,6 +6,7 @@ import {
   ShipmentMonitoringStatus,
 } from './shipment.entity.js';
 import type { NewShipment } from './shipments.schemas.js';
+import { readShipmentHistory } from './typeorm-shipment-history.js';
 import { readShipments } from './typeorm-shipment-read.js';
 import { searchShipments } from './typeorm-shipment-search.js';
 import {
@@ -33,6 +34,13 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
 
   search(query: Parameters<ShipmentsRepository['search']>[0]) {
     return searchShipments(this.source.manager, query);
+  }
+
+  history(
+    externalId: string,
+    query: Parameters<ShipmentsRepository['history']>[1],
+  ) {
+    return readShipmentHistory(this.source.manager, externalId, query);
   }
 
   find(externalId: string) {

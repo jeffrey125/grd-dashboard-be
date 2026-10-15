@@ -119,6 +119,17 @@ export const shipmentSearchQuerySchema = z
 
 export type ShipmentSearchQuery = z.infer<typeof shipmentSearchQuerySchema>;
 
+export const shipmentHistoryQuerySchema = z
+  .strictObject({
+    page: positiveIntegerQuerySchema.default(1),
+    pageSize: z.enum(['25', '50', '100']).default('25').transform(Number),
+  })
+  .refine((query) => Number.isSafeInteger((query.page - 1) * query.pageSize), {
+    message: 'Page offset is too large',
+  });
+
+export type ShipmentHistoryQuery = z.infer<typeof shipmentHistoryQuerySchema>;
+
 export type NewShipment = z.infer<typeof createShipmentSchema>;
 
 export const shipmentRecordSchema = z.strictObject({
@@ -159,6 +170,12 @@ export const shipmentSearchResponseSchema = z.strictObject({
     delivered: z.int().nonnegative(),
     attention: z.int().nonnegative(),
   }),
+});
+export const shipmentHistoryResponseSchema = z.strictObject({
+  items: z.array(trackingSnapshotRecordSchema),
+  page: z.int().positive(),
+  pageSize: z.union([z.literal(25), z.literal(50), z.literal(100)]),
+  total: z.int().nonnegative(),
 });
 
 export interface ShipmentValidationDetail {

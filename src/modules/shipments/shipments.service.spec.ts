@@ -33,6 +33,12 @@ async function setup() {
       total: 0,
       tabCounts: { all: 0, active: 0, paused: 0, delivered: 0, attention: 0 },
     }),
+    history: vi.fn().mockResolvedValue({
+      items: [],
+      page: 1,
+      pageSize: 25,
+      total: 0,
+    }),
   };
   const carriers = { find: vi.fn().mockResolvedValue(carrier) };
   const module = await Test.createTestingModule({
@@ -129,6 +135,51 @@ describe('Shipment search', () => {
       expect(repository.search).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('Shipment history', () => {
+  it('normalizes the Shipment identity and applies pagination defaults', async () => {
+    const { service, repository } = await setup();
+
+    await service.history(carrierExternalId.toUpperCase(), {});
+    await service.history(carrierExternalId, { page: '2', pageSize: '100' });
+
+    expect(repository.history).toHaveBeenNthCalledWith(1, carrierExternalId, {
+      page: 1,
+      pageSize: 25,
+    });
+    expect(repository.history).toHaveBeenNthCalledWith(2, carrierExternalId, {
+      page: 2,
+      pageSize: 100,
+    });
+  });
+
+  it.each([
+    { unknown: 'field' },
+    { page: '0' },
+    { page: '1.5' },
+    { page: ['1', '2'] },
+    { page: String(Number.MAX_SAFE_INTEGER) },
+    { pageSize: '10' },
+    { pageSize: '101' },
+  ])('rejects invalid pagination without reading: %j', async (query) => {
+    const { service, repository } = await setup();
+
+    await expect(service.history(carrierExternalId, query)).rejects.toEqual(
+      expect.objectContaining({ status: 400 }),
+    );
+    expect(repository.history).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the repository cannot find a nondeleted Shipment', async () => {
+    const { service, repository } = await setup();
+
+    repository.history.mockResolvedValueOnce(null);
+
+    await expect(service.history(carrierExternalId, {})).rejects.toMatchObject({
+      status: 404,
+    });
+  });
 });
 
 describe('Shipment creation', () => {

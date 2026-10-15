@@ -37,6 +37,16 @@ export class ShipmentsController {
     return this.shipments.search(query);
   }
 
+  @Get(':externalId/history')
+  @Header('Cache-Control', 'no-store')
+  history(
+    @Param('externalId', new ParseUUIDPipe({ version: '4' }))
+    externalId: string,
+    @Query() query: unknown,
+  ) {
+    return this.shipments.history(externalId, query);
+  }
+
   @Post()
   @Header('Cache-Control', 'no-store')
   async create(

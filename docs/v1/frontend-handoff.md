@@ -24,10 +24,11 @@ Apply migration `1792281600000-TrackingReadProjection` before running this API.
 Carrier status is distinct from `monitoringStatus` and lookup outcome.
 
 BE-V1-002 adds authenticated, paginated whole-dataset search at
-`GET /shipments/search`. Snapshot history, source-data diagnostics, overview
-aggregates, precise tracking-change events, refresh-all and scheduler controls
-remain unavailable. Manual refresh returns a run ID that stays independently
-readable through `GET /tracking-runs/:externalId`.
+`GET /shipments/search`. BE-V1-003 adds normalized snapshot history at
+`GET /shipments/:externalId/history`. Source-data diagnostics, overview aggregates,
+precise tracking-change events, refresh-all and scheduler controls remain
+unavailable. Manual refresh returns a run ID that stays independently readable
+through `GET /tracking-runs/:externalId`.
 
 ## Browser session flow
 
@@ -181,10 +182,36 @@ Carrier is disabled. Search items, total, and counts come from one PostgreSQL
 statement snapshot. Separate page requests remain live offset reads rather than
 a frozen result set.
 
+Shipment detail history uses
+`GET /shipments/:externalId/history?page=1&pageSize=25` and returns:
+
+```ts
+type ShipmentHistoryResponse = {
+  items: TrackingSnapshot[];
+  page: number;
+  pageSize: 25 | 50 | 100;
+  total: number;
+};
+```
+
+Pagination defaults to page 1 and 25 rows and accepts the same 25/50/100 sizes as
+search. Unknown query fields, invalid values and unsafe offsets return 400.
+Snapshots are ordered by `observedAt desc` with a stable server-only identity
+tie-breaker. A known Shipment without snapshots returns an empty page. A missing
+or soft-deleted Shipment returns 404.
+
+History contains only immutable normalized snapshots recorded when known tracking
+changes, including the initial observation. It does not expose lookup attempts,
+unchanged checks, failures, source data, internal identities or diagnostics. A
+failed, not-found or skipped lookup leaves existing history available. Items,
+total and Shipment existence come from one PostgreSQL statement snapshot; separate
+pages remain live offset reads.
+
 | Route                                 | Input → success                                                                                                                                           |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                   |
 | `GET /shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                        |
+| `GET /shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                             |
 | `GET /shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                  |
 | `POST /shipments`                     | `{ items: [{ carrierExternalId, trackingReference, notes? }] }` → `{ inserted: Shipment[], duplicates: Shipment[] }`; 201 if any inserted, otherwise 200. |
 | `PATCH /shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                          |

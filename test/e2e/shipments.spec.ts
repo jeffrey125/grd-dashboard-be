@@ -313,6 +313,63 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       await http().get('/shipments/search').query(query).expect(400);
   });
 
+  it('serves authenticated normalized Shipment history with strict pagination and 404s', async () => {
+    const created = await create([item('history-http-001')]).expect(201);
+    const externalId = created.body.inserted[0].externalId;
+    const [shipment]: Array<{ id: number }> = await db.source.query(
+      'SELECT id FROM shipments WHERE external_id = $1',
+      [externalId],
+    );
+
+    await db.source.query(
+      `INSERT INTO shipment_tracking_snapshots
+        (shipment_id, carrier_status, carrier_status_detail, estimated_delivery_on, observed_at)
+       VALUES ($1, NULL, NULL, '2026-12-01', '2026-10-16T00:00:00Z')`,
+      [shipment!.id],
+    );
+
+    await request(app.getHttpServer() as Server)
+      .get(`/shipments/${externalId}/history`)
+      .expect(401);
+
+    const history = await http()
+      .get(`/shipments/${externalId}/history`)
+      .query({ page: 1, pageSize: 25 })
+      .expect('Cache-Control', 'no-store')
+      .expect(200);
+
+    expect(history.body).toEqual({
+      items: [
+        {
+          externalId: expect.any(String),
+          carrierStatus: null,
+          carrierStatusDetail: null,
+          pickedUpOn: null,
+          estimatedDeliveryOn: '2026-12-01',
+          deliveredOn: null,
+          observedAt: '2026-10-16T00:00:00.000Z',
+        },
+      ],
+      page: 1,
+      pageSize: 25,
+      total: 1,
+    });
+
+    for (const query of [{ unknown: 'field' }, { page: 0 }, { pageSize: 10 }])
+      await http()
+        .get(`/shipments/${externalId}/history`)
+        .query(query)
+        .expect(400);
+
+    await http().get('/shipments/not-a-uuid/history').expect(400);
+    await http()
+      .get('/shipments/fdd45938-2f15-4c69-bc0d-52a57a707dc8/history')
+      .expect(404);
+
+    await http().delete(`/shipments/${externalId}`).expect(204);
+    await http().get(`/shipments/${externalId}/history`).expect(404);
+  });
+
   it('creates, reads, edits, pauses, resumes and deletes by external UUID', async () => {
     const response = await create([item(' 000Ab ', ' Initial ')])
       .expect(201)
