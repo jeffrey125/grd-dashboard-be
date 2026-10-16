@@ -27,9 +27,6 @@ export const createShipmentSchema = z.strictObject({
   trackingReference: trackingReferenceSchema,
   notes: notesSchema.optional().transform((value) => value ?? null),
 });
-export const createShipmentsEnvelopeSchema = z.strictObject({
-  items: z.array(z.unknown()).min(1).max(10),
-});
 export const updateShipmentNotesSchema = z.strictObject({ notes: notesSchema });
 export const monitoringCommandSchema = z.strictObject({});
 
@@ -154,10 +151,6 @@ export const shipmentRecordSchema = z.strictObject({
   createdAt: z.date(),
   updatedAt: z.date(),
 });
-export const bulkShipmentResultSchema = z.strictObject({
-  inserted: z.array(shipmentRecordSchema),
-  duplicates: z.array(shipmentRecordSchema),
-});
 export const shipmentTabCountsSchema = z.strictObject({
   all: z.int().nonnegative(),
   active: z.int().nonnegative(),
@@ -180,16 +173,15 @@ export const shipmentHistoryResponseSchema = z.strictObject({
 });
 
 export interface ShipmentValidationDetail {
-  row: number;
-  field: 'carrierExternalId' | 'trackingReference' | 'notes' | 'item';
+  field: 'carrierExternalId' | 'trackingReference' | 'notes' | 'shipment';
   message: string;
 }
 
-export function invalidShipmentRows(
+export function invalidShipmentFields(
   details: ShipmentValidationDetail[],
 ): never {
   throw new BadRequestException({
-    message: 'One or more Shipments are invalid',
+    message: 'Shipment is invalid',
     code: 'shipment_validation_failed',
     details,
   });

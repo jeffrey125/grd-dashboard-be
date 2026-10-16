@@ -66,9 +66,9 @@ afterAll(async () => {
 it('coalesces concurrent manual refreshes into one durable run and exposes safe status', async () => {
   const created = await http()
     .post('/api/v1/shipments')
-    .send({ items: [{ carrierExternalId, trackingReference: 'refresh-race' }] })
+    .send({ carrierExternalId, trackingReference: 'refresh-race' })
     .expect(201);
-  const id = created.body.inserted[0].externalId;
+  const id = created.body.shipment.externalId;
   const replies = await Promise.all(
     Array.from({ length: 5 }, (_, index) =>
       http()
@@ -191,11 +191,9 @@ it('streams committed changes, reconnects with resync, and closes revoked sessio
 
     const created = await http()
       .post('/api/v1/shipments')
-      .send({
-        items: [{ carrierExternalId, trackingReference: 'sse-shipment' }],
-      })
+      .send({ carrierExternalId, trackingReference: 'sse-shipment' })
       .expect(201);
-    const id = created.body.inserted[0].externalId;
+    const id = created.body.shipment.externalId;
 
     expect(await first.next('shipment.changed')).toContain(id);
 
@@ -272,11 +270,9 @@ it('rejects unavailable targets and protects status/events, including restricted
 
   const created = await http()
     .post('/api/v1/shipments')
-    .send({
-      items: [{ carrierExternalId, trackingReference: 'paused-target' }],
-    })
+    .send({ carrierExternalId, trackingReference: 'paused-target' })
     .expect(201);
-  const id = created.body.inserted[0].externalId;
+  const id = created.body.shipment.externalId;
 
   await http().post(`/api/v1/shipments/${id}/pause`).expect(200);
   await http().post(`/api/v1/shipments/${id}/refresh`).expect(409);
@@ -339,14 +335,10 @@ it('rejects unavailable targets and protects status/events, including restricted
 
   const staffShipment = await http()
     .post('/api/v1/shipments')
-    .send({
-      items: [{ carrierExternalId, trackingReference: 'staff-refresh' }],
-    })
+    .send({ carrierExternalId, trackingReference: 'staff-refresh' })
     .expect(201);
   const refreshed = await request(app.getHttpServer() as Server)
-    .post(
-      `/api/v1/shipments/${staffShipment.body.inserted[0].externalId}/refresh`,
-    )
+    .post(`/api/v1/shipments/${staffShipment.body.shipment.externalId}/refresh`)
     .set('Cookie', staffCookie)
     .set('Origin', 'http://dashboard.example.test')
     .expect(202);
@@ -360,11 +352,9 @@ it('rejects unavailable targets and protects status/events, including restricted
 it('hands an authenticated HTTP refresh to the real worker scheduler through PostgreSQL', async () => {
   const created = await http()
     .post('/api/v1/shipments')
-    .send({
-      items: [{ carrierExternalId, trackingReference: 'worker-handoff' }],
-    })
+    .send({ carrierExternalId, trackingReference: 'worker-handoff' })
     .expect(201);
-  const id = created.body.inserted[0].externalId;
+  const id = created.body.shipment.externalId;
   const queued = await http()
     .post(`/api/v1/shipments/${id}/refresh`)
     .expect(202);

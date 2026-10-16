@@ -20,7 +20,7 @@ No push, merge, live Carrier call, frontend feature or deployment was performed.
   `latestLookup` and `latestRun`. It uses the current pointer, completion-time/ID
   ordering for completed attempts and creation-time/ID ordering for associated
   runs. Run counts cover all run attempts. Each response read is one SQL statement.
-- List/detail, notes, pause/resume and inserted/duplicate batch results share the
+- List/detail, notes, pause/resume and created/existing creation results share the
   projection. Batch public records are read together after existing writes/locks.
   The legacy array, ordering, status codes, authorization and worker behavior stay
   compatible. Pending attempts do not displace completed lookup information.
@@ -54,7 +54,7 @@ No push, merge, live Carrier call, frontend feature or deployment was performed.
 | `src/modules/tracking/tracking.repository.ts`                        | Derive run record type from schema; narrow reusable run mapper input.                     |
 | `src/modules/shipments/shipments.schemas.ts`                         | Extend the inferred Shipment repository contract with three nullable projections.         |
 | `src/modules/shipments/typeorm-shipment-read.ts`                     | Joined SQL selection and explicit public mapping.                                         |
-| `src/modules/shipments/typeorm-shipments.repository.ts`              | Reuse reader across all operations and read batch results together.                       |
+| `src/modules/shipments/typeorm-shipments.repository.ts`              | Reuse the reader across all operations and resolve creation results consistently.         |
 | `test/integration/shipment-projection.spec.ts`                       | Real tracking lifecycle, ordering/pointer cases and query-count evidence.                 |
 | `test/e2e/shipments.spec.ts`                                         | Exact public fields, every response variant, date strings, Staff/Admin/restricted access. |
 | `docs/v1/frontend-handoff.md`                                        | Actual public projection, date semantics and remaining endpoint gaps.                     |

@@ -2,8 +2,8 @@
 
 ## Summary
 
-Implemented Shipment management through public UUIDs, atomic creation of 1–10
-explicit records, duplicate reporting, note updates, soft deletion, and strict
+Implemented Shipment management through public UUIDs, one-shipment-at-a-time
+creation with created/existing outcomes, note updates, soft deletion, and strict
 manual pause/resume. The user-approved ticket scope is complete in the working
 tree. Unit, PostgreSQL integration, HTTP e2e, formatting, lint, typecheck, and build
 checks pass. Independent standards and specification reviews found no blocking
@@ -25,16 +25,13 @@ production migration was performed.
   and interior whitespace. No JSON-number conversion or provider-specific format
   restrictions. Notes are trimmed strings of 1–500 UTF-16 code units or null;
   omitted creation notes become null. Unknown and client actor/state/identity
-  fields are rejected. Row errors report one-based rows and allowlisted fields,
+  fields are rejected. Creation errors report allowlisted fields,
   without echoing submitted values or unknown field names.
-- The original app was inspected as behavioral reference. Within a request, the
-  last normalized Carrier/reference occurrence supplies the notes, including null
-  when omitted. Every submitted row is validated before deduplication. Each pair
-  appears once, preserving first-occurrence pair order within its result array.
-  Existing non-deleted Shipments remain unchanged and appear in `duplicates`,
-  even when monitoring is paused/completed. Soft-deleted pairs can be added as
-  new rows with new public UUIDs.
-- Missing, deleted, or disabled Carriers reject the entire creation batch.
+- The original app was inspected as behavioral reference. Each public request
+  contains one Carrier/reference pair. Existing non-deleted Shipments remain
+  unchanged and return with `outcome: "existing"`, even when monitoring is
+  paused/completed. Soft-deleted pairs can be added as new rows with new UUIDs.
+- Missing, deleted, or disabled Carriers reject creation.
   Existing Shipments remain accessible when their Carrier is disabled/deleted.
   Creation starts active and immediately due, with null verification URL and
   actor columns. Pure Carrier reference policies provide the original UPS,
@@ -49,15 +46,15 @@ production migration was performed.
 
 ### HTTP contract
 
-| Endpoint                             | Behavior                                                                                                                                                                                 |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /shipments`                    | `{ items: [{ carrierExternalId, trackingReference, notes? }] }`, 1–10 submitted items. Returns full public records in `{ inserted, duplicates }`; 201 with any insertion, otherwise 200. |
-| `GET /shipments`                     | Plain array of non-deleted Shipments, newest creation first, then descending internal identity for ties; initially unpaginated.                                                          |
-| `GET /shipments/:externalId`         | Read by UUIDv4; missing/deleted returns 404.                                                                                                                                             |
-| `PATCH /shipments/:externalId`       | Strict `{ notes: string \| null }`; missing/deleted returns 404.                                                                                                                         |
-| `DELETE /shipments/:externalId`      | Soft-delete and clear the schedule; 204 on success, 404 when missing/deleted.                                                                                                            |
-| `POST /shipments/:externalId/pause`  | Empty/absent body; returns the changed record with 200, invalid transition 409.                                                                                                          |
-| `POST /shipments/:externalId/resume` | Empty/absent body; returns the changed record with 200, invalid transition 409.                                                                                                          |
+| Endpoint                             | Behavior                                                                                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /shipments`                    | `{ carrierExternalId, trackingReference, notes? }` → `{ outcome: "created" \| "existing", shipment }`; 201 when created, otherwise 200. |
+| `GET /shipments`                     | Plain array of non-deleted Shipments, newest creation first, then descending internal identity for ties; initially unpaginated.         |
+| `GET /shipments/:externalId`         | Read by UUIDv4; missing/deleted returns 404.                                                                                            |
+| `PATCH /shipments/:externalId`       | Strict `{ notes: string \| null }`; missing/deleted returns 404.                                                                        |
+| `DELETE /shipments/:externalId`      | Soft-delete and clear the schedule; 204 on success, 404 when missing/deleted.                                                           |
+| `POST /shipments/:externalId/pause`  | Empty/absent body; returns the changed record with 200, invalid transition 409.                                                         |
+| `POST /shipments/:externalId/resume` | Empty/absent body; returns the changed record with 200, invalid transition 409.                                                         |
 
 Responses use camelCase and include `externalId`, a Carrier summary
 (`externalId`, `code`, `name`, `isActive`), `trackingReference`, `notes`,
@@ -69,15 +66,13 @@ Routes set `Cache-Control: no-store`. Invalid UUIDs return 400.
 
 ### Transaction guarantees
 
-The service validates and deduplicates before repository writes. The repository
-then locks all referenced Carriers in identity order with shared locks and checks
-eligibility again. Concurrent disable/deletion serializes with creation. Invalid
-eligibility returns without inserting any sibling.
+The service validates the single request before the repository write. The repository
+locks the referenced Carrier and checks eligibility again. Concurrent disable/deletion
+serializes with creation.
 
-Creation uses one READ COMMITTED transaction and deterministic pair ordering to
-avoid reverse-order bulk deadlocks. Parameterized PostgreSQL `INSERT ... ON
+Creation uses one READ COMMITTED transaction. Parameterized PostgreSQL `INSERT ... ON
 CONFLICT` targets only the existing partial unique Carrier/reference index. Other
-database errors propagate and roll back the complete batch. A subsequent statement
+database errors propagate and roll back the request. A subsequent statement
 reads a conflicting row with a fresh snapshot after a concurrent transaction
 commits; the row stays locked until its public response is read. If a concurrent
 deletion removed that conflict, creation retries the insert/read sequence.
@@ -95,10 +90,10 @@ an old UUID cannot modify a newly created replacement.
 | `src/app.module.ts`                                               | Register the Shipment HTTP feature only in the API root.                                                          |
 | `src/modules/carriers/carrier-reference-policy.ts`                | Generic reference validation and pure original Carrier URL templates.                                             |
 | `src/modules/carriers/carrier-reference-policy.spec.ts`           | String preservation, validation, encoded URLs, and unknown-Carrier behavior.                                      |
-| `src/modules/shipments/shipments.schemas.ts`                      | Strict request/public-record/result schemas and safe row error structure.                                         |
+| `src/modules/shipments/shipments.schemas.ts`                      | Strict request/public-record schemas and safe field error structure.                                              |
 | `src/modules/shipments/shipments.repository.ts`                   | Public records, use-case results, repository interface, and Symbol token.                                         |
 | `src/modules/shipments/typeorm-shipments.repository.ts`           | Transactional creation, eligibility/row locks, duplicate handling, public projection, and lifecycle writes.       |
-| `src/modules/shipments/shipments.service.ts`                      | Complete validation, last-occurrence deduplication, Carrier policy selection, and safe HTTP error mapping.        |
+| `src/modules/shipments/shipments.service.ts`                      | Complete single-item validation, Carrier policy selection, outcome mapping, and safe HTTP errors.                 |
 | `src/modules/shipments/shipments.controller.ts`                   | UUID routes, response status selection, and no-store headers.                                                     |
 | `src/modules/shipments/shipments.module.ts`                       | Repository provider and service/controller composition.                                                           |
 | `src/modules/shipments/shipments.service.spec.ts`                 | 29 service creation validation/normalization/atomicity cases.                                                     |

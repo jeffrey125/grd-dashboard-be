@@ -51,7 +51,7 @@ V1-006 and V1-017 can proceed in parallel after runtime composition is establish
 | [V1-005](V1-005-initial-database-schema.md)           | Five-table schema, constraints, indexes, and Carrier seeds.                               |
 | [V1-006](V1-006-in-memory-cache.md)                   | Global per-process in-memory cache and abstract feature cache service.                    |
 | [V1-007](V1-007-carriers-module.md)                   | Carrier read/update API, repository, and immutable migration-managed adapter codes.       |
-| [V1-008](V1-008-shipments-module.md)                  | Shipment CRUD, soft deletion, atomic bulk creation, and tests.                            |
+| [V1-008](V1-008-shipments-module.md)                  | Shipment CRUD, soft deletion, single-item creation, and tests.                            |
 | [V1-009](V1-009-authentication-design.md)             | Approved auth ADR, schema extension, and dependency choice.                               |
 | [V1-010](V1-010-authentication-implementation.md)     | Authenticated principals, guards, authorization, and audit actors.                        |
 | [V1-011](V1-011-tracking-persistence.md)              | Runs, attempts, snapshots, outcome transactions, and repositories.                        |

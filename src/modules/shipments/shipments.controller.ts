@@ -56,7 +56,7 @@ export class ShipmentsController {
   ) {
     const result = await this.shipments.create(input, principal.id);
 
-    response.status(result.inserted.length ? 201 : 200);
+    response.status(result.outcome === 'created' ? 201 : 200);
 
     return result;
   }

@@ -16,8 +16,7 @@ import {
 } from './shipments.repository.js';
 import {
   createShipmentSchema,
-  createShipmentsEnvelopeSchema,
-  invalidShipmentRows,
+  invalidShipmentFields,
   monitoringCommandSchema,
   parseShipmentInput,
   shipmentHistoryQuerySchema,
@@ -25,7 +24,6 @@ import {
   shipmentExternalIdSchema,
   updateShipmentNotesSchema,
   type NewShipment,
-  type ShipmentValidationDetail,
 } from './shipments.schemas.js';
 
 @Injectable()
@@ -57,85 +55,64 @@ export class ShipmentsService {
   }
 
   async create(input: unknown, actorId: number | null = null) {
-    const envelope = parseShipmentInput(createShipmentsEnvelopeSchema, input);
-    const details: ShipmentValidationDetail[] = [];
-    const normalized: NewShipment[] = [];
+    const parsed = createShipmentSchema.safeParse(input);
 
-    for (const [index, item] of envelope.items.entries()) {
-      const result = createShipmentSchema.safeParse(item);
-
-      if (!result.success) {
-        for (const issue of result.error.issues) {
+    if (!parsed.success)
+      invalidShipmentFields(
+        parsed.error.issues.map((issue) => {
           const field = issue.path[0];
 
-          details.push({
-            row: index + 1,
+          return {
             field:
               field === 'carrierExternalId' ||
               field === 'trackingReference' ||
               field === 'notes'
                 ? field
-                : 'item',
+                : ('shipment' as const),
             message: 'Invalid field or unsupported input',
-          });
-        }
-
-        continue;
-      }
-
-      const carrier = await this.carriers.find(result.data.carrierExternalId);
-
-      if (!carrier?.isActive) {
-        details.push({
-          row: index + 1,
-          field: 'carrierExternalId',
-          message: 'Carrier is missing or disabled',
-        });
-
-        continue;
-      }
-
-      normalized.push({
-        ...result.data,
-        trackingReference: carrierReferencePolicy(carrier.code).normalize(
-          result.data.trackingReference,
-        ),
-      });
-    }
-
-    if (details.length) invalidShipmentRows(details);
-
-    const unique = new Map<string, NewShipment>();
-
-    for (const item of normalized)
-      unique.set(
-        JSON.stringify([item.carrierExternalId, item.trackingReference]),
-        item,
+          };
+        }),
       );
 
-    const result = await this.repository.createMany(
-      [...unique.values()],
-      actorId,
-    );
+    const carrier = await this.carriers.find(parsed.data.carrierExternalId);
+
+    if (!carrier?.isActive)
+      invalidShipmentFields([
+        {
+          field: 'carrierExternalId',
+          message: 'Carrier is missing or disabled',
+        },
+      ]);
+
+    const normalized: NewShipment = {
+      ...parsed.data,
+      trackingReference: carrierReferencePolicy(carrier.code).normalize(
+        parsed.data.trackingReference,
+      ),
+    };
+    const result = await this.repository.createMany([normalized], actorId);
 
     if (result.kind === 'unavailable') {
       // Revalidation under the database lock closes the Carrier-disable race.
-      invalidShipmentRows(
-        normalized.flatMap((item, index) =>
-          result.carrierExternalIds.includes(item.carrierExternalId)
-            ? [
-                {
-                  row: index + 1,
-                  field: 'carrierExternalId' as const,
-                  message: 'Carrier is missing or disabled',
-                },
-              ]
-            : [],
-        ),
-      );
+      invalidShipmentFields([
+        {
+          field: 'carrierExternalId',
+          message: 'Carrier is missing or disabled',
+        },
+      ]);
     }
 
-    return { inserted: result.inserted, duplicates: result.duplicates };
+    const shipment = result.inserted[0] ?? result.duplicates[0];
+
+    if (!shipment)
+      throw new ConflictException('Shipment creation could not be resolved');
+
+    return {
+      outcome: result.inserted.length
+        ? ('created' as const)
+        : ('existing' as const),
+      shipment,
+    };
   }
 
   async find(externalId: string) {

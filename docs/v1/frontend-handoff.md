@@ -21,7 +21,7 @@ copy the Tom application's proxy blindly, or build an Origin-stripping proxy.
 ## Tracking projection, search, history, overview and live changes
 
 BE-V1-001 adds stored `currentTracking`, `latestLookup`, and `latestRun` to every
-Shipment response, including inserted/duplicate batches and notes/pause/resume.
+Shipment response, including created/existing creation outcomes and notes/pause/resume.
 Apply migration `1792281600000-TrackingReadProjection` before running this API.
 Carrier status is distinct from `monitoringStatus` and lookup outcome.
 
@@ -260,32 +260,32 @@ It includes first observations and changed observations; unchanged, failed,
 not-found and skipped polls do not create entries. Counts are current monitoring
 state totals, not delivered-today, on-time performance or analytics metrics.
 
-| Route                                        | Input → success                                                                                                                                           |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                   |
-| `GET /api/v1/shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                        |
-| `GET /api/v1/shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                             |
-| `GET /api/v1/dashboard/overview`             | No input → 200 OverviewResponse with bounded operational panels and full attention/upcoming totals.                                                       |
-| `GET /api/v1/shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                  |
-| `POST /api/v1/shipments`                     | `{ items: [{ carrierExternalId, trackingReference, notes? }] }` → `{ inserted: Shipment[], duplicates: Shipment[] }`; 201 if any inserted, otherwise 200. |
-| `PATCH /api/v1/shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                          |
-| `DELETE /api/v1/shipments/:externalId`       | No body → 204. Soft deletion; a second delete returns 404.                                                                                                |
-| `POST /api/v1/shipments/:externalId/pause`   | `{}` → 200 Shipment; only active to manual pause.                                                                                                         |
-| `POST /api/v1/shipments/:externalId/resume`  | `{}` → 200 Shipment; only manual pause to active/due now.                                                                                                 |
-| `POST /api/v1/shipments/:externalId/refresh` | Empty or `{}` → 202 TrackingRun (below).                                                                                                                  |
+| Route                                        | Input → success                                                                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                       |
+| `GET /api/v1/shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                            |
+| `GET /api/v1/shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                                 |
+| `GET /api/v1/dashboard/overview`             | No input → 200 OverviewResponse with bounded operational panels and full attention/upcoming totals.                                                           |
+| `GET /api/v1/shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                      |
+| `POST /api/v1/shipments`                     | `{ carrierExternalId, trackingReference, notes? }` → `{ outcome: "created" \| "existing", shipment: Shipment }`; 201 when created, 200 when already existing. |
+| `PATCH /api/v1/shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                              |
+| `DELETE /api/v1/shipments/:externalId`       | No body → 204. Soft deletion; a second delete returns 404.                                                                                                    |
+| `POST /api/v1/shipments/:externalId/pause`   | `{}` → 200 Shipment; only active to manual pause.                                                                                                             |
+| `POST /api/v1/shipments/:externalId/resume`  | `{}` → 200 Shipment; only manual pause to active/due now.                                                                                                     |
+| `POST /api/v1/shipments/:externalId/refresh` | Empty or `{}` → 202 TrackingRun (below).                                                                                                                      |
 
-Creation accepts 1–10 rows atomically. References are trimmed, nonblank strings
+Creation accepts one strict object per request. References are trimmed, nonblank strings
 up to 255 UTF-16 code units, with no NUL; preserve leading zeros and case. The
 worker has additional provider-specific validation, so acceptance is not proof
 the Carrier can find it. Notes are trimmed, 1–500 code units, no NUL; use null
 to clear, not `""`. Unknown fields reject the input, including actor IDs.
 
-In-batch duplicate Carrier/reference pairs collapse with the last row's notes.
-An existing nondeleted pair is returned as a duplicate without modifying its
-notes/state, even when paused or completed. Soft-deleted pairs may be added again.
-Do not show success for a partially valid batch: invalid rows insert nothing.
-Row errors use `{ message, code: 'shipment_validation_failed', details:
-[{ row, field, message }] }`, where row numbers are **1-based**.
+An existing nondeleted Carrier/reference pair is returned with `outcome: "existing"`
+without modifying its notes/state, even when paused or completed. Soft-deleted
+pairs may be added again with `outcome: "created"` and a new UUID.
+Do not show success for invalid input: an invalid request inserts nothing.
+Creation errors use `{ message, code: 'shipment_validation_failed', details:
+[{ field, message }] }`, where `field` is allowlisted and contains no submitted value.
 
 `verificationUrl` remains null until a successful lookup populates it. Open
 external links with `noopener noreferrer`. A disabled Carrier prevents creation
@@ -395,7 +395,7 @@ page focus/reconnect if settings are displayed.
 Use status codes, not raw library diagnostics: 400 invalid input; 401 session;
 403 origin/role/replacement; 404 missing/deleted; 409 forbidden state transition;
 429 rate limit; 5xx safe generic failure. Do not assume every error body shares
-the row-validation shape or contains a machine code. Do not automatically retry
+the field-validation shape or contains a machine code. Do not automatically retry
 non-idempotent mutations. Display generic connectivity errors without inventing
 successful tracking results.
 
@@ -403,7 +403,7 @@ Before frontend handoff, test these groups against the real local backend:
 
 1. Login, restricted-password flow, logout, expired/revoked session, refresh
    restoration, Staff/Admin authorization and account protection conflicts.
-2. Batch add, row validation, duplicates, literal leading zeros, edit/clear notes,
+2. Single add, field validation, duplicates, literal leading zeros, edit/clear notes,
    soft delete/re-add and disabled Carrier behavior.
 3. Manual pause/resume, threshold-pause refresh, terminal delivery, duplicate
    refresh coalescing and run queued/running/terminal rendering.

@@ -95,17 +95,13 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
       .set('Cookie', administrator)
       .set('Origin', 'http://dashboard.example.test')
       .send({
-        items: [
-          {
-            carrierExternalId: carrier.externalId,
-            trackingReference: 'dashboard-http',
-          },
-        ],
+        carrierExternalId: carrier.externalId,
+        trackingReference: 'dashboard-http',
       })
       .expect(201);
     const [shipment]: Array<{ id: number }> = await db.source.query(
       'SELECT id FROM shipments WHERE external_id = $1',
-      [created.body.inserted[0].externalId],
+      [created.body.shipment.externalId],
     );
 
     await db.source.query(
@@ -144,7 +140,7 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
         upcomingDeliveries: { total: 0, items: [] },
         recentChanges: [
           {
-            shipmentExternalId: created.body.inserted[0].externalId,
+            shipmentExternalId: created.body.shipment.externalId,
             trackingReference: 'dashboard-http',
             carrier: {
               externalId: carrier.externalId,

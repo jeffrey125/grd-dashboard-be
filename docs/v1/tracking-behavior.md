@@ -10,15 +10,14 @@
   V1-008 explicitly uses generic trimmed, nonempty strings up to 255 UTF-16 code
   units for every Carrier, preserving case and leading zeros and rejecting NUL
   and JSON numbers. Provider-specific format restrictions are not applied.
-- Bulk creation accepts 1-10 explicit items, validates the complete input before writing, deduplicates normalized pairs, writes atomically, and reports inserted versus active duplicates.
+- Public creation accepts one explicit item, validates it before writing, and reports created versus existing.
 - APIs never expose internal integer IDs.
 
-V1-008 uses one `POST /shipments` endpoint with 1–10 `items`. The last occurrence
-of an in-request normalized pair supplies its notes, including null for omitted
-notes. Existing non-deleted pairs (even paused/completed) remain unchanged and
-are reported as duplicates. At least one insertion returns 201; all duplicates
-returns 200. Any invalid row, unavailable Carrier, or database failure inserts
-nothing. Carrier eligibility is checked again under database locks.
+V1-008 uses one `POST /shipments` endpoint with one shipment object. Existing
+non-deleted pairs (even paused/completed) remain unchanged and return with an
+`existing` outcome and 200; a new insertion returns `created` and 201. Invalid
+input, an unavailable Carrier, or a database failure inserts nothing. Carrier
+eligibility is checked again under a database lock.
 
 New Shipments are active and immediately due, with `verification_url = NULL`.
 The Carrier interface can build a URL without opening a tracking session; persist

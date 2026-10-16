@@ -168,13 +168,9 @@ describe('employee HTTP authentication', () => {
       .set('Origin', origin)
       .set('Cookie', cookie)
       .send({
-        items: [
-          {
-            carrierExternalId: carrierId,
-            trackingReference: 'test',
-            createdById: 123,
-          },
-        ],
+        carrierExternalId: carrierId,
+        trackingReference: 'test',
+        createdById: 123,
       })
       .expect(400);
 
@@ -182,13 +178,9 @@ describe('employee HTTP authentication', () => {
       .post('/api/v1/shipments')
       .set('Origin', origin)
       .set('Cookie', cookie)
-      .send({
-        items: [
-          { carrierExternalId: carrierId, trackingReference: 'audit-test' },
-        ],
-      })
+      .send({ carrierExternalId: carrierId, trackingReference: 'audit-test' })
       .expect(201);
-    const id = created.body.inserted[0].externalId;
+    const id = created.body.shipment.externalId;
 
     await http()
       .patch(`/api/v1/shipments/${id}`)

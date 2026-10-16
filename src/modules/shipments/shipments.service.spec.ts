@@ -23,9 +23,11 @@ const carrier: CarrierRecord = {
 
 async function setup() {
   const repository = {
-    createMany: vi
-      .fn()
-      .mockResolvedValue({ kind: 'created', inserted: [], duplicates: [] }),
+    createMany: vi.fn().mockResolvedValue({
+      kind: 'created',
+      inserted: [{ externalId: 'created-shipment' }],
+      duplicates: [],
+    }),
     search: vi.fn().mockResolvedValue({
       items: [],
       page: 1,
@@ -183,42 +185,53 @@ describe('Shipment history', () => {
 });
 
 describe('Shipment creation', () => {
-  it('preserves strings and case, normalizes UUIDs, and uses the last repeated pair including omitted notes', async () => {
+  it('preserves reference case, normalizes fields, and returns the created shipment', async () => {
     const { service, repository } = await setup();
-
-    await service.create({
-      items: [
-        {
-          carrierExternalId: carrierExternalId.toUpperCase(),
-          trackingReference: ' 001Ab ',
-          notes: 'First',
-        },
-        { carrierExternalId, trackingReference: '001Ab' },
-        { carrierExternalId, trackingReference: '001ab', notes: ' Last ' },
-      ],
+    const shipment = { externalId: 'shipment-id' };
+    repository.createMany.mockResolvedValueOnce({
+      kind: 'created',
+      inserted: [shipment],
+      duplicates: [],
     });
 
+    await expect(
+      service.create({
+        carrierExternalId: carrierExternalId.toUpperCase(),
+        trackingReference: ' 001Ab ',
+        notes: ' First ',
+      }),
+    ).resolves.toEqual({ outcome: 'created', shipment });
+
     expect(repository.createMany).toHaveBeenCalledWith(
-      [
-        { carrierExternalId, trackingReference: '001Ab', notes: null },
-        { carrierExternalId, trackingReference: '001ab', notes: 'Last' },
-      ],
+      [{ carrierExternalId, trackingReference: '001Ab', notes: 'First' }],
       null,
     );
+  });
+
+  it('returns an existing shipment without overwriting it', async () => {
+    const { service, repository } = await setup();
+    const shipment = { externalId: 'existing-id', notes: 'Original' };
+    repository.createMany.mockResolvedValueOnce({
+      kind: 'created',
+      inserted: [],
+      duplicates: [shipment],
+    });
+
+    await expect(
+      service.create({
+        carrierExternalId,
+        trackingReference: '001Ab',
+        notes: 'Replacement',
+      }),
+    ).resolves.toEqual({ outcome: 'existing', shipment });
   });
 
   it.each([
     null,
     {},
     { items: [] },
-    {
-      items: Array.from({ length: 11 }, () => ({
-        carrierExternalId,
-        trackingReference: '1',
-      })),
-    },
-    { items: [], createdById: 1 },
-  ])('rejects invalid envelopes: %j', async (input) => {
+    { carrierExternalId, trackingReference: 'valid', createdById: 1 },
+  ])('rejects invalid request shapes: %j', async (input) => {
     const { service, repository } = await setup();
 
     await expect(service.create(input)).rejects.toMatchObject({ status: 400 });
@@ -246,14 +259,14 @@ describe('Shipment creation', () => {
     { monitoringStatus: 'paused' },
     { CANARY_UNKNOWN_FIELD: 'CANARY_VALUE' },
   ])(
-    'rejects invalid items without writes or echoing sensitive input: %j',
+    'rejects invalid fields without writes or echoing sensitive input: %j',
     async (changes) => {
       const { service, repository } = await setup();
       const error = await service
         .create({
-          items: [
-            { carrierExternalId, trackingReference: 'valid', ...changes },
-          ],
+          carrierExternalId,
+          trackingReference: 'valid',
+          ...changes,
         })
         .catch((error) => error);
 
@@ -264,22 +277,20 @@ describe('Shipment creation', () => {
   );
 
   it.each([null, { ...carrier, isActive: false }])(
-    'rejects missing/deleted or disabled Carriers for the entire batch',
+    'rejects a missing, deleted, or disabled Carrier',
     async (value) => {
       const { service, repository, carriers } = await setup();
 
-      carriers.find.mockResolvedValueOnce(carrier).mockResolvedValueOnce(value);
+      carriers.find.mockResolvedValueOnce(value);
       await expect(
         service.create({
-          items: [
-            { carrierExternalId, trackingReference: 'valid' },
-            { carrierExternalId, trackingReference: 'invalid-carrier' },
-          ],
+          carrierExternalId,
+          trackingReference: 'invalid-carrier',
         }),
       ).rejects.toMatchObject({
         response: {
           details: [
-            { row: 2, field: 'carrierExternalId', message: expect.any(String) },
+            { field: 'carrierExternalId', message: expect.any(String) },
           ],
         },
       });
@@ -288,7 +299,7 @@ describe('Shipment creation', () => {
     },
   );
 
-  it('retains original row numbers when Carrier eligibility changes during creation', async () => {
+  it('reports the Carrier field when eligibility changes during creation', async () => {
     const { service, repository } = await setup();
 
     repository.createMany.mockResolvedValue({
@@ -297,17 +308,12 @@ describe('Shipment creation', () => {
     });
     await expect(
       service.create({
-        items: [
-          { carrierExternalId, trackingReference: 'repeated' },
-          { carrierExternalId, trackingReference: 'repeated' },
-        ],
+        carrierExternalId,
+        trackingReference: 'race',
       }),
     ).rejects.toMatchObject({
       response: {
-        details: [
-          { row: 1, field: 'carrierExternalId', message: expect.any(String) },
-          { row: 2, field: 'carrierExternalId', message: expect.any(String) },
-        ],
+        details: [{ field: 'carrierExternalId', message: expect.any(String) }],
       },
     });
   });
@@ -318,40 +324,30 @@ describe('Shipment creation', () => {
     for (const code of ['ups', 'echoship', 'ffe']) {
       carriers.find.mockResolvedValue({ ...carrier, code });
       await service.create({
-        items: [
-          {
-            carrierExternalId,
-            trackingReference: 'x'.repeat(255),
-            notes: 'n'.repeat(500),
-          },
-        ],
+        carrierExternalId,
+        trackingReference: 'x'.repeat(255),
+        notes: 'n'.repeat(500),
       });
     }
 
     expect(repository.createMany).toHaveBeenCalledTimes(3);
   });
 
-  it('rejects every invalid row before any writes and exposes safe row errors', async () => {
+  it('exposes safe field errors', async () => {
     const { service, repository } = await setup();
 
     await expect(
       service.create({
-        items: [
-          { carrierExternalId, trackingReference: 'valid' },
-          { carrierExternalId, trackingReference: 123 },
-          {
-            carrierExternalId,
-            trackingReference: 'other',
-            notes: 'x'.repeat(501),
-          },
-        ],
+        carrierExternalId,
+        trackingReference: 123,
+        notes: 'x'.repeat(501),
       }),
     ).rejects.toMatchObject({
       response: {
         code: 'shipment_validation_failed',
         details: expect.arrayContaining([
-          expect.objectContaining({ row: 2, field: 'trackingReference' }),
-          expect.objectContaining({ row: 3, field: 'notes' }),
+          expect.objectContaining({ field: 'trackingReference' }),
+          expect.objectContaining({ field: 'notes' }),
         ]),
       },
     });

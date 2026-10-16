@@ -16,13 +16,13 @@ export type ShipmentHistoryResponse = z.infer<
   typeof shipmentHistoryResponseSchema
 >;
 
-export interface BulkShipmentResult {
+export interface ShipmentCreationRows {
   inserted: ShipmentRecord[];
   duplicates: ShipmentRecord[];
 }
 
 export type ShipmentCreationResult =
-  | ({ kind: 'created' } & BulkShipmentResult)
+  | ({ kind: 'created' } & ShipmentCreationRows)
   | { kind: 'unavailable'; carrierExternalIds: string[] };
 
 export type MonitoringCommand = 'pause' | 'resume';
