@@ -10,20 +10,20 @@ account records are `{ externalId, firstName, lastName, email, role, active,
 mustChangePassword, createdAt, updatedAt }`. Passwords and internal numeric IDs
 are never returned. Dates serialize to ISO timestamps. Responses use no-store.
 
-| Method/path                                 | Input                                                             | Policy / success                                                                              |
-| ------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| POST `/auth/sign-in`                        | `{ email, password }`                                             | Public, trusted Origin; 200 profile and Set-Cookie                                            |
-| GET `/auth/me`                              | none                                                              | Active session, including restricted; 200 profile                                             |
-| POST `/auth/sign-out`                       | empty                                                             | Active session, including restricted; 204, revoke current session                             |
-| POST `/auth/change-password`                | `{ currentPassword, newPassword }`                                | Active session, including restricted; 204, clear replacement requirement, revoke all sessions |
-| GET `/admin/accounts`                       | none                                                              | Unrestricted Admin; 200 array                                                                 |
-| GET `/admin/accounts/:externalId`           | none                                                              | Unrestricted Admin; 200 profile                                                               |
-| POST `/admin/accounts`                      | `{ firstName, lastName, email, password, role }`                  | Unrestricted Admin; 201, active with required password replacement                            |
-| PATCH `/admin/accounts/:externalId`         | nonempty subset of `{ firstName, lastName, email, role, active }` | Unrestricted Admin; 200 profile                                                               |
-| POST `/admin/accounts/:externalId/password` | `{ password }`                                                    | Unrestricted Admin; 204, require replacement and revoke all sessions                          |
+| Method/path                                        | Input                                                             | Policy / success                                                                              |
+| -------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| POST `/api/v1/auth/sign-in`                        | `{ email, password }`                                             | Public, trusted Origin; 200 profile and Set-Cookie                                            |
+| GET `/api/v1/auth/me`                              | none                                                              | Active session, including restricted; 200 profile                                             |
+| POST `/api/v1/auth/sign-out`                       | empty                                                             | Active session, including restricted; 204, revoke current session                             |
+| POST `/api/v1/auth/change-password`                | `{ currentPassword, newPassword }`                                | Active session, including restricted; 204, clear replacement requirement, revoke all sessions |
+| GET `/api/v1/admin/accounts`                       | none                                                              | Unrestricted Admin; 200 array                                                                 |
+| GET `/api/v1/admin/accounts/:externalId`           | none                                                              | Unrestricted Admin; 200 profile                                                               |
+| POST `/api/v1/admin/accounts`                      | `{ firstName, lastName, email, password, role }`                  | Unrestricted Admin; 201, active with required password replacement                            |
+| PATCH `/api/v1/admin/accounts/:externalId`         | nonempty subset of `{ firstName, lastName, email, role, active }` | Unrestricted Admin; 200 profile                                                               |
+| POST `/api/v1/admin/accounts/:externalId/password` | `{ password }`                                                    | Unrestricted Admin; 204, require replacement and revoke all sessions                          |
 
 GET Carrier routes, every Shipment route including search and history, and
-`GET /dashboard/overview` require unrestricted Staff or Admin; Carrier PATCH
+`GET /api/v1/dashboard/overview` require unrestricted Staff or Admin; Carrier PATCH
 requires Admin. Minimal health GETs are public. Other controller handlers require
 an explicit policy; absence denies access. Manual refresh and live events require
 unrestricted Staff/Admin; diagnostic source-data access requires Admin. No machine

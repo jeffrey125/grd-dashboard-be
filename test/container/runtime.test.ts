@@ -116,13 +116,16 @@ test(
           assert.equal(await sql('SELECT count(*) FROM carriers'), '3');
 
           const address = (await compose('port', 'api', '3000')).stdout.trim();
-          const response = await fetch(`http://${address}/health/ready`, {
-            signal: AbortSignal.timeout(5000),
-          });
+          const response = await fetch(
+            `http://${address}/api/v1/health/ready`,
+            {
+              signal: AbortSignal.timeout(5000),
+            },
+          );
 
           assert.equal(response.status, 200);
           assert.equal(
-            (await fetch(`http://${address}/shipments`)).status,
+            (await fetch(`http://${address}/api/v1/shipments`)).status,
             401,
           );
           t.diagnostic(`Disposable API verified at http://${address}`);

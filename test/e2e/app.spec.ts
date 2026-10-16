@@ -21,13 +21,13 @@ describe('Application health HTTP endpoints', () => {
   it('serves health and removes the scaffold route', async () => {
     app = await createTestApp();
     await request(app.getHttpServer() as Server)
-      .get('/health/live')
+      .get('/api/v1/health/live')
       .expect(200)
       .expect('Cache-Control', 'no-store')
       .expect({ status: 'ok' });
 
     const response = await request(app.getHttpServer() as Server)
-      .get('/health/ready')
+      .get('/api/v1/health/ready')
       .expect(200)
       .expect('Cache-Control', 'no-store');
 
@@ -38,6 +38,9 @@ describe('Application health HTTP endpoints', () => {
 
     await request(app.getHttpServer() as Server)
       .get('/')
+      .expect(404);
+    await request(app.getHttpServer() as Server)
+      .get('/health/live')
       .expect(404);
   });
 
@@ -52,7 +55,7 @@ describe('Application health HTTP endpoints', () => {
     ]);
 
     const response = await request(app.getHttpServer() as Server)
-      .get('/health/ready')
+      .get('/api/v1/health/ready')
       .expect(503);
 
     expect(response.body).toMatchObject({
@@ -62,7 +65,7 @@ describe('Application health HTTP endpoints', () => {
     expect(response.text).not.toContain('CANARY_HTTP_SECRET');
 
     await request(app.getHttpServer() as Server)
-      .get('/health/live')
+      .get('/api/v1/health/live')
       .expect(200);
   });
 });

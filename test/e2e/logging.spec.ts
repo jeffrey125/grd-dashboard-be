@@ -14,6 +14,7 @@ import { ProjectLogger } from '@infrastructure/logging/logging.types.js';
 import { HealthModule } from '@modules/health/health.module.js';
 import { READINESS_DEPENDENCIES } from '@modules/health/readiness.service.js';
 import { TestDatabaseModule } from '@test/support/test-database.module.js';
+import { configureApiRoutes } from '@runtime/api-routing.js';
 import { testEnvironment } from '@test/support/environment.js';
 import type { Server } from 'node:http';
 import request from 'supertest';
@@ -96,26 +97,27 @@ describe('API structured request logging', () => {
       .compile();
 
     app = module.createNestApplication();
+    configureApiRoutes(app);
     app.useLogger(app.get(NestLoggerAdapter));
     await app.init();
 
     const server = app.getHttpServer() as Server;
     const responses = await Promise.all([
       request(server)
-        .get('/logging-test/correlation?token=CANARY_QUERY')
+        .get('/api/v1/logging-test/correlation?token=CANARY_QUERY')
         .set('X-Request-ID', 'client-request-a')
         .set('Authorization', 'Bearer CANARY_AUTHORIZATION')
         .expect(200),
       request(server)
-        .get('/logging-test/correlation')
+        .get('/api/v1/logging-test/correlation')
         .set('X-Request-ID', 'client-request-b')
         .expect(200),
     ]);
 
-    await request(server).get('/health/live').expect(200);
-    await request(server).get('/health/ready').expect(503);
-    await request(server).get('/missing').expect(404);
-    await request(server).get('/logging-test/failure').expect(500);
+    await request(server).get('/api/v1/health/live').expect(200);
+    await request(server).get('/api/v1/health/ready').expect(503);
+    await request(server).get('/api/v1/missing').expect(404);
+    await request(server).get('/api/v1/logging-test/failure').expect(500);
 
     const records = output
       .split('\n')
@@ -142,20 +144,20 @@ describe('API structured request logging', () => {
     expect(completions).toHaveLength(6);
     expect(
       completions.filter(
-        (record) => record.route === '/logging-test/correlation',
+        (record) => record.route === '/api/v1/logging-test/correlation',
       ),
     ).toHaveLength(2);
     expect(completions).toContainEqual(
       expect.objectContaining({
         level: 'debug',
-        route: '/health/live',
+        route: '/api/v1/health/live',
         status: 200,
       }),
     );
     expect(completions).toContainEqual(
       expect.objectContaining({
         level: 'warn',
-        route: '/health/ready',
+        route: '/api/v1/health/ready',
         status: 503,
       }),
     );
@@ -169,7 +171,7 @@ describe('API structured request logging', () => {
     expect(completions).toContainEqual(
       expect.objectContaining({
         level: 'error',
-        route: '/logging-test/failure',
+        route: '/api/v1/logging-test/failure',
         status: 500,
       }),
     );

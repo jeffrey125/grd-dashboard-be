@@ -9,6 +9,7 @@ import { DatabaseModule } from '@infrastructure/database/database.module.js';
 import { TestDatabaseModule } from '@test/support/test-database.module.js';
 import { shipmentDatabase } from '@test/support/shipment-database.js';
 import { AuthService } from '@modules/auth/auth.service.js';
+import { configureApiRoutes } from '@runtime/api-routing.js';
 
 describe('employee HTTP authentication', () => {
   let db: Awaited<ReturnType<typeof shipmentDatabase>>;
@@ -39,6 +40,7 @@ describe('employee HTTP authentication', () => {
       .compile();
 
     app = module.createNestApplication({ logger: false });
+    configureApiRoutes(app);
     await app.init();
     await app.get(AuthService).bootstrap({
       firstName: 'Test',
@@ -54,15 +56,15 @@ describe('employee HTTP authentication', () => {
     vi.unstubAllEnvs();
   });
   it('defaults to protected routes and enforces password replacement with cookie-only credentials', async () => {
-    await http().get('/carriers').expect(401);
-    await http().get('/shipments').expect(401);
+    await http().get('/api/v1/carriers').expect(401);
+    await http().get('/api/v1/shipments').expect(401);
     await http()
-      .post('/auth/sign-in')
+      .post('/api/v1/auth/sign-in')
       .send({ email: 'admin@example.test', password: 'initial admin password' })
       .expect(403);
 
     const login = await http()
-      .post('/auth/sign-in')
+      .post('/api/v1/auth/sign-in')
       .set('Origin', origin)
       .send({ email: 'admin@example.test', password: 'initial admin password' })
       .expect(200);
@@ -75,10 +77,10 @@ describe('employee HTTP authentication', () => {
 
     const cookie = cookies(login);
 
-    await http().get('/auth/me').set('Cookie', cookie).expect(200);
-    await http().get('/carriers').set('Cookie', cookie).expect(403);
+    await http().get('/api/v1/auth/me').set('Cookie', cookie).expect(200);
+    await http().get('/api/v1/carriers').set('Cookie', cookie).expect(403);
     await http()
-      .post('/auth/change-password')
+      .post('/api/v1/auth/change-password')
       .set('Cookie', cookie)
       .set('Origin', origin)
       .send({
@@ -86,30 +88,33 @@ describe('employee HTTP authentication', () => {
         newPassword: 'chosen admin password',
       })
       .expect(204);
-    await http().get('/auth/me').set('Cookie', cookie).expect(401);
+    await http().get('/api/v1/auth/me').set('Cookie', cookie).expect(401);
 
     const fresh = await http()
-      .post('/auth/sign-in')
+      .post('/api/v1/auth/sign-in')
       .set('Origin', origin)
       .send({ email: 'admin@example.test', password: 'chosen admin password' })
       .expect(200);
 
-    await http().get('/carriers').set('Cookie', cookies(fresh)).expect(200);
     await http()
-      .post('/auth/sign-up/email')
+      .get('/api/v1/carriers')
+      .set('Cookie', cookies(fresh))
+      .expect(200);
+    await http()
+      .post('/api/v1/auth/sign-up/email')
       .set('Origin', origin)
       .send({})
       .expect(404);
   });
   it('authorizes staff Shipment workflows, rejects Carrier administration, and writes trusted audit actors', async () => {
     const adminLogin = await http()
-      .post('/auth/sign-in')
+      .post('/api/v1/auth/sign-in')
       .set('Origin', origin)
       .send({ email: 'admin@example.test', password: 'chosen admin password' })
       .expect(200);
     const adminCookie = cookies(adminLogin);
     const staff = await http()
-      .post('/admin/accounts')
+      .post('/api/v1/admin/accounts')
       .set('Origin', origin)
       .set('Cookie', adminCookie)
       .send({
@@ -121,13 +126,13 @@ describe('employee HTTP authentication', () => {
       })
       .expect(201);
     const issued = await http()
-      .post('/auth/sign-in')
+      .post('/api/v1/auth/sign-in')
       .set('Origin', origin)
       .send({ email: staff.body.email, password: 'issued staff password' })
       .expect(200);
 
     await http()
-      .post('/auth/change-password')
+      .post('/api/v1/auth/change-password')
       .set('Origin', origin)
       .set('Cookie', cookies(issued))
       .send({
@@ -137,26 +142,29 @@ describe('employee HTTP authentication', () => {
       .expect(204);
 
     const staffLogin = await http()
-      .post('/auth/sign-in')
+      .post('/api/v1/auth/sign-in')
       .set('Origin', origin)
       .send({ email: staff.body.email, password: 'chosen staff password' })
       .expect(200);
     const cookie = cookies(staffLogin);
     const carriers = await http()
-      .get('/carriers')
+      .get('/api/v1/carriers')
       .set('Cookie', cookie)
       .expect(200);
     const carrierId = carriers.body[0].externalId;
 
     await http()
-      .patch(`/carriers/${carrierId}`)
+      .patch(`/api/v1/carriers/${carrierId}`)
       .set('Origin', origin)
       .set('Cookie', cookie)
       .send({ name: 'Forbidden' })
       .expect(403);
-    await http().get('/admin/accounts').set('Cookie', cookie).expect(403);
     await http()
-      .post('/shipments')
+      .get('/api/v1/admin/accounts')
+      .set('Cookie', cookie)
+      .expect(403);
+    await http()
+      .post('/api/v1/shipments')
       .set('Origin', origin)
       .set('Cookie', cookie)
       .send({
@@ -171,7 +179,7 @@ describe('employee HTTP authentication', () => {
       .expect(400);
 
     const created = await http()
-      .post('/shipments')
+      .post('/api/v1/shipments')
       .set('Origin', origin)
       .set('Cookie', cookie)
       .send({
@@ -183,25 +191,25 @@ describe('employee HTTP authentication', () => {
     const id = created.body.inserted[0].externalId;
 
     await http()
-      .patch(`/shipments/${id}`)
+      .patch(`/api/v1/shipments/${id}`)
       .set('Origin', origin)
       .set('Cookie', cookie)
       .send({ notes: 'Employee note' })
       .expect(200);
     await http()
-      .post(`/shipments/${id}/pause`)
+      .post(`/api/v1/shipments/${id}/pause`)
       .set('Origin', origin)
       .set('Cookie', cookie)
       .send({})
       .expect(200);
     await http()
-      .post(`/shipments/${id}/resume`)
+      .post(`/api/v1/shipments/${id}/resume`)
       .set('Origin', origin)
       .set('Cookie', cookie)
       .send({})
       .expect(200);
     await http()
-      .delete(`/shipments/${id}`)
+      .delete(`/api/v1/shipments/${id}`)
       .set('Origin', origin)
       .set('Cookie', cookie)
       .expect(204);
@@ -222,7 +230,7 @@ describe('employee HTTP authentication', () => {
     });
 
     await http()
-      .patch(`/carriers/${carrierId}`)
+      .patch(`/api/v1/carriers/${carrierId}`)
       .set('Origin', origin)
       .set('Cookie', adminCookie)
       .send({ name: 'Admin edited' })
@@ -237,38 +245,38 @@ describe('employee HTTP authentication', () => {
   });
   it('rejects cross-origin requests and limits normalized-email login attempts', async () => {
     await http()
-      .options('/auth/sign-in')
+      .options('/api/v1/auth/sign-in')
       .set('Origin', origin)
       .set('Access-Control-Request-Method', 'POST')
       .expect(204)
       .expect('Access-Control-Allow-Origin', origin)
       .expect('Access-Control-Allow-Credentials', 'true');
     await http()
-      .options('/auth/sign-in')
+      .options('/api/v1/auth/sign-in')
       .set('Origin', 'https://untrusted.example')
       .expect(403);
     await http()
-      .post('/auth/sign-in')
+      .post('/api/v1/auth/sign-in')
       .set('Origin', 'null')
       .send({})
       .expect(403);
     await http()
-      .get('/auth/me')
+      .get('/api/v1/auth/me')
       .set('Authorization', 'Bearer unsupported')
       .expect(401);
 
     for (let index = 0; index < 5; index++)
       await http()
-        .post('/auth/sign-in')
+        .post('/api/v1/auth/sign-in')
         .set('Origin', origin)
         .send({ email: '  Absent@example.test ', password: 'wrong password' })
         .expect(401);
 
     await http()
-      .post('/auth/sign-in')
+      .post('/api/v1/auth/sign-in')
       .set('Origin', origin)
       .send({ email: 'absent@EXAMPLE.test', password: 'wrong password' })
       .expect(429);
-    await http().get('/health/live').expect(200);
+    await http().get('/api/v1/health/live').expect(200);
   });
 });

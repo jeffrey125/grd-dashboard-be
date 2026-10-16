@@ -10,6 +10,7 @@ import {
 import { NestLoggerAdapter } from '@infrastructure/logging/nest-logger.adapter.js';
 import { ProjectLogger } from '@infrastructure/logging/logging.types.js';
 import { reportStartupError } from '@runtime/startup-error.js';
+import { configureApiRoutes } from '@runtime/api-routing.js';
 
 async function bootstrap() {
   // Fail before concurrent Nest providers can open a database pool. A rejected
@@ -28,6 +29,7 @@ async function bootstrap() {
     app.useLogger(app.get(NestLoggerAdapter));
     app.flushLogs();
     app.enableShutdownHooks(['SIGINT', 'SIGTERM']);
+    configureApiRoutes(app);
 
     const config = app.get<RuntimeConfiguration>(configuration.KEY);
 

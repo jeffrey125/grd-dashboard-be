@@ -14,6 +14,7 @@ import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
 import { shipmentDatabase } from '@test/support/shipment-database.js';
 import { TestDatabaseModule } from '@test/support/test-database.module.js';
+import { configureApiRoutes } from '@runtime/api-routing.js';
 
 describe('Shipment HTTP API with PostgreSQL', () => {
   let db: Awaited<ReturnType<typeof shipmentDatabase>>;
@@ -31,7 +32,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     ...(notes === undefined ? {} : { notes }),
   });
   const create = (items: unknown[]) =>
-    http().post('/shipments').send({ items });
+    http().post('/api/v1/shipments').send({ items });
 
   beforeAll(async () => {
     db = await shipmentDatabase();
@@ -47,6 +48,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       .compile();
 
     app = module.createNestApplication({ logger: false });
+    configureApiRoutes(app);
     await app.init();
     cookie = await administratorCookie(app);
     carrierExternalId = (
@@ -64,7 +66,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
   it('returns the same safe tracking projection from every Shipment response for Admin and Staff', async () => {
     const created = await create([item('projection-http')]).expect(201);
     const id = created.body.inserted[0].externalId;
-    const path = `/shipments/${id}`;
+    const path = `/api/v1/shipments/${id}`;
     const queued = await http().post(`${path}/refresh`).expect(202);
 
     expect((await http().get(path).expect(200)).body).toMatchObject({
@@ -151,9 +153,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     expect(JSON.stringify(known)).not.toMatch(
       /internalCanary|private-provider-value|sourceData|source_data|snapshotId|requestedById|lockVersion|createdById/,
     );
-    expect((await http().get('/shipments').expect(200)).body).toContainEqual(
-      known,
-    );
+    expect(
+      (await http().get('/api/v1/shipments').expect(200)).body,
+    ).toContainEqual(known);
 
     for (const notes of ['Changed', null]) {
       expect(
@@ -252,7 +254,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       ).body,
     ).toMatchObject(projection);
     await request(app.getHttpServer() as Server)
-      .patch(`/carriers/${carrierExternalId}`)
+      .patch(`/api/v1/carriers/${carrierExternalId}`)
       .set('Cookie', staff)
       .set('Origin', 'http://dashboard.example.test')
       .send({ name: 'Denied' })
@@ -265,11 +267,11 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     ]).expect(201);
 
     await request(app.getHttpServer() as Server)
-      .get('/shipments/search')
+      .get('/api/v1/shipments/search')
       .expect(401);
 
     const response = await http()
-      .get('/shipments/search')
+      .get('/api/v1/shipments/search')
       .query({
         tab: 'all',
         q: '%_ SEARCH',
@@ -300,7 +302,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       }),
     ]);
     expect(
-      Array.isArray((await http().get('/shipments').expect(200)).body),
+      Array.isArray((await http().get('/api/v1/shipments').expect(200)).body),
     ).toBe(true);
 
     for (const query of [
@@ -310,7 +312,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       { sortBy: 'privateColumn' },
       { createdFrom: '2026-03-09', createdTo: '2026-03-08' },
     ])
-      await http().get('/shipments/search').query(query).expect(400);
+      await http().get('/api/v1/shipments/search').query(query).expect(400);
   });
 
   it('serves authenticated normalized Shipment history with strict pagination and 404s', async () => {
@@ -329,11 +331,11 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     );
 
     await request(app.getHttpServer() as Server)
-      .get(`/shipments/${externalId}/history`)
+      .get(`/api/v1/shipments/${externalId}/history`)
       .expect(401);
 
     const history = await http()
-      .get(`/shipments/${externalId}/history`)
+      .get(`/api/v1/shipments/${externalId}/history`)
       .query({ page: 1, pageSize: 25 })
       .expect('Cache-Control', 'no-store')
       .expect(200);
@@ -357,17 +359,17 @@ describe('Shipment HTTP API with PostgreSQL', () => {
 
     for (const query of [{ unknown: 'field' }, { page: 0 }, { pageSize: 10 }])
       await http()
-        .get(`/shipments/${externalId}/history`)
+        .get(`/api/v1/shipments/${externalId}/history`)
         .query(query)
         .expect(400);
 
-    await http().get('/shipments/not-a-uuid/history').expect(400);
+    await http().get('/api/v1/shipments/not-a-uuid/history').expect(400);
     await http()
-      .get('/shipments/fdd45938-2f15-4c69-bc0d-52a57a707dc8/history')
+      .get('/api/v1/shipments/fdd45938-2f15-4c69-bc0d-52a57a707dc8/history')
       .expect(404);
 
-    await http().delete(`/shipments/${externalId}`).expect(204);
-    await http().get(`/shipments/${externalId}/history`).expect(404);
+    await http().delete(`/api/v1/shipments/${externalId}`).expect(204);
+    await http().get(`/api/v1/shipments/${externalId}/history`).expect(404);
   });
 
   it('creates, reads, edits, pauses, resumes and deletes by external UUID', async () => {
@@ -375,7 +377,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       .expect(201)
       .expect('Cache-Control', 'no-store');
     const shipment = response.body.inserted[0];
-    const path = `/shipments/${shipment.externalId}`;
+    const path = `/api/v1/shipments/${shipment.externalId}`;
 
     expect(shipment).toEqual({
       externalId: expect.any(String),
@@ -401,9 +403,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     });
     expect(response.body.duplicates).toEqual([]);
     expect((await http().get(path).expect(200)).body).toEqual(shipment);
-    expect((await http().get('/shipments').expect(200)).body).toContainEqual(
-      shipment,
-    );
+    expect(
+      (await http().get('/api/v1/shipments').expect(200)).body,
+    ).toContainEqual(shipment);
     expect(
       (await http().patch(path).send({ notes: ' Changed ' }).expect(200)).body
         .notes,
@@ -490,7 +492,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
   });
 
   it('returns safe row-specific errors and inserts nothing, including when an earlier repeated row is invalid', async () => {
-    const before = (await http().get('/shipments')).body;
+    const before = (await http().get('/api/v1/shipments')).body;
     const invalid = await create([
       item('would-be-valid'),
       { ...item('bad'), trackingReference: 123 },
@@ -508,7 +510,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       ]),
     );
     expect(invalid.text).not.toContain('CANARY');
-    expect((await http().get('/shipments')).body).toEqual(before);
+    expect((await http().get('/api/v1/shipments')).body).toEqual(before);
   });
 
   it.each([{ items: [] }, { items: Array.from({ length: 11 }, () => ({})) }])(
@@ -520,12 +522,12 @@ describe('Shipment HTTP API with PostgreSQL', () => {
 
   it('rejects malformed JSON and unknown envelope fields', async () => {
     await http()
-      .post('/shipments')
+      .post('/api/v1/shipments')
       .set('Content-Type', 'application/json')
       .send('{')
       .expect(400);
     await http()
-      .post('/shipments')
+      .post('/api/v1/shipments')
       .send({ items: [item('unknown-envelope')], createdById: 1 })
       .expect(400);
   });
@@ -533,15 +535,18 @@ describe('Shipment HTTP API with PostgreSQL', () => {
   it.each(['1', 'bad-uuid', '00000000-0000-1000-8000-000000000000'])(
     'rejects invalid UUID routes: %s',
     async (id) => {
-      await http().get(`/shipments/${id}`).expect(400);
-      await http().patch(`/shipments/${id}`).send({ notes: 'x' }).expect(400);
-      await http().delete(`/shipments/${id}`).expect(400);
-      await http().post(`/shipments/${id}/pause`).expect(400);
+      await http().get(`/api/v1/shipments/${id}`).expect(400);
+      await http()
+        .patch(`/api/v1/shipments/${id}`)
+        .send({ notes: 'x' })
+        .expect(400);
+      await http().delete(`/api/v1/shipments/${id}`).expect(400);
+      await http().post(`/api/v1/shipments/${id}/pause`).expect(400);
     },
   );
 
   it('returns 404 for an unknown public UUID', async () => {
-    const path = '/shipments/00000000-0000-4000-8000-000000000000';
+    const path = '/api/v1/shipments/00000000-0000-4000-8000-000000000000';
 
     await http().get(path).expect(404);
     await http().patch(path).send({ notes: null }).expect(404);
@@ -553,7 +558,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     const response = await create([
       item('x'.repeat(255), 'n'.repeat(500)),
     ]).expect(201);
-    const path = `/shipments/${response.body.inserted[0].externalId}`;
+    const path = `/api/v1/shipments/${response.body.inserted[0].externalId}`;
 
     for (const input of [
       {},
@@ -599,7 +604,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     }
 
     expect(
-      (await http().get('/shipments')).body.some(
+      (await http().get('/api/v1/shipments')).body.some(
         (row: { trackingReference: string }) =>
           row.trackingReference === 'no-partial-write',
       ),
@@ -639,7 +644,7 @@ describe('Shipment HTTP API with PostgreSQL', () => {
         message: 'Internal server error',
       });
       expect(
-        (await http().get('/shipments')).body.some(
+        (await http().get('/api/v1/shipments')).body.some(
           (row: { trackingReference: string }) =>
             row.trackingReference.startsWith('http-db-fail-'),
         ),

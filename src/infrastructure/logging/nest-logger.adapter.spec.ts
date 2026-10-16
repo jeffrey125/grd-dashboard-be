@@ -75,7 +75,7 @@ describe('NestLoggerAdapter', () => {
       productionConfiguration,
     );
 
-    production.log('Mapped {/health/live, GET} route', 'RouterExplorer');
+    production.log('Mapped {/api/v1/health/live, GET} route', 'RouterExplorer');
     production.error(error, 'ExceptionsHandler');
 
     const development = new NestLoggerAdapter(projectLogger, nativeLogger, {
@@ -97,7 +97,7 @@ describe('NestLoggerAdapter', () => {
       component: 'nest',
       event: 'nest.lifecycle',
       nestContext: 'RouterExplorer',
-      message: 'Mapped {/health/live, GET} route',
+      message: 'Mapped {/api/v1/health/live, GET} route',
     });
     expect(records[1]).toMatchObject({
       level: 'error',

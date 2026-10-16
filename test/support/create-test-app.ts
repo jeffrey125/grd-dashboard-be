@@ -7,6 +7,7 @@ import {
   type ReadinessDependency,
 } from '@modules/health/readiness.service.js';
 import { TestDatabaseModule } from './test-database.module.js';
+import { configureApiRoutes } from '@runtime/api-routing.js';
 
 export async function createTestApp(dependencies: ReadinessDependency[] = []) {
   const module = await Test.createTestingModule({
@@ -20,6 +21,7 @@ export async function createTestApp(dependencies: ReadinessDependency[] = []) {
     .useValue(dependencies)
     .compile();
   const app = module.createNestApplication();
+  configureApiRoutes(app);
 
   try {
     await app.init();

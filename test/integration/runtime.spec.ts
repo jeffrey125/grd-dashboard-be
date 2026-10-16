@@ -446,7 +446,7 @@ describe('runtime boundaries', () => {
 
     await waitForReady(api, 'API');
 
-    const url = `http://127.0.0.1:${port}/health/ready`;
+    const url = `http://127.0.0.1:${port}/api/v1/health/ready`;
 
     expect((await fetch(url)).status).toBe(200);
 
@@ -488,9 +488,9 @@ describe('runtime boundaries', () => {
 
     await waitForReady(api, 'API');
 
-    expect((await fetch(`http://127.0.0.1:${port}/health/ready`)).status).toBe(
-      200,
-    );
+    expect(
+      (await fetch(`http://127.0.0.1:${port}/api/v1/health/ready`)).status,
+    ).toBe(200);
     expect(api.output()).not.toContain('$UNSET_LITERAL_PASSWORD');
   });
 
@@ -517,9 +517,9 @@ describe('runtime boundaries', () => {
 
     jsonRecords(second);
 
-    expect((await fetch(`http://127.0.0.1:${port}/health/live`)).status).toBe(
-      200,
-    );
+    expect(
+      (await fetch(`http://127.0.0.1:${port}/api/v1/health/live`)).status,
+    ).toBe(200);
   });
 
   it('fails readiness but keeps liveness available during a database outage, then recovers', async () => {
@@ -530,15 +530,17 @@ describe('runtime boundaries', () => {
     await promisify(execFile)('docker', ['pause', container!.getId()]);
 
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/health/ready`);
+      const response = await fetch(
+        `http://127.0.0.1:${port}/api/v1/health/ready`,
+      );
 
       expect(response.status).toBe(503);
       expect(await response.json()).toMatchObject({
         error: { database: { status: 'down' } },
       });
-      expect((await fetch(`http://127.0.0.1:${port}/health/live`)).status).toBe(
-        200,
-      );
+      expect(
+        (await fetch(`http://127.0.0.1:${port}/api/v1/health/live`)).status,
+      ).toBe(200);
     } finally {
       await promisify(execFile)('docker', ['unpause', container!.getId()]);
     }
@@ -546,7 +548,7 @@ describe('runtime boundaries', () => {
     await vi.waitFor(
       async () => {
         expect(
-          (await fetch(`http://127.0.0.1:${port}/health/ready`)).status,
+          (await fetch(`http://127.0.0.1:${port}/api/v1/health/ready`)).status,
         ).toBe(200);
       },
       { timeout: 15000, interval: 250 },

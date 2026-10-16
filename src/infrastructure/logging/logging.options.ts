@@ -5,6 +5,7 @@ import type { Options } from 'pino-http';
 import type { RuntimeConfiguration } from '@config/configuration.js';
 import type { LogLevel } from '@config/env.schema.js';
 import { APPLICATION_NAME, REQUEST_ID_HEADER } from '@app/constants.js';
+import { API_BASE_PATH } from '@runtime/api-routing.js';
 import type { LogRuntime } from './logging.types.js';
 
 export const LOG_REDACTION_CENSOR = '[Redacted]';
@@ -164,7 +165,10 @@ function requestLevel(
 ) {
   const route = routeTemplate(request);
 
-  if (route === '/health/live' || route === '/health/ready') {
+  if (
+    route === `${API_BASE_PATH}/health/live` ||
+    route === `${API_BASE_PATH}/health/ready`
+  ) {
     return response.statusCode < 400 && !error ? 'debug' : 'warn';
   }
 

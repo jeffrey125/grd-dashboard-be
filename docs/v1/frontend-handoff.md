@@ -8,9 +8,11 @@ by this ticket. The legacy UI is reference behavior, not this API's protocol.
 
 Backend intended origin: `https://api.globalresourcesdirect.com`.
 Frontend intended origin: `https://dashboard.globalresourcesdirect.com`.
-Local defaults: API `http://localhost:3000`, frontend `http://localhost:5173`.
+Local defaults: API origin `http://localhost:3000`, API base path `/api/v1`,
+frontend `http://localhost:5173`.
 Use the [root README](../../README.md) to start/seed the backend and bootstrap an
-Admin. There is **no `/api` prefix** and no public signup.
+Admin. All HTTP endpoints use the `/api/v1` prefix; unversioned routes return 404.
+There is no public signup.
 
 Hosting remains undecided. Caddy, production Compose, App Platform specifications,
 deployment workflows and CI/CD are deferred. Do not infer same-Droplet routing,
@@ -24,25 +26,25 @@ Apply migration `1792281600000-TrackingReadProjection` before running this API.
 Carrier status is distinct from `monitoringStatus` and lookup outcome.
 
 BE-V1-002 adds authenticated, paginated whole-dataset search at
-`GET /shipments/search`. BE-V1-003 adds normalized snapshot history at
-`GET /shipments/:externalId/history`. BE-V1-004 adds the operational overview at
-`GET /dashboard/overview`. BE-V1-005 adds precise committed tracking-change
+`GET /api/v1/shipments/search`. BE-V1-003 adds normalized snapshot history at
+`GET /api/v1/shipments/:externalId/history`. BE-V1-004 adds the operational overview at
+`GET /api/v1/dashboard/overview`. BE-V1-005 adds precise committed tracking-change
 events to the existing live stream. Source-data diagnostics, refresh-all and
 scheduler controls remain unavailable. Manual refresh returns a run ID that
 stays independently readable through
-`GET /tracking-runs/:externalId`.
+`GET /api/v1/tracking-runs/:externalId`.
 
 ## Browser session flow
 
-1. `POST /auth/sign-in` with `{ email, password }`. Successful JSON is the account
+1. `POST /api/v1/auth/sign-in` with `{ email, password }`. Successful JSON is the account
    profile, not a token. Every API fetch uses `credentials: 'include'`.
 2. If `mustChangePassword` is true, show only password replacement and sign-out.
-   `POST /auth/change-password` accepts `{ currentPassword, newPassword }` and
+   `POST /api/v1/auth/change-password` accepts `{ currentPassword, newPassword }` and
    returns 204. All sessions are revoked: clear cached state and sign in again.
-3. `GET /auth/me` restores the session/profile on reload. A 401 means sign-in is
-   required. On a business 403, refresh `/auth/me` to distinguish restricted
+3. `GET /api/v1/auth/me` restores the session/profile on reload. A 401 means sign-in is
+   required. On a business 403, refresh `/api/v1/auth/me` to distinguish restricted
    password replacement from role denial. Do not repeatedly retry auth failures.
-4. `POST /auth/sign-out` with `{}` returns 204; close SSE and clear cached data.
+4. `POST /api/v1/auth/sign-out` with `{}` returns 204; close SSE and clear cached data.
    Sessions expire absolutely after 24 hours without rolling renewal. Password,
    email, role and active-state changes can revoke sessions before then.
 
@@ -56,7 +58,7 @@ not arbitrary custom headers. Use same-site HTTPS subdomains in production.
 Minimal request example (handle non-2xx and 204 in the real client):
 
 ```ts
-const response = await fetch(`${apiOrigin}/auth/sign-in`, {
+const response = await fetch(`${apiOrigin}/api/v1/auth/sign-in`, {
   method: 'POST',
   credentials: 'include',
   headers: { 'Content-Type': 'application/json' },
@@ -142,7 +144,7 @@ null tracking/lookup and a non-null run. Reads use one database statement snapsh
 responses remain `no-store`. Public projections omit internal IDs, actors,
 source data, credentials, lock versions and provider diagnostic messages.
 
-The list frontend should use `GET /shipments/search`; the legacy array endpoint
+The list frontend should use `GET /api/v1/shipments/search`; the legacy array endpoint
 remains available for existing consumers. Its response is:
 
 ```ts
@@ -185,7 +187,7 @@ statement snapshot. Separate page requests remain live offset reads rather than
 a frozen result set.
 
 Shipment detail history uses
-`GET /shipments/:externalId/history?page=1&pageSize=25` and returns:
+`GET /api/v1/shipments/:externalId/history?page=1&pageSize=25` and returns:
 
 ```ts
 type ShipmentHistoryResponse = {
@@ -211,7 +213,7 @@ pages remain live offset reads.
 
 ## Dashboard overview contract
 
-`GET /dashboard/overview` is available to unrestricted Staff and Admin sessions,
+`GET /api/v1/dashboard/overview` is available to unrestricted Staff and Admin sessions,
 uses `Cache-Control: no-store`, accepts no body, and returns:
 
 ```ts
@@ -248,7 +250,7 @@ delivery lateness.
 day +6. Upcoming deliveries are non-completed Shipments whose current normalized
 snapshot has a non-null ETA in that range. The panel sorts ETA ascending, then
 creation time and a server-only identity ascending. Drill down with
-`GET /shipments/search?tab=all&undeliveredOnly=true&estimatedDeliveryFrom=<from>&estimatedDeliveryTo=<to>&sortBy=estimatedDeliveryOn&sortDirection=asc`.
+`GET /api/v1/shipments/search?tab=all&undeliveredOnly=true&estimatedDeliveryFrom=<from>&estimatedDeliveryTo=<to>&sortBy=estimatedDeliveryOn&sortDirection=asc`.
 
 `attention.total` and `upcomingDeliveries.total` cover every matching Shipment,
 while each panel returns at most 10 full safe Shipment projections. Recent changes
@@ -258,19 +260,19 @@ It includes first observations and changed observations; unchanged, failed,
 not-found and skipped polls do not create entries. Counts are current monitoring
 state totals, not delivered-today, on-time performance or analytics metrics.
 
-| Route                                 | Input → success                                                                                                                                           |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                   |
-| `GET /shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                        |
-| `GET /shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                             |
-| `GET /dashboard/overview`             | No input → 200 OverviewResponse with bounded operational panels and full attention/upcoming totals.                                                       |
-| `GET /shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                  |
-| `POST /shipments`                     | `{ items: [{ carrierExternalId, trackingReference, notes? }] }` → `{ inserted: Shipment[], duplicates: Shipment[] }`; 201 if any inserted, otherwise 200. |
-| `PATCH /shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                          |
-| `DELETE /shipments/:externalId`       | No body → 204. Soft deletion; a second delete returns 404.                                                                                                |
-| `POST /shipments/:externalId/pause`   | `{}` → 200 Shipment; only active to manual pause.                                                                                                         |
-| `POST /shipments/:externalId/resume`  | `{}` → 200 Shipment; only manual pause to active/due now.                                                                                                 |
-| `POST /shipments/:externalId/refresh` | Empty or `{}` → 202 TrackingRun (below).                                                                                                                  |
+| Route                                        | Input → success                                                                                                                                           |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                   |
+| `GET /api/v1/shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                        |
+| `GET /api/v1/shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                             |
+| `GET /api/v1/dashboard/overview`             | No input → 200 OverviewResponse with bounded operational panels and full attention/upcoming totals.                                                       |
+| `GET /api/v1/shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                  |
+| `POST /api/v1/shipments`                     | `{ items: [{ carrierExternalId, trackingReference, notes? }] }` → `{ inserted: Shipment[], duplicates: Shipment[] }`; 201 if any inserted, otherwise 200. |
+| `PATCH /api/v1/shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                          |
+| `DELETE /api/v1/shipments/:externalId`       | No body → 204. Soft deletion; a second delete returns 404.                                                                                                |
+| `POST /api/v1/shipments/:externalId/pause`   | `{}` → 200 Shipment; only active to manual pause.                                                                                                         |
+| `POST /api/v1/shipments/:externalId/resume`  | `{}` → 200 Shipment; only manual pause to active/due now.                                                                                                 |
+| `POST /api/v1/shipments/:externalId/refresh` | Empty or `{}` → 202 TrackingRun (below).                                                                                                                  |
 
 Creation accepts 1–10 rows atomically. References are trimmed, nonblank strings
 up to 255 UTF-16 code units, with no NUL; preserve leading zeros and case. The
@@ -293,12 +295,12 @@ be refreshed and reactivate on found, but cannot use manual `resume`.
 
 ## Carrier contract
 
-`GET /carriers` returns an array; `GET /carriers/:externalId` returns one record.
+`GET /api/v1/carriers` returns an array; `GET /api/v1/carriers/:externalId` returns one record.
 Both include disabled nondeleted Carriers. Fields are `externalId`, immutable
 `code`, `name`, `isActive`, `fetchMode`, `notFoundPauseThreshold`,
 `pollIntervalMinutes`, `rateLimitPerMinute`, `createdAt`, `updatedAt`.
 
-Admin `PATCH /carriers/:externalId` accepts a nonempty subset of the mutable
+Admin `PATCH /api/v1/carriers/:externalId` accepts a nonempty subset of the mutable
 fields. Name: trimmed 1–100 characters. Threshold: integer 2–32767; interval:
 integer 1–32767 minutes; RPM: integer 1–32767 or null. Omitted fields retain their
 values; explicit null clears RPM only. Fetch mode is `request` for UPS, `request`
@@ -312,7 +314,7 @@ time, not provider rate limits, and does not delay an active scheduled check.
 
 ## Run status and live updates
 
-`POST /shipments/:id/refresh` returns a TrackingRun. Duplicate queued/running
+`POST /api/v1/shipments/:id/refresh` returns a TrackingRun. Duplicate queued/running
 requests coalesce and keep the original requester. An idle worker discovers the
 request on its next minute scan; 202 does not mean the Carrier has been queried.
 The response can already be terminal if it races worker completion.
@@ -348,13 +350,13 @@ type RunStatus = TrackingRun & {
 };
 ```
 
-`GET /tracking-runs/:externalId` returns RunStatus. Run success means processing
+`GET /api/v1/tracking-runs/:externalId` returns RunStatus. Run success means processing
 finished without technical failures, not that a Shipment was found or delivered.
 Not-found is different from technical failure; failure preserves the known
 snapshot and not-found count. A skipped lookup can safely produce a successful
 run. Treat reason codes as diagnostics; unknown codes need a generic safe message.
 
-Open `new EventSource(apiOrigin + '/events', { withCredentials: true })` once
+Open `new EventSource(apiOrigin + '/api/v1/events', { withCredentials: true })` once
 authenticated. Named events:
 
 | Event              | Data                                             | Client action                                                                                      |
@@ -381,7 +383,7 @@ navigation and unmount. Events are invalidations, not a replayable state log:
 Use `snapshotExternalId` as the deduplication/revision key for alerts and
 highlights; an event timestamp is observation data, not an ordering cursor.
 
-On EventSource errors, check `/auth/me` once with backoff; close the stream for
+On EventSource errors, check `/api/v1/auth/me` once with backoff; close the stream for
 401/restricted sessions instead of an endless login loop. Slow consumers are
 disconnected; heartbeat revalidates quiet sessions. SSE proxies must preserve
 streaming without buffering and allow long-lived responses. Carrier-setting

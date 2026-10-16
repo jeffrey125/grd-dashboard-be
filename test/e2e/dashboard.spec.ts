@@ -11,6 +11,7 @@ import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import { administratorCookie } from '@test/support/authentication.js';
 import { shipmentDatabase } from '@test/support/shipment-database.js';
 import { TestDatabaseModule } from '@test/support/test-database.module.js';
+import { configureApiRoutes } from '@runtime/api-routing.js';
 
 describe('Dashboard HTTP API with PostgreSQL', () => {
   let app: INestApplication;
@@ -35,6 +36,7 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
       .compile();
 
     app = module.createNestApplication({ logger: false });
+    configureApiRoutes(app);
     await app.init();
     administrator = await administratorCookie(app);
 
@@ -89,7 +91,7 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
       .getRepository(CarrierEntity)
       .findOneByOrFail({ code: 'ups' });
     const created = await request(app.getHttpServer() as Server)
-      .post('/shipments')
+      .post('/api/v1/shipments')
       .set('Cookie', administrator)
       .set('Origin', 'http://dashboard.example.test')
       .send({
@@ -114,12 +116,12 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
     );
 
     await request(app.getHttpServer() as Server)
-      .get('/dashboard/overview')
+      .get('/api/v1/dashboard/overview')
       .expect(401);
 
     for (const cookie of [administrator, staff]) {
       const response = await request(app.getHttpServer() as Server)
-        .get('/dashboard/overview')
+        .get('/api/v1/dashboard/overview')
         .set('Cookie', cookie)
         .expect('Cache-Control', 'no-store')
         .expect(200);

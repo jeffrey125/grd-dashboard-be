@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { DataSource } from 'typeorm';
 import type { PostgresDriver } from 'typeorm/driver/postgres/PostgresDriver.js';
+import { API_BASE_PATH } from '@runtime/api-routing.js';
 import type { AuthConfiguration } from './auth.config.js';
 
 /** Owns the library protocol; application account policies remain in AuthService. */
@@ -10,7 +11,7 @@ export function createAuthEngine(
 ) {
   return betterAuth({
     baseURL: config.baseURL,
-    basePath: '/auth',
+    basePath: `${API_BASE_PATH}/auth`,
     secret: config.secret,
     database: (source.driver as PostgresDriver).master,
     logger: { disabled: true },

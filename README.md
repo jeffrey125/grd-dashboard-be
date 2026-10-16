@@ -38,7 +38,7 @@ Do not run concurrent builds while process tests use `dist/`.
 
    ```sh
    docker compose --env-file .env.docker -f docker-compose.dev.yml up --build -d api
-   curl --fail http://localhost:3000/health/ready
+   curl --fail http://localhost:3000/api/v1/health/ready
    ```
 
 3. Bootstrap the initial Admin in an interactive terminal:
@@ -65,7 +65,7 @@ Do not run concurrent builds while process tests use `dist/`.
    docker compose --env-file .env.docker -f docker-compose.dev.yml --profile worker down
    ```
 
-API: `http://localhost:3000`; intended local frontend origin:
+API origin: `http://localhost:3000`; API base path: `/api/v1`; intended local frontend origin:
 `http://localhost:5173` (frontend is not included). Bindings are loopback-only;
 PostgreSQL has no published host port. `GRD_API_PORT` changes the API host port;
 update `AUTH_BASE_URL` to match. Use `localhost` consistently in browser URLs.

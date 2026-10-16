@@ -7,6 +7,7 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { AppModule } from '@app/app.module.js';
 import { DatabaseModule } from '@infrastructure/database/database.module.js';
 import { TestDatabaseModule } from '@test/support/test-database.module.js';
+import { configureApiRoutes } from '@runtime/api-routing.js';
 import { shipmentDatabase } from '@test/support/shipment-database.js';
 import { administratorCookie } from '@test/support/authentication.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
@@ -46,6 +47,7 @@ beforeAll(async () => {
     .compile();
 
   app = module.createNestApplication({ logger: false });
+  configureApiRoutes(app);
   await app.init();
   await app.listen(0, '127.0.0.1');
   cookie = await administratorCookie(app);
@@ -63,14 +65,14 @@ afterAll(async () => {
 
 it('coalesces concurrent manual refreshes into one durable run and exposes safe status', async () => {
   const created = await http()
-    .post('/shipments')
+    .post('/api/v1/shipments')
     .send({ items: [{ carrierExternalId, trackingReference: 'refresh-race' }] })
     .expect(201);
   const id = created.body.inserted[0].externalId;
   const replies = await Promise.all(
     Array.from({ length: 5 }, (_, index) =>
       http()
-        .post(`/shipments/${index % 2 ? id.toUpperCase() : id}/refresh`)
+        .post(`/api/v1/shipments/${index % 2 ? id.toUpperCase() : id}/refresh`)
         .expect(202),
     ),
   );
@@ -78,7 +80,7 @@ it('coalesces concurrent manual refreshes into one durable run and exposes safe 
   expect(new Set(replies.map((reply) => reply.body.externalId)).size).toBe(1);
 
   const run = await http()
-    .get(`/tracking-runs/${replies[0]!.body.externalId}`)
+    .get(`/api/v1/tracking-runs/${replies[0]!.body.externalId}`)
     .expect(200);
 
   expect(run.body).toMatchObject({
@@ -106,7 +108,8 @@ it('coalesces concurrent manual refreshes into one durable run and exposes safe 
   await tracking.startRun(run.body.externalId);
 
   expect(
-    (await http().post(`/shipments/${id}/refresh`).expect(202)).body.externalId,
+    (await http().post(`/api/v1/shipments/${id}/refresh`).expect(202)).body
+      .externalId,
   ).toBe(run.body.externalId);
 
   await tracking.interruptRun({
@@ -117,15 +120,16 @@ it('coalesces concurrent manual refreshes into one durable run and exposes safe 
   });
 
   expect(
-    (await http().post(`/shipments/${id}/refresh`).expect(202)).body.externalId,
+    (await http().post(`/api/v1/shipments/${id}/refresh`).expect(202)).body
+      .externalId,
   ).not.toBe(run.body.externalId);
 
   await http()
-    .post(`/shipments/${id}/refresh`)
+    .post(`/api/v1/shipments/${id}/refresh`)
     .send({ requestedById: 1 })
     .expect(400);
   await request(app.getHttpServer() as Server)
-    .post(`/shipments/${id}/refresh`)
+    .post(`/api/v1/shipments/${id}/refresh`)
     .set('Origin', 'http://dashboard.example.test')
     .expect(401);
 });
@@ -136,10 +140,13 @@ async function stream(sessionCookie = cookie) {
 
   if (!address || typeof address === 'string') throw new Error('No address');
 
-  const response = await fetch(`http://127.0.0.1:${address.port}/events`, {
-    headers: { Cookie: sessionCookie },
-    signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]),
-  });
+  const response = await fetch(
+    `http://127.0.0.1:${address.port}/api/v1/events`,
+    {
+      headers: { Cookie: sessionCookie },
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(25000)]),
+    },
+  );
 
   expect(response.status).toBe(200);
 
@@ -183,7 +190,7 @@ it('streams committed changes, reconnects with resync, and closes revoked sessio
     await first.next('resync');
 
     const created = await http()
-      .post('/shipments')
+      .post('/api/v1/shipments')
       .send({
         items: [{ carrierExternalId, trackingReference: 'sse-shipment' }],
       })
@@ -210,7 +217,9 @@ it('streams committed changes, reconnects with resync, and closes revoked sessio
       `event: tracking.changed\ndata: {"externalId":"${id}","snapshotExternalId":"${snapshots[0].external_id}","observedAt":"2026-10-16T00:00:00.000Z"}`,
     );
 
-    const queued = await http().post(`/shipments/${id}/refresh`).expect(202);
+    const queued = await http()
+      .post(`/api/v1/shipments/${id}/refresh`)
+      .expect(202);
 
     expect(await first.next('run.changed')).toContain(queued.body.externalId);
 
@@ -225,8 +234,10 @@ it('streams committed changes, reconnects with resync, and closes revoked sessio
     try {
       expect(await second.next('resync')).toBeTruthy();
 
-      await http().get(`/tracking-runs/${queued.body.externalId}`).expect(200);
-      await http().post('/auth/sign-out').expect(204);
+      await http()
+        .get(`/api/v1/tracking-runs/${queued.body.externalId}`)
+        .expect(200);
+      await http().post('/api/v1/auth/sign-out').expect(204);
       await vi.advanceTimersByTimeAsync(15000);
 
       expect(await second.next('heartbeat')).toBeNull();
@@ -250,28 +261,28 @@ it('streams committed changes, reconnects with resync, and closes revoked sessio
 
 it('rejects unavailable targets and protects status/events, including restricted sessions', async () => {
   await request(app.getHttpServer() as Server)
-    .get('/events')
+    .get('/api/v1/events')
     .expect(401);
   await request(app.getHttpServer() as Server)
-    .get('/tracking-runs/11111111-1111-4111-8111-111111111111')
+    .get('/api/v1/tracking-runs/11111111-1111-4111-8111-111111111111')
     .expect(401);
   await http()
-    .get('/tracking-runs/11111111-1111-4111-8111-111111111111')
+    .get('/api/v1/tracking-runs/11111111-1111-4111-8111-111111111111')
     .expect(404);
 
   const created = await http()
-    .post('/shipments')
+    .post('/api/v1/shipments')
     .send({
       items: [{ carrierExternalId, trackingReference: 'paused-target' }],
     })
     .expect(201);
   const id = created.body.inserted[0].externalId;
 
-  await http().post(`/shipments/${id}/pause`).expect(200);
-  await http().post(`/shipments/${id}/refresh`).expect(409);
-  await http().delete(`/shipments/${id}`).expect(204);
-  await http().post(`/shipments/${id}/refresh`).expect(404);
-  await http().post('/shipments/refresh-all').expect(404);
+  await http().post(`/api/v1/shipments/${id}/pause`).expect(200);
+  await http().post(`/api/v1/shipments/${id}/refresh`).expect(409);
+  await http().delete(`/api/v1/shipments/${id}`).expect(204);
+  await http().post(`/api/v1/shipments/${id}/refresh`).expect(404);
+  await http().post('/api/v1/shipments/refresh-all').expect(404);
 
   const auth = app.get(AuthService);
   const principal = await auth.authenticate(new Headers({ cookie }));
@@ -293,11 +304,11 @@ it('rejects unavailable targets and protects status/events, including restricted
     .join('; ');
 
   await request(app.getHttpServer() as Server)
-    .get('/events')
+    .get('/api/v1/events')
     .set('Cookie', restricted)
     .expect(403);
   await request(app.getHttpServer() as Server)
-    .post(`/shipments/${id}/refresh`)
+    .post(`/api/v1/shipments/${id}/refresh`)
     .set('Cookie', restricted)
     .set('Origin', 'http://dashboard.example.test')
     .expect(403);
@@ -327,32 +338,36 @@ it('rejects unavailable targets and protects status/events, including restricted
   }
 
   const staffShipment = await http()
-    .post('/shipments')
+    .post('/api/v1/shipments')
     .send({
       items: [{ carrierExternalId, trackingReference: 'staff-refresh' }],
     })
     .expect(201);
   const refreshed = await request(app.getHttpServer() as Server)
-    .post(`/shipments/${staffShipment.body.inserted[0].externalId}/refresh`)
+    .post(
+      `/api/v1/shipments/${staffShipment.body.inserted[0].externalId}/refresh`,
+    )
     .set('Cookie', staffCookie)
     .set('Origin', 'http://dashboard.example.test')
     .expect(202);
 
   await request(app.getHttpServer() as Server)
-    .get(`/tracking-runs/${refreshed.body.externalId}`)
+    .get(`/api/v1/tracking-runs/${refreshed.body.externalId}`)
     .set('Cookie', staffCookie)
     .expect(200);
 });
 
 it('hands an authenticated HTTP refresh to the real worker scheduler through PostgreSQL', async () => {
   const created = await http()
-    .post('/shipments')
+    .post('/api/v1/shipments')
     .send({
       items: [{ carrierExternalId, trackingReference: 'worker-handoff' }],
     })
     .expect(201);
   const id = created.body.inserted[0].externalId;
-  const queued = await http().post(`/shipments/${id}/refresh`).expect(202);
+  const queued = await http()
+    .post(`/api/v1/shipments/${id}/refresh`)
+    .expect(202);
   const tracking = new TrackingService(
     new TypeOrmTrackingRepository(db.source),
   );
@@ -398,7 +413,7 @@ it('hands an authenticated HTTP refresh to the real worker scheduler through Pos
     await worker.tick();
 
     const status = await http()
-      .get(`/tracking-runs/${queued.body.externalId}`)
+      .get(`/api/v1/tracking-runs/${queued.body.externalId}`)
       .expect(200);
 
     expect(status.body).toMatchObject({
