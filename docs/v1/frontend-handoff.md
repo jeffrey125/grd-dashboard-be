@@ -170,8 +170,12 @@ case-insensitive literal substring of reference or notes, up to 255 code units;
 Pagination defaults to page 1 and 25 rows; only 25/50/100 are accepted. Sorting
 defaults to `createdAt desc`; `trackingReference` and `estimatedDeliveryOn` plus
 `asc` or `desc` are also accepted. Null sortable values always appear last.
-Removed lookup-outcome, created-date, delivery-date, undelivered-only and
-last-attempted sort parameters are rejected as unknown fields.
+`estimatedDeliveryFrom` and `estimatedDeliveryTo` are optional inclusive ISO
+calendar-date bounds on the current ETA; they reject invalid dates, year zero,
+and reversed ranges. `undeliveredOnly=true` excludes completed Shipments;
+`false` or omission adds no restriction. These filters support Upcoming deliveries
+drill-down and apply before pagination/counting. Removed lookup-outcome,
+created-date and last-attempted sort parameters remain rejected.
 
 `total` includes the selected tab and all filters. `tabCounts` applies every
 non-tab filter and ignores the selected tab. Active, Delivered, and Attention
@@ -225,6 +229,8 @@ type OverviewResponse = {
     attention: number;
   };
   attention: { total: number; items: Shipment[] };
+  upcomingWindow: { from: string; to: string };
+  upcomingDeliveries: { total: number; items: Shipment[] };
 };
 ```
 
@@ -237,8 +243,19 @@ delivery lateness.
 
 `attention.total` covers every matching Shipment while the panel returns at most
 5 full safe Shipment projections. Counts are current monitoring state totals,
-not delivered-today, on-time performance or analytics metrics. Upcoming deliveries
-and recent tracking changes are not part of the Overview response.
+not delivered-today, on-time performance or analytics metrics.
+
+Upcoming deliveries is restored by the 2026-10-17 frontend interview. Its window
+is New York today through day +6 inclusive, derived from the same `asOf` instant.
+It includes non-completed, nondeleted Shipments whose current ETA is within that
+window, including disabled Carriers; null ETAs are excluded. The full total and
+at most five rows share the statement snapshot. Order is ETA, creation time and
+internal identity ascending. Recent tracking changes remains absent.
+
+View all uses `tab=all`, the response window as `estimatedDeliveryFrom`/`To`,
+`undeliveredOnly=true`, and `sortBy=estimatedDeliveryOn&sortDirection=asc`.
+Search uses identity for equal-ETA ties, so totals/membership match without
+promising identical first-five ordering. No migration or dependency was added.
 
 | Route                                        | Input → success                                                                                                                                               |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |

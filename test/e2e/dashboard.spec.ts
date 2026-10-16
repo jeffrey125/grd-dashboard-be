@@ -125,6 +125,11 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
       expect(response.body).toEqual({
         asOf: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
         timezone: 'America/New_York',
+        upcomingWindow: {
+          from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        },
+        upcomingDeliveries: { total: 0, items: [] },
         counts: {
           all: 1,
           active: 1,

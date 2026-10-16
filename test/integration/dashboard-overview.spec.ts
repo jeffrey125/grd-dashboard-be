@@ -189,6 +189,58 @@ describe('Dashboard overview PostgreSQL repository', () => {
       reasonCode: 'DASHBOARD_TEST_FAILURE',
     });
     expect(overview.attention.items[0]?.carrier.isActive).toBe(true);
+    expect(overview.upcomingWindow).toEqual({
+      from: '2026-03-08',
+      to: '2026-03-14',
+    });
+    expect(
+      overview.upcomingDeliveries.items.map((row) => row.externalId),
+    ).toEqual([
+      active.externalId,
+      manual.externalId,
+      disabled.externalId,
+      failed.externalId,
+    ]);
+
+    const upcomingSearch = await shipments.search(
+      shipmentSearchQuerySchema.parse({
+        tab: 'all',
+        estimatedDeliveryFrom: overview.upcomingWindow.from,
+        estimatedDeliveryTo: overview.upcomingWindow.to,
+        undeliveredOnly: 'true',
+        sortBy: 'estimatedDeliveryOn',
+        sortDirection: 'asc',
+      }),
+    );
+
+    expect(upcomingSearch.total).toBe(overview.upcomingDeliveries.total);
+    expect(upcomingSearch.items.map((row) => row.externalId)).toEqual(
+      overview.upcomingDeliveries.items.map((row) => row.externalId),
+    );
+  });
+
+  it.each([
+    ['2026-03-08T04:59:59Z', '2026-03-07', '2026-03-13'],
+    ['2026-03-08T05:00:00Z', '2026-03-08', '2026-03-14'],
+    ['2026-11-01T03:59:59Z', '2026-10-31', '2026-11-06'],
+    ['2026-11-01T04:00:00Z', '2026-11-01', '2026-11-07'],
+  ])('uses New York calendar boundaries at %s', async (instant, from, to) => {
+    const first = await create('window-first');
+    const last = await create('window-last');
+    await create('window-null');
+    await snapshot(first, from, instant);
+    await snapshot(last, to, instant);
+
+    const overview = await new TypeOrmDashboardRepository(
+      db.source,
+      () => new Date(instant),
+    ).overview();
+
+    expect(overview.upcomingWindow).toEqual({ from, to });
+    expect(overview.upcomingDeliveries.total).toBe(2);
+    expect(
+      overview.upcomingDeliveries.items.map((row) => row.externalId),
+    ).toEqual([first.externalId, last.externalId]);
   });
 
   it('returns full totals with bounded panels in their documented order', async () => {
@@ -224,6 +276,10 @@ describe('Dashboard overview PostgreSQL repository', () => {
     ).overview();
 
     expect(overview.attention.total).toBe(12);
+    expect(overview.upcomingDeliveries.total).toBe(12);
+    expect(
+      overview.upcomingDeliveries.items.map((row) => row.externalId),
+    ).toEqual(created.slice(0, 5).map((row) => row.externalId));
     expect(overview.attention.items).toHaveLength(5);
     expect(overview.attention.items.map((item) => item.externalId)).toEqual(
       created
@@ -325,6 +381,8 @@ describe('Dashboard overview PostgreSQL repository', () => {
         attention: 10000,
       });
       expect(overview.attention.total).toBe(10000);
+      expect(overview.upcomingDeliveries.total).toBe(10000);
+      expect(overview.upcomingDeliveries.items).toHaveLength(5);
       expect(overview.attention.items).toHaveLength(5);
       expect(overview.attention.items[0]!.latestLookup).toMatchObject({
         outcome: 'failed',

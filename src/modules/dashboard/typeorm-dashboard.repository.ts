@@ -19,11 +19,17 @@ interface OverviewEnvelopeRow {
   delivered_count: number;
   attention_count: number;
   attention_items: unknown[];
+  upcoming_from: string;
+  upcoming_to: string;
+  upcoming_total: number;
+  upcoming_items: unknown[];
 }
 
 function overviewStatement(): string {
   return `WITH bounds AS (
-    SELECT $1::timestamptz AS as_of
+    SELECT $1::timestamptz AS as_of,
+      ($1::timestamptz AT TIME ZONE 'America/New_York')::date AS date_from,
+      ($1::timestamptz AT TIME ZONE 'America/New_York')::date + 6 AS date_to
   ), base AS MATERIALIZED (
     SELECT
       shipment.id AS shipment_id,
@@ -93,9 +99,23 @@ function overviewStatement(): string {
     WHERE ${SHIPMENT_TAB_PREDICATES.attention}
     ORDER BY created_at DESC, shipment_id DESC
     LIMIT 5
-  ), attention_projected AS (
+  ), upcoming AS MATERIALIZED (
+    SELECT base.* FROM base CROSS JOIN bounds
+    WHERE monitoring_status <> 'completed'
+      AND snapshot_estimated_delivery_on BETWEEN bounds.date_from AND bounds.date_to
+  ), upcoming_rows AS (
+    SELECT upcoming.*,
+      row_number() OVER (ORDER BY snapshot_estimated_delivery_on, created_at, shipment_id) AS panel_position
+    FROM upcoming
+    ORDER BY snapshot_estimated_delivery_on, created_at, shipment_id
+    LIMIT 5
+  ), panel_rows AS (
+    SELECT attention_rows.*, 'attention' AS panel FROM attention_rows
+    UNION ALL
+    SELECT upcoming_rows.*, 'upcoming' AS panel FROM upcoming_rows
+  ), panel_projected AS (
     SELECT
-      attention_rows.*,
+      panel_rows.*,
       lookup_run.external_id AS lookup_run_external_id,
       latest_run.id AS latest_run_id,
       latest_run.external_id AS latest_run_external_id,
@@ -106,9 +126,9 @@ function overviewStatement(): string {
       latest_run.created_at AS latest_run_created_at,
       latest_run.started_at AS latest_run_started_at,
       latest_run.completed_at AS latest_run_completed_at
-    FROM attention_rows
+    FROM panel_rows
     LEFT JOIN tracking_runs lookup_run
-      ON lookup_run.id = attention_rows.lookup_tracking_run_id
+      ON lookup_run.id = panel_rows.lookup_tracking_run_id
     LEFT JOIN LATERAL (
       SELECT
         run.id,
@@ -123,13 +143,22 @@ function overviewStatement(): string {
           WHERE counted.tracking_run_id = run.id) AS attempt_count
       FROM tracking_attempts membership
       JOIN tracking_runs run ON run.id = membership.tracking_run_id
-      WHERE membership.shipment_id = attention_rows.shipment_id
+      WHERE membership.shipment_id = panel_rows.shipment_id
       ORDER BY run.created_at DESC, run.id DESC
       LIMIT 1
     ) latest_run ON TRUE
   )
   SELECT
     bounds.as_of,
+    to_char(bounds.date_from, 'YYYY-MM-DD') AS upcoming_from,
+    to_char(bounds.date_to, 'YYYY-MM-DD') AS upcoming_to,
+    (SELECT count(*)::integer FROM upcoming) AS upcoming_total,
+    coalesce((
+      SELECT jsonb_agg(
+        ${shipmentJsonSql('panel_projected')}
+        ORDER BY panel_projected.panel_position
+      ) FROM panel_projected WHERE panel = 'upcoming'
+    ), '[]'::jsonb) AS upcoming_items,
     counts.all_count,
     counts.active_count,
     counts.paused_count,
@@ -137,10 +166,10 @@ function overviewStatement(): string {
     counts.attention_count,
     coalesce((
       SELECT jsonb_agg(
-        ${shipmentJsonSql('attention_projected')}
-        ORDER BY attention_projected.panel_position
+        ${shipmentJsonSql('panel_projected')}
+        ORDER BY panel_projected.panel_position
       )
-      FROM attention_projected
+      FROM panel_projected WHERE panel = 'attention'
     ), '[]'::jsonb) AS attention_items
   FROM bounds
   CROSS JOIN counts`;
@@ -162,6 +191,11 @@ export class TypeOrmDashboardRepository implements DashboardRepository {
     return dashboardOverviewResponseSchema.parse({
       asOf: new Date(row.as_of),
       timezone: 'America/New_York',
+      upcomingWindow: { from: row.upcoming_from, to: row.upcoming_to },
+      upcomingDeliveries: {
+        total: row.upcoming_total,
+        items: row.upcoming_items.map(shipmentRecord),
+      },
       counts: {
         all: row.all_count,
         active: row.active_count,

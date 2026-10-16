@@ -49,6 +49,18 @@ export const shipmentSearchQuerySchema = z
       .transform((value) => value || undefined)
       .optional(),
     carrierExternalId: shipmentExternalIdSchema.optional(),
+    estimatedDeliveryFrom: z.iso
+      .date()
+      .refine((value) => !value.startsWith('0000'))
+      .optional(),
+    estimatedDeliveryTo: z.iso
+      .date()
+      .refine((value) => !value.startsWith('0000'))
+      .optional(),
+    undeliveredOnly: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
     page: positiveIntegerQuerySchema.default(1),
     pageSize: z.enum(['25', '50', '100']).default('25').transform(Number),
     sortBy: z
@@ -57,6 +69,16 @@ export const shipmentSearchQuerySchema = z
     sortDirection: z.enum(['asc', 'desc']).default('desc'),
   })
   .superRefine((query, context) => {
+    if (
+      query.estimatedDeliveryFrom &&
+      query.estimatedDeliveryTo &&
+      query.estimatedDeliveryFrom > query.estimatedDeliveryTo
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['estimatedDeliveryTo'],
+        message: 'End date must not precede start date',
+      });
     if (!Number.isSafeInteger((query.page - 1) * query.pageSize))
       context.addIssue({ code: 'custom', message: 'Page offset is too large' });
   });

@@ -57,6 +57,19 @@ function statement(query: ShipmentSearchQuery) {
     );
 
   const limit = parameter(query.pageSize);
+  if (query.estimatedDeliveryFrom)
+    filters.push(
+      `snapshot.estimated_delivery_on >= ${parameter(query.estimatedDeliveryFrom)}::date`,
+    );
+
+  if (query.estimatedDeliveryTo)
+    filters.push(
+      `snapshot.estimated_delivery_on <= ${parameter(query.estimatedDeliveryTo)}::date`,
+    );
+
+  if (query.undeliveredOnly)
+    filters.push("shipment.monitoring_status <> 'completed'");
+
   const offset = parameter((query.page - 1) * query.pageSize);
   const ordering = orderBy(query);
 
