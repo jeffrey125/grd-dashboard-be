@@ -9,7 +9,9 @@ import { createDatabaseOptions } from '@infrastructure/database/database-options
 import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
 import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
 import { FfeRequestMode1792022400000 } from '@infrastructure/database/migrations/1792022400000-FfeRequestMode.js';
+import { SalesRepsAndShipmentFollowUp1792454400000 } from '@infrastructure/database/migrations/1792454400000-SalesRepsAndShipmentFollowUp.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
+import { SalesRepEntity } from '@modules/sales-reps/sales-rep.entity.js';
 import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
 import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
 import { TrackingRunEntity } from '@modules/tracking/tracking-run.entity.js';
@@ -27,6 +29,7 @@ export async function shipmentDatabase() {
     entities: [
       ...AUTH_ENTITIES,
       CarrierEntity,
+      SalesRepEntity,
       ShipmentEntity,
       ShipmentTrackingSnapshotEntity,
       TrackingRunEntity,
@@ -40,6 +43,7 @@ export async function shipmentDatabase() {
       TrackingEvents1792195200000,
       TrackingReadProjection1792281600000,
       TrackingChangeEvents1792368000000,
+      SalesRepsAndShipmentFollowUp1792454400000,
     ],
   });
 

@@ -6,6 +6,7 @@ import {
 } from '@modules/carriers/carriers.repository.js';
 import { ShipmentsService } from './shipments.service.js';
 import { SHIPMENTS_REPOSITORY } from './shipments.repository.js';
+import { SalesRepsService } from '@modules/sales-reps/sales-reps.service.js';
 
 const carrierExternalId = 'c3bdfc02-24bb-4001-8c71-c5848b6ac3d5';
 const carrier: CarrierRecord = {
@@ -41,17 +42,26 @@ async function setup() {
       pageSize: 25,
       total: 0,
     }),
+    find: vi.fn(),
+    update: vi.fn(),
   };
   const carriers = { find: vi.fn().mockResolvedValue(carrier) };
+  const salesReps = { findActive: vi.fn().mockResolvedValue(null) };
   const module = await Test.createTestingModule({
     providers: [
       ShipmentsService,
       { provide: SHIPMENTS_REPOSITORY, useValue: repository },
       { provide: CARRIERS_REPOSITORY, useValue: carriers },
+      { provide: SalesRepsService, useValue: salesReps },
     ],
   }).compile();
 
-  return { service: module.get(ShipmentsService), repository, carriers };
+  return {
+    service: module.get(ShipmentsService),
+    repository,
+    carriers,
+    salesReps,
+  };
 }
 
 describe('Shipment search', () => {
@@ -188,7 +198,15 @@ describe('Shipment creation', () => {
     ).resolves.toEqual({ outcome: 'created', shipment });
 
     expect(repository.createMany).toHaveBeenCalledWith(
-      [{ carrierExternalId, trackingReference: '001Ab', notes: 'First' }],
+      [
+        {
+          carrierExternalId,
+          trackingReference: '001Ab',
+          notes: 'First',
+          salesRepExternalId: null,
+          followUpOn: null,
+        },
+      ],
       null,
     );
   });
@@ -209,6 +227,45 @@ describe('Shipment creation', () => {
         notes: 'Replacement',
       }),
     ).resolves.toEqual({ outcome: 'existing', shipment });
+  });
+
+  it('rejects a new follow-up date in the past', async () => {
+    const { service, repository } = await setup();
+
+    await expect(
+      service.create({
+        carrierExternalId,
+        trackingReference: 'past-follow-up',
+        followUpOn: '2020-01-01',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(repository.createMany).not.toHaveBeenCalled();
+  });
+
+  it('allows an existing overdue follow-up to remain unchanged', async () => {
+    const { service, repository } = await setup();
+    const existing = { followUpOn: '2020-01-01' };
+    repository.find.mockResolvedValue(existing);
+    repository.update.mockResolvedValue(existing);
+
+    await expect(
+      service.update(carrierExternalId, { followUpOn: existing.followUpOn }),
+    ).resolves.toBe(existing);
+    expect(repository.update).toHaveBeenCalledWith(
+      carrierExternalId,
+      { followUpOn: existing.followUpOn },
+      null,
+    );
+  });
+
+  it('rejects changing a follow-up date to the past', async () => {
+    const { service, repository } = await setup();
+    repository.find.mockResolvedValue({ followUpOn: null });
+
+    await expect(
+      service.update(carrierExternalId, { followUpOn: '2020-01-01' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(repository.update).not.toHaveBeenCalled();
   });
 
   it.each([

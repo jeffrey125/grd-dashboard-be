@@ -88,6 +88,12 @@ type Shipment = {
   };
   trackingReference: string;
   notes: string | null;
+  salesRep: SalesRepSummary | null;
+  followUpOn: string | null; // YYYY-MM-DD in America/New_York
+  createdBy: EmployeeSummary | null;
+  updatedBy: EmployeeSummary | null;
+  recordUpdatedAt: string | null;
+  recordUpdatedBy: EmployeeSummary | null;
   verificationUrl: string | null;
   currentTracking: TrackingSnapshot | null;
   latestLookup: LatestLookup | null;
@@ -100,6 +106,12 @@ type Shipment = {
   createdAt: string;
   updatedAt: string;
 };
+type EmployeeSummary = {
+  externalId: string;
+  firstName: string;
+  lastName: string;
+};
+type SalesRepSummary = EmployeeSummary & { active: boolean };
 ```
 
 The added projection types are:
@@ -141,8 +153,9 @@ run's identity or status endpoint.
 
 A new Shipment has all three fields null. A Shipment with only pending work has
 null tracking/lookup and a non-null run. Reads use one database statement snapshot;
-responses remain `no-store`. Public projections omit internal IDs, actors,
-source data, credentials, lock versions and provider diagnostic messages.
+responses remain `no-store`. Public projections omit internal IDs, actor IDs,
+source data, credentials, lock versions and provider diagnostic messages; safe
+employee summaries are included for shipment audit display.
 
 The list frontend should use `GET /api/v1/shipments/search`; the legacy array endpoint
 remains available for existing consumers. Its response is:
@@ -167,6 +180,11 @@ Search query fields are strict: unknown fields return 400. `tab` is `all`,
 `active` (default), `paused`, `delivered`, or `attention`. `q` is a trimmed,
 case-insensitive literal substring of reference or notes, up to 255 code units;
 `%`, `_`, and `\\` have no wildcard meaning. `carrierExternalId` is one UUIDv4.
+`salesRepExternalId` is one UUIDv4 or the literal `unassigned`. Sorting also
+accepts `followUpOn`; null follow-up dates sort last. `followUpOn` is an optional
+date-only value. New or changed dates cannot be before today in
+`America/New_York`; an existing overdue date may remain unchanged until staff
+clears or changes it.
 Pagination defaults to page 1 and 25 rows; only 25/50/100 are accepted. Sorting
 defaults to `createdAt desc`; `trackingReference` and `estimatedDeliveryOn` plus
 `asc` or `desc` are also accepted. Null sortable values always appear last.
@@ -178,12 +196,12 @@ drill-down and apply before pagination/counting. Removed lookup-outcome,
 created-date and last-attempted sort parameters remain rejected.
 
 `total` includes the selected tab and all filters. `tabCounts` applies every
-non-tab filter and ignores the selected tab. Active, Delivered, and Attention
-partition All. The compatibility-only Paused count is a subset of Attention.
-Attention means any paused Shipment or a non-completed Shipment whose latest
-completed lookup failed. Active means actively monitored without a failed latest
-completed lookup. Otherwise Active Shipments stay Active when their Carrier is
-disabled. Search items, total, and counts come from one PostgreSQL
+non-tab filter and ignores the selected tab. Attention means any paused Shipment,
+a non-completed Shipment whose latest completed lookup failed, or a Shipment
+whose follow-up date is today or earlier. Delivered rows may also appear in
+Attention when their follow-up is due. Active excludes due follow-ups and failed
+latest lookups; the compatibility-only Paused count is a subset of Attention.
+Otherwise Active Shipments stay Active when their Carrier is disabled. Search items, total, and counts come from one PostgreSQL
 statement snapshot. Separate page requests remain live offset reads rather than
 a frozen result set.
 
@@ -237,9 +255,9 @@ type OverviewResponse = {
 All values come from one PostgreSQL statement snapshot identified by `asOf`.
 Counts cover nondeleted Shipments and include Shipments whose Carrier is disabled.
 They use the same monitoring and attention predicates as Shipment search.
-Attention is any paused Shipment or a non-completed Shipment whose latest completed
-lookup failed; the panel is newest-created first and is unrelated to
-delivery lateness.
+Attention is any paused Shipment, a non-completed Shipment whose latest completed
+lookup failed, or a Shipment whose follow-up date is due. A due follow-up may
+overlap Delivered; the panel is newest-created first.
 
 `attention.total` covers every matching Shipment while the panel returns at most
 5 full safe Shipment projections. Counts are current monitoring state totals,
@@ -257,19 +275,19 @@ View all uses `tab=all`, the response window as `estimatedDeliveryFrom`/`To`,
 Search uses identity for equal-ETA ties, so totals/membership match without
 promising identical first-five ordering. No migration or dependency was added.
 
-| Route                                        | Input → success                                                                                                                                               |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                       |
-| `GET /api/v1/shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                            |
-| `GET /api/v1/shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                                 |
-| `GET /api/v1/dashboard/overview`             | No input → 200 OverviewResponse with bounded Needs attention items and its full total.                                                                        |
-| `GET /api/v1/shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                      |
-| `POST /api/v1/shipments`                     | `{ carrierExternalId, trackingReference, notes? }` → `{ outcome: "created" \| "existing", shipment: Shipment }`; 201 when created, 200 when already existing. |
-| `PATCH /api/v1/shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                              |
-| `DELETE /api/v1/shipments/:externalId`       | No body → 204. Soft deletion; a second delete returns 404.                                                                                                    |
-| `POST /api/v1/shipments/:externalId/pause`   | `{}` → 200 Shipment; only active to manual pause.                                                                                                             |
-| `POST /api/v1/shipments/:externalId/resume`  | `{}` → 200 Shipment; only manual pause to active/due now.                                                                                                     |
-| `POST /api/v1/shipments/:externalId/refresh` | Empty or `{}` → 202 TrackingRun (below).                                                                                                                      |
+| Route                                        | Input → success                                                                                                                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                                                                             |
+| `GET /api/v1/shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                                                                                  |
+| `GET /api/v1/shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                                                                                       |
+| `GET /api/v1/dashboard/overview`             | No input → 200 OverviewResponse with bounded Needs attention items and its full total.                                                                                                                              |
+| `GET /api/v1/shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                                                                            |
+| `POST /api/v1/shipments`                     | `{ carrierExternalId, trackingReference, notes?, salesRepExternalId?, followUpOn? }` → `{ outcome: "created" \| "existing", shipment: Shipment }`; 201 when created, 200 when already existing.                     |
+| `PATCH /api/v1/shipments/:externalId`        | Any nonempty subset of `{ notes, salesRepExternalId, followUpOn }` → 200 Shipment. Assignment/follow-up changes populate `recordUpdatedAt`/`recordUpdatedBy`; every DB write still updates the general `updatedAt`. |
+| `DELETE /api/v1/shipments/:externalId`       | No body → 204. Soft deletion; a second delete returns 404.                                                                                                                                                          |
+| `POST /api/v1/shipments/:externalId/pause`   | `{}` → 200 Shipment; only active to manual pause.                                                                                                                                                                   |
+| `POST /api/v1/shipments/:externalId/resume`  | `{}` → 200 Shipment; only manual pause to active/due now.                                                                                                                                                           |
+| `POST /api/v1/shipments/:externalId/refresh` | Empty or `{}` → 202 TrackingRun (below).                                                                                                                                                                            |
 
 Creation accepts one strict object per request. References are trimmed, nonblank strings
 up to 255 UTF-16 code units, with no NUL; preserve leading zeros and case. The
@@ -289,6 +307,13 @@ external links with `noopener noreferrer`. A disabled Carrier prevents creation
 and refresh; existing Shipments remain visible. Delivered is terminal.
 Manual pause and threshold pause are distinct: threshold-paused Shipments can
 be refreshed and reactivate on found, but cannot use manual `resume`.
+
+`GET /api/v1/sales-reps` returns active Sales Reps for Staff assignment. Admins
+use `GET/POST /api/v1/admin/sales-reps`, `GET/PATCH/DELETE
+/api/v1/admin/sales-reps/:externalId`, and `POST
+/api/v1/admin/sales-reps/:externalId/restore` for CRUD and soft-delete
+configuration. Delete is reversible soft deletion; existing Shipment references
+remain valid and display the inactive rep.
 
 ## Carrier contract
 

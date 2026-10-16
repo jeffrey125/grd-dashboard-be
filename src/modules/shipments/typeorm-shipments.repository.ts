@@ -1,5 +1,6 @@
 import { DataSource, IsNull, type EntityManager } from 'typeorm';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
+import { SalesRepEntity } from '@modules/sales-reps/sales-rep.entity.js';
 import {
   ShipmentEntity,
   ShipmentMonitoringReason,
@@ -52,15 +53,61 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
     notes: string | null,
     actorId: number | null = null,
   ) {
-    return this.source.transaction(async (manager) => {
-      const result = await manager
-        .getRepository(ShipmentEntity)
-        .update(
-          { externalId, deletedAt: IsNull() },
-          { notes, updatedById: actorId },
-        );
+    return this.update(externalId, { notes }, actorId);
+  }
 
-      return result.affected ? find(manager, externalId) : null;
+  async update(
+    externalId: string,
+    changes: import('./shipments.schemas.js').ShipmentUpdate,
+    actorId: number | null = null,
+  ) {
+    return this.source.transaction(async (manager) => {
+      const rows = manager.getRepository(ShipmentEntity);
+      const shipment = await rows
+        .createQueryBuilder('shipment')
+        .where('shipment.external_id = :externalId', { externalId })
+        .andWhere('shipment.deleted_at IS NULL')
+        .setLock('pessimistic_write')
+        .getOne();
+
+      if (!shipment) return null;
+
+      let salesRepId = shipment.salesRepId;
+      if (changes.salesRepExternalId !== undefined) {
+        salesRepId = null;
+
+        if (changes.salesRepExternalId) {
+          const salesRep = await manager
+            .getRepository(SalesRepEntity)
+            .findOneBy({ externalId: changes.salesRepExternalId });
+
+          if (!salesRep) return null;
+
+          salesRepId = salesRep.id;
+        }
+      }
+
+      const salesRepChanged =
+        changes.salesRepExternalId !== undefined &&
+        salesRepId !== shipment.salesRepId;
+      const followUpChanged =
+        changes.followUpOn !== undefined &&
+        changes.followUpOn !== shipment.followUpOn;
+      const patch: Record<string, unknown> = { updatedById: actorId };
+
+      if (changes.notes !== undefined) patch.notes = changes.notes;
+      if (changes.salesRepExternalId !== undefined)
+        patch.salesRepId = salesRepId;
+      if (changes.followUpOn !== undefined)
+        patch.followUpOn = changes.followUpOn;
+      if (salesRepChanged || followUpChanged) {
+        patch.recordUpdatedAt = () => 'clock_timestamp()';
+        patch.recordUpdatedById = actorId;
+      }
+
+      await rows.update({ id: shipment.id }, patch);
+
+      return find(manager, externalId);
     });
   }
 
@@ -137,6 +184,37 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
       if (!carrierIds.length)
         return { kind: 'created', inserted: [], duplicates: [] };
 
+      const salesRepIds = [
+        ...new Set(
+          items
+            .map((item) => item.salesRepExternalId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const salesReps = salesRepIds.length
+        ? await manager
+            .getRepository(SalesRepEntity)
+            .createQueryBuilder('sales_rep')
+            .where('sales_rep.external_id IN (:...salesRepIds)', {
+              salesRepIds,
+            })
+            .andWhere('sales_rep.deleted_at IS NULL')
+            .setLock('pessimistic_read')
+            .getMany()
+        : [];
+      const availableSalesReps = new Map(
+        salesReps.map((row) => [row.externalId, row]),
+      );
+      const unavailableSalesReps = salesRepIds.filter(
+        (id) => !availableSalesReps.has(id),
+      );
+
+      if (unavailableSalesReps.length)
+        return {
+          kind: 'sales_rep_unavailable',
+          salesRepExternalIds: unavailableSalesReps,
+        };
+
       // A shared Carrier lock serializes eligibility against disable/delete
       // writes, while allowing concurrent creations for the same Carrier.
       const carriers = await manager
@@ -176,11 +254,22 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
 
         while (!externalId) {
           const created: Array<{ external_id: string }> = await manager.query(
-            `INSERT INTO shipments (carrier_id, tracking_reference, notes, next_check_at, created_by_id, updated_by_id)
-             VALUES ($1, $2, $3, clock_timestamp(), $4, $4)
+            `INSERT INTO shipments
+              (carrier_id, tracking_reference, notes, sales_rep_id, follow_up_on,
+               next_check_at, created_by_id, updated_by_id)
+             VALUES ($1, $2, $3, $4, $5, clock_timestamp(), $6, $6)
              ON CONFLICT (carrier_id, tracking_reference) WHERE deleted_at IS NULL DO NOTHING
              RETURNING external_id`,
-            [carrierId, item.trackingReference, item.notes, actorId],
+            [
+              carrierId,
+              item.trackingReference,
+              item.notes,
+              item.salesRepExternalId
+                ? availableSalesReps.get(item.salesRepExternalId)!.id
+                : null,
+              item.followUpOn,
+              actorId,
+            ],
           );
 
           externalId = created[0]?.external_id;

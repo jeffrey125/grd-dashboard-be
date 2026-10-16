@@ -72,13 +72,13 @@ export class ShipmentsController {
 
   @Patch(':externalId')
   @Header('Cache-Control', 'no-store')
-  updateNotes(
+  update(
     @Param('externalId', new ParseUUIDPipe({ version: '4' }))
     externalId: string,
     @Body() input: unknown,
     @CurrentPrincipal() principal: Principal,
   ) {
-    return this.shipments.updateNotes(externalId, input, principal.id);
+    return this.shipments.update(externalId, input, principal.id);
   }
 
   @Delete(':externalId')

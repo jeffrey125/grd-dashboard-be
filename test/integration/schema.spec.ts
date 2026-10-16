@@ -97,6 +97,24 @@ describe('initial application schema', () => {
     ]);
   });
 
+  it('seeds the approved Sales Reps as active, independently named rows', async () => {
+    expect(
+      await source.query(
+        `SELECT first_name, last_name, deleted_at FROM sales_reps ORDER BY id`,
+      ),
+    ).toEqual([
+      { first_name: 'Jake', last_name: 'Wald', deleted_at: null },
+      { first_name: 'Brendan', last_name: 'Laird', deleted_at: null },
+      { first_name: 'Andrew', last_name: 'Henshaw', deleted_at: null },
+      { first_name: 'Don', last_name: 'Schene', deleted_at: null },
+      { first_name: 'Vinnie', last_name: 'Patti', deleted_at: null },
+      { first_name: 'Daniel', last_name: 'Vazquez', deleted_at: null },
+      { first_name: 'Ryan', last_name: 'Walsh', deleted_at: null },
+      { first_name: 'Tom', last_name: "O'Brien", deleted_at: null },
+      { first_name: 'Milly', last_name: 'Drobnjak', deleted_at: null },
+    ]);
+  });
+
   it('persists an ownership-safe tracking history with generated IDs and defaults', async () => {
     const [shipment] =
       await source.query(`INSERT INTO shipments (carrier_id, tracking_reference)
@@ -162,7 +180,7 @@ describe('initial application schema', () => {
     );
   });
 
-  it('maps all nine production entities without schema drift', async () => {
+  it('maps all ten production entities without schema drift', async () => {
     expect(
       source.entityMetadatas.map((metadata) => metadata.tableName).sort(),
     ).toEqual([
@@ -171,6 +189,7 @@ describe('initial application schema', () => {
       'auth_users',
       'auth_verifications',
       'carriers',
+      'sales_reps',
       'shipment_tracking_snapshots',
       'shipments',
       'tracking_attempts',
@@ -680,9 +699,14 @@ describe('initial application schema', () => {
         'fk_carriers_created_by_id',
         'fk_carriers_deleted_by_id',
         'fk_carriers_updated_by_id',
+        'fk_sales_reps_created_by_id',
+        'fk_sales_reps_deleted_by_id',
+        'fk_sales_reps_updated_by_id',
         'fk_runs_requester',
         'fk_shipments_created_by_id',
         'fk_shipments_deleted_by_id',
+        'fk_shipments_record_updated_by_id',
+        'fk_shipments_sales_rep_id',
         'fk_shipments_updated_by_id',
         'fk_runs_carrier',
         'fk_shipments_carrier',
@@ -714,6 +738,34 @@ describe('initial application schema', () => {
       [
         'ix_shipments_due',
         "INDEX ix_shipments_due ON public.shipments USING btree (next_check_at, id) WHERE ((deleted_at IS NULL) AND (monitoring_status = 'active'::shipment_monitoring_status))",
+      ],
+      [
+        'ix_shipments_sales_rep_id',
+        'INDEX ix_shipments_sales_rep_id ON public.shipments USING btree (sales_rep_id)',
+      ],
+      [
+        'ix_shipments_record_updated_by_id',
+        'INDEX ix_shipments_record_updated_by_id ON public.shipments USING btree (record_updated_by_id)',
+      ],
+      [
+        'ix_shipments_follow_up_on',
+        'INDEX ix_shipments_follow_up_on ON public.shipments USING btree (follow_up_on, id) WHERE (deleted_at IS NULL)',
+      ],
+      [
+        'ix_sales_reps_created_by_id',
+        'INDEX ix_sales_reps_created_by_id ON public.sales_reps USING btree (created_by_id)',
+      ],
+      [
+        'ix_sales_reps_updated_by_id',
+        'INDEX ix_sales_reps_updated_by_id ON public.sales_reps USING btree (updated_by_id)',
+      ],
+      [
+        'ix_sales_reps_deleted_by_id',
+        'INDEX ix_sales_reps_deleted_by_id ON public.sales_reps USING btree (deleted_by_id)',
+      ],
+      [
+        'ix_sales_reps_name',
+        'INDEX ix_sales_reps_name ON public.sales_reps USING btree (last_name, first_name, id)',
       ],
       [
         'ix_snapshots_history',
@@ -760,7 +812,8 @@ describe('initial application schema', () => {
         ' code name is_active not_found_pause_threshold poll_interval_minutes rate_limit_per_minute fetch_mode',
       shipments:
         audit +
-        ' carrier_id tracking_reference notes verification_url monitoring_status monitoring_reason current_tracking_snapshot_id last_attempted_at next_check_at consecutive_not_found_count lock_version',
+        ' carrier_id tracking_reference notes verification_url monitoring_status monitoring_reason current_tracking_snapshot_id last_attempted_at next_check_at consecutive_not_found_count lock_version sales_rep_id follow_up_on record_updated_at record_updated_by_id',
+      sales_reps: audit + ' first_name last_name',
       shipment_tracking_snapshots:
         'id shipment_id carrier_status carrier_status_detail picked_up_on estimated_delivery_on delivered_on observed_at external_id',
       tracking_runs:
@@ -791,6 +844,7 @@ describe('initial application schema', () => {
         ['auth_users', 'integer'],
         ['auth_verifications', 'integer'],
         ['carriers', 'integer'],
+        ['sales_reps', 'integer'],
         ['shipment_tracking_snapshots', 'bigint'],
         ['shipments', 'integer'],
         ['tracking_attempts', 'bigint'],

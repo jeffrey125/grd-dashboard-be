@@ -1,5 +1,6 @@
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
+import { SalesRepsAndShipmentFollowUp1792454400000 } from '@infrastructure/database/migrations/1792454400000-SalesRepsAndShipmentFollowUp.js';
 import { administratorCookie } from '@test/support/authentication.js';
 import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
@@ -19,6 +20,7 @@ import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/
 import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
 import { FfeRequestMode1792022400000 } from '@infrastructure/database/migrations/1792022400000-FfeRequestMode.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
+import { SalesRepEntity } from '@modules/sales-reps/sales-rep.entity.js';
 import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
 import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
 import { TrackingRunEntity } from '@modules/tracking/tracking-run.entity.js';
@@ -55,6 +57,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       entities: [
         ...AUTH_ENTITIES,
         CarrierEntity,
+        SalesRepEntity,
         ShipmentEntity,
         ShipmentTrackingSnapshotEntity,
         TrackingRunEntity,
@@ -68,6 +71,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         TrackingEvents1792195200000,
         TrackingReadProjection1792281600000,
         TrackingChangeEvents1792368000000,
+        SalesRepsAndShipmentFollowUp1792454400000,
       ],
     });
     await source.initialize();
@@ -123,6 +127,78 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       rateLimitPerMinute: 10,
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
+    });
+  });
+
+  it('lets admins configure Sales Reps with reversible soft deletion', async () => {
+    const active = await http().get('/api/v1/sales-reps').expect(200);
+
+    expect(active.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          firstName: 'Jake',
+          lastName: 'Wald',
+          active: true,
+        }),
+        expect.objectContaining({
+          firstName: 'Tom',
+          lastName: "O'Brien",
+          active: true,
+        }),
+      ]),
+    );
+    expect(active.body).toHaveLength(9);
+
+    const created = await http()
+      .post('/api/v1/admin/sales-reps')
+      .send({ firstName: 'Test', lastName: 'Rep' })
+      .expect(201);
+
+    expect(created.body).toMatchObject({
+      firstName: 'Test',
+      lastName: 'Rep',
+      active: true,
+      deletedAt: null,
+    });
+
+    const updated = await http()
+      .patch(`/api/v1/admin/sales-reps/${created.body.externalId}`)
+      .send({ lastName: 'Updated' })
+      .expect(200);
+
+    expect(updated.body).toMatchObject({
+      firstName: 'Test',
+      lastName: 'Updated',
+    });
+
+    await http()
+      .delete(`/api/v1/admin/sales-reps/${created.body.externalId}`)
+      .expect(204);
+    const inactive = await http()
+      .get(`/api/v1/admin/sales-reps/${created.body.externalId}`)
+      .expect(200);
+
+    expect(inactive.body).toMatchObject({
+      active: false,
+      deletedAt: expect.any(String),
+    });
+    expect(
+      (await http().get('/api/v1/sales-reps').expect(200)).body.some(
+        (row: { externalId: string }) =>
+          row.externalId === created.body.externalId,
+      ),
+    ).toBe(false);
+
+    const restored = await http()
+      .post(`/api/v1/admin/sales-reps/${created.body.externalId}/restore`)
+      .send({})
+      .expect(201);
+
+    expect(restored.body).toMatchObject({
+      firstName: 'Test',
+      lastName: 'Updated',
+      active: true,
+      deletedAt: null,
     });
   });
 

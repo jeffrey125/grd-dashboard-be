@@ -1,5 +1,7 @@
 import type { EntityManager } from 'typeorm';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
+import { AuthUserEntity } from '@modules/auth/auth-user.entity.js';
+import { SalesRepEntity } from '@modules/sales-reps/sales-rep.entity.js';
 import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
 import { TrackingAttemptEntity } from '@modules/tracking/tracking-attempt.entity.js';
 import { TrackingRunEntity } from '@modules/tracking/tracking-run.entity.js';
@@ -10,6 +12,10 @@ import type { ShipmentRecord } from './shipments.repository.js';
 
 type JoinedShipment = ShipmentEntity & {
   carrier: CarrierEntity;
+  salesRep: SalesRepEntity | null;
+  createdBy: AuthUserEntity | null;
+  updatedBy: AuthUserEntity | null;
+  recordUpdatedBy: AuthUserEntity | null;
   currentTracking: ShipmentTrackingSnapshotEntity | null;
   latestLookup: TrackingAttemptEntity | null;
   latestRun: TrackingRunEntity | null;
@@ -35,6 +41,37 @@ function record(row: JoinedShipment, extras: ReadExtras): ShipmentRecord {
     },
     trackingReference: row.trackingReference,
     notes: row.notes,
+    salesRep: row.salesRep
+      ? {
+          externalId: row.salesRep.externalId,
+          firstName: row.salesRep.firstName,
+          lastName: row.salesRep.lastName,
+          active: !row.salesRep.deletedAt,
+        }
+      : null,
+    followUpOn: row.followUpOn,
+    createdBy: row.createdBy
+      ? {
+          externalId: row.createdBy.externalId,
+          firstName: row.createdBy.firstName,
+          lastName: row.createdBy.lastName,
+        }
+      : null,
+    updatedBy: row.updatedBy
+      ? {
+          externalId: row.updatedBy.externalId,
+          firstName: row.updatedBy.firstName,
+          lastName: row.updatedBy.lastName,
+        }
+      : null,
+    recordUpdatedAt: row.recordUpdatedAt,
+    recordUpdatedBy: row.recordUpdatedBy
+      ? {
+          externalId: row.recordUpdatedBy.externalId,
+          firstName: row.recordUpdatedBy.firstName,
+          lastName: row.recordUpdatedBy.lastName,
+        }
+      : null,
     verificationUrl: row.verificationUrl,
     currentTracking: snapshot
       ? {
@@ -90,6 +127,30 @@ export async function readShipments(
       'carrier.id = shipment.carrier_id',
     )
     .leftJoinAndMapOne(
+      'shipment.salesRep',
+      SalesRepEntity,
+      'sales_rep',
+      'sales_rep.id = shipment.sales_rep_id',
+    )
+    .leftJoinAndMapOne(
+      'shipment.createdBy',
+      AuthUserEntity,
+      'created_user',
+      'created_user.id = shipment.created_by_id',
+    )
+    .leftJoinAndMapOne(
+      'shipment.updatedBy',
+      AuthUserEntity,
+      'updated_user',
+      'updated_user.id = shipment.updated_by_id',
+    )
+    .leftJoinAndMapOne(
+      'shipment.recordUpdatedBy',
+      AuthUserEntity,
+      'record_updated_user',
+      'record_updated_user.id = shipment.record_updated_by_id',
+    )
+    .leftJoinAndMapOne(
       'shipment.currentTracking',
       ShipmentTrackingSnapshotEntity,
       'snapshot',
@@ -129,6 +190,23 @@ export async function readShipments(
       'carrier.code',
       'carrier.name',
       'carrier.isActive',
+      'sales_rep.id',
+      'sales_rep.externalId',
+      'sales_rep.firstName',
+      'sales_rep.lastName',
+      'sales_rep.deletedAt',
+      'created_user.id',
+      'created_user.externalId',
+      'created_user.firstName',
+      'created_user.lastName',
+      'updated_user.id',
+      'updated_user.externalId',
+      'updated_user.firstName',
+      'updated_user.lastName',
+      'record_updated_user.id',
+      'record_updated_user.externalId',
+      'record_updated_user.firstName',
+      'record_updated_user.lastName',
       'lookup.id',
       'lookup.outcome',
       'lookup.snapshotChanged',

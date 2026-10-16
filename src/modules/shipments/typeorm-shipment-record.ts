@@ -37,6 +37,7 @@ export function shipmentRecord(value: unknown): ShipmentRecord {
       : null,
     lastAttemptedAt: asNullableDate(item.lastAttemptedAt),
     nextCheckAt: asNullableDate(item.nextCheckAt),
+    recordUpdatedAt: asNullableDate(item.recordUpdatedAt),
     createdAt: new Date(String(item.createdAt)),
     updatedAt: new Date(String(item.updatedAt)),
   });
@@ -53,6 +54,29 @@ export function shipmentJsonSql(alias: string): string {
     ),
     'trackingReference', ${alias}.tracking_reference,
     'notes', ${alias}.notes,
+    'salesRep', CASE WHEN ${alias}.sales_rep_external_id IS NULL THEN NULL ELSE jsonb_build_object(
+      'externalId', ${alias}.sales_rep_external_id,
+      'firstName', ${alias}.sales_rep_first_name,
+      'lastName', ${alias}.sales_rep_last_name,
+      'active', ${alias}.sales_rep_active
+    ) END,
+    'followUpOn', ${alias}.follow_up_on,
+    'createdBy', CASE WHEN ${alias}.created_by_external_id IS NULL THEN NULL ELSE jsonb_build_object(
+      'externalId', ${alias}.created_by_external_id,
+      'firstName', ${alias}.created_by_first_name,
+      'lastName', ${alias}.created_by_last_name
+    ) END,
+    'updatedBy', CASE WHEN ${alias}.updated_by_external_id IS NULL THEN NULL ELSE jsonb_build_object(
+      'externalId', ${alias}.updated_by_external_id,
+      'firstName', ${alias}.updated_by_first_name,
+      'lastName', ${alias}.updated_by_last_name
+    ) END,
+    'recordUpdatedAt', ${alias}.record_updated_at,
+    'recordUpdatedBy', CASE WHEN ${alias}.record_updated_by_external_id IS NULL THEN NULL ELSE jsonb_build_object(
+      'externalId', ${alias}.record_updated_by_external_id,
+      'firstName', ${alias}.record_updated_by_first_name,
+      'lastName', ${alias}.record_updated_by_last_name
+    ) END,
     'verificationUrl', ${alias}.verification_url,
     'currentTracking', CASE WHEN ${alias}.snapshot_external_id IS NULL THEN NULL ELSE jsonb_build_object(
       'externalId', ${alias}.snapshot_external_id,

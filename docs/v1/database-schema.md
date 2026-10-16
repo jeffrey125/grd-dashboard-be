@@ -4,13 +4,14 @@
 
 Finalized initial schema for the fresh NestJS backend. Implement it with reviewed TypeORM migrations; do not use TypeORM schema synchronization outside disposable local experiments.
 
-The initial schema has five tables:
+The initial schema has six tables:
 
 1. `carriers`
 2. `shipments`
-3. `shipment_tracking_snapshots`
-4. `tracking_runs`
-5. `tracking_attempts`
+3. `sales_reps`
+4. `shipment_tracking_snapshots`
+5. `tracking_runs`
+6. `tracking_attempts`
 
 Raw-artifact storage, source-data retention, notifications/outbox, and a durable queue remain outside this initial schema.
 
@@ -19,6 +20,7 @@ Raw-artifact storage, source-data retention, notifications/outbox, and a durable
 ```mermaid
 erDiagram
     carriers ||--o{ shipments : owns
+    sales_reps o|--o{ shipments : assigned_to
     carriers ||--o{ tracking_runs : executes
     shipments ||--o{ shipment_tracking_snapshots : records
     shipments ||--o{ tracking_attempts : checked_by
@@ -42,7 +44,7 @@ are removed. This ticket verifies those database rules but adds no purge API.
 
 ## Shared entity columns
 
-Mutable API-exposed business entities—initially Carrier and Shipment—extend `ExternallyIdentifiedEntity`, which extends `AuditableEntity`.
+Mutable API-exposed business entities—initially Carrier, Sales Rep and Shipment—extend `ExternallyIdentifiedEntity`, which extends `AuditableEntity`.
 
 | Column          | Type                                   | Null | Rule                                                            |
 | --------------- | -------------------------------------- | ---- | --------------------------------------------------------------- |
@@ -153,6 +155,10 @@ One row represents a Carrier-owned reference that the application monitors.
 | `next_check_at`                | `timestamptz`                | Yes  | Next time the scheduler may select the Shipment.                                       |
 | `consecutive_not_found_count`  | `integer`                    | No   | `0`; increments for `not_found`, resets on `found`, and is unchanged by failures.      |
 | `lock_version`                 | `integer`                    | No   | `1`; TypeORM optimistic-lock version.                                                  |
+| `sales_rep_id`                 | `integer`                    | Yes  | FK to `sales_reps.id`; `ON DELETE NO ACTION`; inactive assigned reps remain readable.  |
+| `follow_up_on`                 | `date`                       | Yes  | Staff follow-up calendar date in `America/New_York`; due when today or earlier.        |
+| `record_updated_at`            | `timestamptz`                | Yes  | Staff assignment/follow-up edit time, separate from general database update time.      |
+| `record_updated_by_id`         | `integer`                    | Yes  | FK to `auth_users.id`; `ON DELETE NO ACTION`; actor for assignment/follow-up edits.    |
 
 Constraints and indexes:
 
@@ -183,6 +189,23 @@ attempt history, not `last_attempted_at`, because that column includes manual
 refreshes. Manual refresh must not delay automatic tracking. Skipped and
 worker-interrupted attempts do not establish a new scheduled minimum. This uses
 the existing attempt/run tables and requires no additional column or migration.
+
+## 2a. `sales_reps`
+
+Sales Rep configuration is admin-managed and staff-readable. Deactivation is a
+soft delete so existing Shipment assignments remain historically accurate.
+
+| Column                | Type           | Null | Default/meaning                                                                                    |
+| --------------------- | -------------- | ---- | -------------------------------------------------------------------------------------------------- |
+| shared entity columns | —              | —    | Full externally identified audit base, with actor FKs to `auth_users` using `ON DELETE NO ACTION`. |
+| `first_name`          | `varchar(100)` | No   | Trimmed display first name.                                                                        |
+| `last_name`           | `varchar(100)` | No   | Trimmed display last name.                                                                         |
+
+Names are intentionally not unique. Active rows are offered for new assignments;
+an inactive row remains visible on a Shipment that already references it. The
+`1792454400000-SalesRepsAndShipmentFollowUp` migration seeds the nine approved
+initial representatives and attributes the seed to the oldest active Admin when
+one exists, otherwise leaving seed actor columns null.
 
 ## 3. `shipment_tracking_snapshots`
 
@@ -356,10 +379,12 @@ For `not_found`, `failed`, or `skipped`, do not create or clear a snapshot. Comp
 1. Enable/verify UUID generation support and create enum types.
 2. Create `carriers`.
 3. Create `shipments` without its current-snapshot foreign key.
-4. Create `shipment_tracking_snapshots`.
-5. Add the ownership-safe current-snapshot composite foreign key.
-6. Create `tracking_runs`.
-7. Create `tracking_attempts` and all indexes/check constraints.
+4. Create `sales_reps` after `auth_users` exists.
+5. Add Shipment assignment/follow-up columns and their explicit `NO ACTION` FKs.
+6. Create `shipment_tracking_snapshots`.
+7. Add the ownership-safe current-snapshot composite foreign key.
+8. Create `tracking_runs`.
+9. Create `tracking_attempts` and all indexes/check constraints.
 
 ## Deferred decisions
 

@@ -23,7 +23,8 @@ export interface ShipmentCreationRows {
 
 export type ShipmentCreationResult =
   | ({ kind: 'created' } & ShipmentCreationRows)
-  | { kind: 'unavailable'; carrierExternalIds: string[] };
+  | { kind: 'unavailable'; carrierExternalIds: string[] }
+  | { kind: 'sales_rep_unavailable'; salesRepExternalIds: string[] };
 
 export type MonitoringCommand = 'pause' | 'resume';
 
@@ -47,6 +48,11 @@ export interface ShipmentsRepository {
   updateNotes(
     externalId: string,
     notes: string | null,
+    actorId?: number | null,
+  ): Promise<ShipmentRecord | null>;
+  update(
+    externalId: string,
+    changes: import('./shipments.schemas.js').ShipmentUpdate,
     actorId?: number | null,
   ): Promise<ShipmentRecord | null>;
   remove(externalId: string, actorId?: number | null): Promise<boolean>;

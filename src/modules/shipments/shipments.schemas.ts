@@ -22,11 +22,27 @@ const notesSchema = z
   .refine((value) => !value.includes('\u0000'))
   .nullable();
 
+const followUpOnSchema = z.iso
+  .date()
+  .refine((value) => !value.startsWith('0000'))
+  .nullable();
+
 export const createShipmentSchema = z.strictObject({
   carrierExternalId: shipmentExternalIdSchema,
   trackingReference: trackingReferenceSchema,
   notes: notesSchema.optional().transform((value) => value ?? null),
+  salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
+  followUpOn: followUpOnSchema.optional(),
 });
+export const updateShipmentSchema = z
+  .strictObject({
+    notes: notesSchema.optional(),
+    salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
+    followUpOn: followUpOnSchema.optional(),
+  })
+  .refine((value) => Object.values(value).some((item) => item !== undefined), {
+    message: 'At least one Shipment field is required',
+  });
 export const updateShipmentNotesSchema = z.strictObject({ notes: notesSchema });
 export const monitoringCommandSchema = z.strictObject({});
 
@@ -49,6 +65,9 @@ export const shipmentSearchQuerySchema = z
       .transform((value) => value || undefined)
       .optional(),
     carrierExternalId: shipmentExternalIdSchema.optional(),
+    salesRepExternalId: z
+      .union([shipmentExternalIdSchema, z.literal('unassigned')])
+      .optional(),
     estimatedDeliveryFrom: z.iso
       .date()
       .refine((value) => !value.startsWith('0000'))
@@ -64,7 +83,12 @@ export const shipmentSearchQuerySchema = z
     page: positiveIntegerQuerySchema.default(1),
     pageSize: z.enum(['25', '50', '100']).default('25').transform(Number),
     sortBy: z
-      .enum(['createdAt', 'trackingReference', 'estimatedDeliveryOn'])
+      .enum([
+        'createdAt',
+        'trackingReference',
+        'estimatedDeliveryOn',
+        'followUpOn',
+      ])
       .default('createdAt'),
     sortDirection: z.enum(['asc', 'desc']).default('desc'),
   })
@@ -97,6 +121,20 @@ export const shipmentHistoryQuerySchema = z
 export type ShipmentHistoryQuery = z.infer<typeof shipmentHistoryQuerySchema>;
 
 export type NewShipment = z.infer<typeof createShipmentSchema>;
+export type ShipmentUpdate = z.infer<typeof updateShipmentSchema>;
+
+export const employeeSummarySchema = z.strictObject({
+  externalId: z.uuidv4(),
+  firstName: z.string(),
+  lastName: z.string(),
+});
+
+export const salesRepSummarySchema = z.strictObject({
+  externalId: z.uuidv4(),
+  firstName: z.string(),
+  lastName: z.string(),
+  active: z.boolean(),
+});
 
 export const shipmentRecordSchema = z.strictObject({
   externalId: z.uuidv4(),
@@ -108,6 +146,12 @@ export const shipmentRecordSchema = z.strictObject({
   }),
   trackingReference: z.string(),
   notes: z.string().nullable(),
+  salesRep: salesRepSummarySchema.nullable(),
+  followUpOn: z.iso.date().nullable(),
+  createdBy: employeeSummarySchema.nullable(),
+  updatedBy: employeeSummarySchema.nullable(),
+  recordUpdatedAt: z.date().nullable(),
+  recordUpdatedBy: employeeSummarySchema.nullable(),
   verificationUrl: z.string().nullable(),
   currentTracking: trackingSnapshotRecordSchema.nullable(),
   latestLookup: latestLookupRecordSchema.nullable(),
@@ -142,7 +186,13 @@ export const shipmentHistoryResponseSchema = z.strictObject({
 });
 
 export interface ShipmentValidationDetail {
-  field: 'carrierExternalId' | 'trackingReference' | 'notes' | 'shipment';
+  field:
+    | 'carrierExternalId'
+    | 'trackingReference'
+    | 'notes'
+    | 'salesRepExternalId'
+    | 'followUpOn'
+    | 'shipment';
   message: string;
 }
 

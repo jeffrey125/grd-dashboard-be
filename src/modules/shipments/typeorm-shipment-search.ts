@@ -28,6 +28,8 @@ function orderBy(query: ShipmentSearchQuery): string {
       return `selected.tracking_reference ${direction}, selected.shipment_id ${direction}`;
     case 'estimatedDeliveryOn':
       return `selected.snapshot_estimated_delivery_on ${direction} NULLS LAST, selected.shipment_id ${direction}`;
+    case 'followUpOn':
+      return `selected.follow_up_on ${direction} NULLS LAST, selected.shipment_id ${direction}`;
     case 'createdAt':
       return `selected.created_at ${direction}, selected.shipment_id ${direction}`;
   }
@@ -54,6 +56,13 @@ function statement(query: ShipmentSearchQuery) {
   if (query.carrierExternalId)
     filters.push(
       `carrier.external_id = ${parameter(query.carrierExternalId)}::uuid`,
+    );
+
+  if (query.salesRepExternalId === 'unassigned')
+    filters.push('shipment.sales_rep_id IS NULL');
+  else if (query.salesRepExternalId)
+    filters.push(
+      `sales_rep.external_id = ${parameter(query.salesRepExternalId)}::uuid`,
     );
 
   const limit = parameter(query.pageSize);
@@ -89,10 +98,25 @@ function statement(query: ShipmentSearchQuery) {
         shipment.consecutive_not_found_count,
         shipment.created_at,
         shipment.updated_at,
+        shipment.follow_up_on,
+        shipment.record_updated_at,
         carrier.external_id AS carrier_external_id,
         carrier.code AS carrier_code,
         carrier.name AS carrier_name,
         carrier.is_active AS carrier_is_active,
+        sales_rep.external_id AS sales_rep_external_id,
+        sales_rep.first_name AS sales_rep_first_name,
+        sales_rep.last_name AS sales_rep_last_name,
+        (sales_rep.deleted_at IS NULL) AS sales_rep_active,
+        created_user.external_id AS created_by_external_id,
+        created_user.first_name AS created_by_first_name,
+        created_user.last_name AS created_by_last_name,
+        updated_user.external_id AS updated_by_external_id,
+        updated_user.first_name AS updated_by_first_name,
+        updated_user.last_name AS updated_by_last_name,
+        record_updated_user.external_id AS record_updated_by_external_id,
+        record_updated_user.first_name AS record_updated_by_first_name,
+        record_updated_user.last_name AS record_updated_by_last_name,
         snapshot.external_id AS snapshot_external_id,
         snapshot.carrier_status AS snapshot_carrier_status,
         snapshot.carrier_status_detail AS snapshot_carrier_status_detail,
@@ -109,6 +133,11 @@ function statement(query: ShipmentSearchQuery) {
         lookup.completed_at AS lookup_completed_at
       FROM shipments shipment
       JOIN carriers carrier ON carrier.id = shipment.carrier_id
+      LEFT JOIN sales_reps sales_rep ON sales_rep.id = shipment.sales_rep_id
+      LEFT JOIN auth_users created_user ON created_user.id = shipment.created_by_id
+      LEFT JOIN auth_users updated_user ON updated_user.id = shipment.updated_by_id
+      LEFT JOIN auth_users record_updated_user
+        ON record_updated_user.id = shipment.record_updated_by_id
       LEFT JOIN shipment_tracking_snapshots snapshot
         ON snapshot.id = shipment.current_tracking_snapshot_id
         AND snapshot.shipment_id = shipment.id

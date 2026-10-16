@@ -1,5 +1,8 @@
 import { DataSource } from 'typeorm';
-import { SHIPMENT_TAB_PREDICATES } from '@modules/shipments/shipment-read-predicates.js';
+import {
+  SHIPMENT_TAB_PREDICATES,
+  shipmentTabPredicateAt,
+} from '@modules/shipments/shipment-read-predicates.js';
 import {
   shipmentJsonSql,
   shipmentRecord,
@@ -28,6 +31,7 @@ interface OverviewEnvelopeRow {
 function overviewStatement(): string {
   return `WITH bounds AS (
     SELECT $1::timestamptz AS as_of,
+      ($1::timestamptz AT TIME ZONE 'America/New_York')::date AS business_date,
       ($1::timestamptz AT TIME ZONE 'America/New_York')::date AS date_from,
       ($1::timestamptz AT TIME ZONE 'America/New_York')::date + 6 AS date_to
   ), base AS MATERIALIZED (
@@ -44,10 +48,26 @@ function overviewStatement(): string {
       shipment.consecutive_not_found_count,
       shipment.created_at,
       shipment.updated_at,
+      shipment.follow_up_on,
+      shipment.record_updated_at,
+      bounds.business_date,
       carrier.external_id AS carrier_external_id,
       carrier.code AS carrier_code,
       carrier.name AS carrier_name,
       carrier.is_active AS carrier_is_active,
+      sales_rep.external_id AS sales_rep_external_id,
+      sales_rep.first_name AS sales_rep_first_name,
+      sales_rep.last_name AS sales_rep_last_name,
+      (sales_rep.deleted_at IS NULL) AS sales_rep_active,
+      created_user.external_id AS created_by_external_id,
+      created_user.first_name AS created_by_first_name,
+      created_user.last_name AS created_by_last_name,
+      updated_user.external_id AS updated_by_external_id,
+      updated_user.first_name AS updated_by_first_name,
+      updated_user.last_name AS updated_by_last_name,
+      record_updated_user.external_id AS record_updated_by_external_id,
+      record_updated_user.first_name AS record_updated_by_first_name,
+      record_updated_user.last_name AS record_updated_by_last_name,
       snapshot.external_id AS snapshot_external_id,
       snapshot.carrier_status AS snapshot_carrier_status,
       snapshot.carrier_status_detail AS snapshot_carrier_status_detail,
@@ -63,7 +83,13 @@ function overviewStatement(): string {
       lookup.reason_code AS lookup_reason_code,
       lookup.completed_at AS lookup_completed_at
     FROM shipments shipment
+    CROSS JOIN bounds
     JOIN carriers carrier ON carrier.id = shipment.carrier_id
+    LEFT JOIN sales_reps sales_rep ON sales_rep.id = shipment.sales_rep_id
+    LEFT JOIN auth_users created_user ON created_user.id = shipment.created_by_id
+    LEFT JOIN auth_users updated_user ON updated_user.id = shipment.updated_by_id
+    LEFT JOIN auth_users record_updated_user
+      ON record_updated_user.id = shipment.record_updated_by_id
     LEFT JOIN shipment_tracking_snapshots snapshot
       ON snapshot.id = shipment.current_tracking_snapshot_id
       AND snapshot.shipment_id = shipment.id
@@ -86,17 +112,17 @@ function overviewStatement(): string {
   ), counts AS (
     SELECT
       count(*)::integer AS all_count,
-      count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.active})::integer AS active_count,
+        count(*) FILTER (WHERE ${shipmentTabPredicateAt('active', 'business_date')})::integer AS active_count,
       count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.paused})::integer AS paused_count,
       count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.delivered})::integer AS delivered_count,
-      count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.attention})::integer AS attention_count
+        count(*) FILTER (WHERE ${shipmentTabPredicateAt('attention', 'business_date')})::integer AS attention_count
     FROM base
   ), attention_rows AS (
     SELECT
       base.*,
       row_number() OVER (ORDER BY created_at DESC, shipment_id DESC) AS panel_position
     FROM base
-    WHERE ${SHIPMENT_TAB_PREDICATES.attention}
+    WHERE ${shipmentTabPredicateAt('attention', 'business_date')}
     ORDER BY created_at DESC, shipment_id DESC
     LIMIT 5
   ), upcoming AS MATERIALIZED (

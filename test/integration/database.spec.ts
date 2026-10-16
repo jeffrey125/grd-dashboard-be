@@ -1,5 +1,6 @@
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
+import { SalesRepsAndShipmentFollowUp1792454400000 } from '@infrastructure/database/migrations/1792454400000-SalesRepsAndShipmentFollowUp.js';
 import { AUTH_ENTITIES } from '@modules/auth/auth.entities.js';
 import { EmployeeAuth1792108800000 } from '@infrastructure/database/migrations/1792108800000-EmployeeAuth.js';
 import { TrackingEvents1792195200000 } from '@infrastructure/database/migrations/1792195200000-TrackingEvents.js';
@@ -20,6 +21,7 @@ import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/
 import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
 import { FfeRequestMode1792022400000 } from '@infrastructure/database/migrations/1792022400000-FfeRequestMode.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
+import { SalesRepEntity } from '@modules/sales-reps/sales-rep.entity.js';
 import { ShipmentEntity } from '@modules/shipments/shipment.entity.js';
 import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-tracking-snapshot.entity.js';
 import {
@@ -71,6 +73,7 @@ describe('production migrations and repository foundation', () => {
       entities: [
         ...AUTH_ENTITIES,
         CarrierEntity,
+        SalesRepEntity,
         ShipmentEntity,
         ShipmentTrackingSnapshotEntity,
         TrackingRunEntity,
@@ -84,6 +87,7 @@ describe('production migrations and repository foundation', () => {
         TrackingEvents1792195200000,
         TrackingReadProjection1792281600000,
         TrackingChangeEvents1792368000000,
+        SalesRepsAndShipmentFollowUp1792454400000,
       ],
     });
     await source.initialize();
@@ -364,6 +368,7 @@ describe('production migrations and repository foundation', () => {
     await source.undoLastMigration(); // Event trigger migration.
     await source.undoLastMigration(); // Auth migration.
     await source.undoLastMigration();
+    await source.undoLastMigration(); // FFE mode migration.
 
     expect((await service.find(carrier.externalId)).fetchMode).toBe('browser');
     expect((await runs.findOneByOrFail({ id: run.id })).fetchMode).toBe(
@@ -386,6 +391,7 @@ describe('production migrations and repository foundation', () => {
     await source.undoLastMigration();
     await source.undoLastMigration();
     await source.undoLastMigration();
+    await source.undoLastMigration();
 
     expect((await cli('migration:show')).stdout).toContain(
       '[ ] InitialSchema1791849600000',
@@ -396,6 +402,7 @@ describe('production migrations and repository foundation', () => {
     expect(firstRun.stdout).toContain('CREATE TABLE carriers');
     expect((await cli('migration:show')).stdout).toContain('[X]');
 
+    await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');

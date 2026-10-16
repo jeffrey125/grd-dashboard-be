@@ -57,6 +57,19 @@ export enum ShipmentMonitoringReason {
   onDelete: 'NO ACTION',
 })
 @Index('ix_shipments_updated_by_id', ['updatedById'])
+@ForeignKey('SalesRepEntity', ['salesRepId'], ['id'], {
+  name: 'fk_shipments_sales_rep_id',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_shipments_sales_rep_id', ['salesRepId'])
+@ForeignKey('AuthUserEntity', ['recordUpdatedById'], ['id'], {
+  name: 'fk_shipments_record_updated_by_id',
+  onDelete: 'NO ACTION',
+})
+@Index('ix_shipments_record_updated_by_id', ['recordUpdatedById'])
+@Index('ix_shipments_follow_up_on', ['followUpOn', 'id'], {
+  where: 'deleted_at IS NULL',
+})
 @ForeignKey('AuthUserEntity', ['deletedById'], ['id'], {
   name: 'fk_shipments_deleted_by_id',
   onDelete: 'NO ACTION',
@@ -71,6 +84,18 @@ export class ShipmentEntity extends ExternallyIdentifiedEntity {
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   notes: string | null;
+
+  @Column({ name: 'sales_rep_id', type: 'integer', nullable: true })
+  salesRepId: number | null;
+
+  @Column({ name: 'follow_up_on', type: 'date', nullable: true })
+  followUpOn: string | null;
+
+  @Column({ name: 'record_updated_at', type: 'timestamptz', nullable: true })
+  recordUpdatedAt: Date | null;
+
+  @Column({ name: 'record_updated_by_id', type: 'integer', nullable: true })
+  recordUpdatedById: number | null;
 
   @Column({ name: 'verification_url', type: 'text', nullable: true })
   verificationUrl: string | null;

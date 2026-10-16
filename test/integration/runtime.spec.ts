@@ -41,6 +41,7 @@ import { createDatabaseOptions } from '@infrastructure/database/database-options
 import { InitialSchema1791849600000 } from '@infrastructure/database/migrations/1791849600000-InitialSchema.js';
 import { CarrierFetchMode1791936000000 } from '@infrastructure/database/migrations/1791936000000-CarrierFetchMode.js';
 import { FfeRequestMode1792022400000 } from '@infrastructure/database/migrations/1792022400000-FfeRequestMode.js';
+import { SalesRepsAndShipmentFollowUp1792454400000 } from '@infrastructure/database/migrations/1792454400000-SalesRepsAndShipmentFollowUp.js';
 
 type Runtime = {
   child: ChildProcessWithoutNullStreams;
@@ -78,6 +79,7 @@ beforeAll(async () => {
       TrackingEvents1792195200000,
       TrackingReadProjection1792281600000,
       TrackingChangeEvents1792368000000,
+      SalesRepsAndShipmentFollowUp1792454400000,
     ],
   });
 

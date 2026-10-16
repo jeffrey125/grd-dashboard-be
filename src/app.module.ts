@@ -10,6 +10,7 @@ import { ShipmentsModule } from '@modules/shipments/shipments.module.js';
 import { TrackingHttpModule } from '@modules/tracking/tracking-http.module.js';
 import { EventsModule } from '@modules/events/events.module.js';
 import { DashboardModule } from '@modules/dashboard/dashboard.module.js';
+import { SalesRepsModule } from '@modules/sales-reps/sales-reps.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { DashboardModule } from '@modules/dashboard/dashboard.module.js';
     TrackingHttpModule,
     EventsModule,
     DashboardModule,
+    SalesRepsModule,
   ],
 })
 export class AppModule {}
