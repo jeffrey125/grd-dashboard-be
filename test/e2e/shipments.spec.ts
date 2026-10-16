@@ -310,7 +310,13 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       { page: 0 },
       { pageSize: 101 },
       { sortBy: 'privateColumn' },
-      { createdFrom: '2026-03-09', createdTo: '2026-03-08' },
+      { sortBy: 'lastAttemptedAt' },
+      { lookupOutcome: 'failed' },
+      { createdFrom: '2026-03-09' },
+      { createdTo: '2026-03-08' },
+      { estimatedDeliveryFrom: '2026-03-09' },
+      { estimatedDeliveryTo: '2026-03-08' },
+      { undeliveredOnly: 'true' },
     ])
       await http().get('/api/v1/shipments/search').query(query).expect(400);
   });

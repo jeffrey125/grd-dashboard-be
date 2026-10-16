@@ -28,8 +28,6 @@ function orderBy(query: ShipmentSearchQuery): string {
       return `selected.tracking_reference ${direction}, selected.shipment_id ${direction}`;
     case 'estimatedDeliveryOn':
       return `selected.snapshot_estimated_delivery_on ${direction} NULLS LAST, selected.shipment_id ${direction}`;
-    case 'lastAttemptedAt':
-      return `selected.last_attempted_at ${direction} NULLS LAST, selected.shipment_id ${direction}`;
     case 'createdAt':
       return `selected.created_at ${direction}, selected.shipment_id ${direction}`;
   }
@@ -57,36 +55,6 @@ function statement(query: ShipmentSearchQuery) {
     filters.push(
       `carrier.external_id = ${parameter(query.carrierExternalId)}::uuid`,
     );
-
-  if (query.lookupOutcome === 'never_checked')
-    filters.push('lookup.id IS NULL');
-  else if (query.lookupOutcome)
-    filters.push(
-      `lookup.outcome = ${parameter(query.lookupOutcome)}::tracking_attempt_outcome`,
-    );
-
-  if (query.createdFrom)
-    filters.push(
-      `shipment.created_at >= (${parameter(query.createdFrom)}::date::timestamp AT TIME ZONE 'America/New_York')`,
-    );
-
-  if (query.createdTo)
-    filters.push(
-      `shipment.created_at < (((${parameter(query.createdTo)}::date + 1)::timestamp) AT TIME ZONE 'America/New_York')`,
-    );
-
-  if (query.estimatedDeliveryFrom)
-    filters.push(
-      `snapshot.estimated_delivery_on >= ${parameter(query.estimatedDeliveryFrom)}::date`,
-    );
-
-  if (query.estimatedDeliveryTo)
-    filters.push(
-      `snapshot.estimated_delivery_on <= ${parameter(query.estimatedDeliveryTo)}::date`,
-    );
-
-  if (query.undeliveredOnly)
-    filters.push("shipment.monitoring_status <> 'completed'");
 
   const limit = parameter(query.pageSize);
   const offset = parameter((query.page - 1) * query.pageSize);

@@ -125,10 +125,6 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
       expect(response.body).toEqual({
         asOf: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
         timezone: 'America/New_York',
-        upcomingWindow: {
-          from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-          to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-        },
         counts: {
           all: 1,
           active: 1,
@@ -137,27 +133,6 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
           attention: 0,
         },
         attention: { total: 0, items: [] },
-        upcomingDeliveries: { total: 0, items: [] },
-        recentChanges: [
-          {
-            shipmentExternalId: created.body.shipment.externalId,
-            trackingReference: 'dashboard-http',
-            carrier: {
-              externalId: carrier.externalId,
-              code: 'ups',
-              name: 'UPS',
-            },
-            snapshot: {
-              externalId: expect.any(String),
-              carrierStatus: 'Moving',
-              carrierStatusDetail: null,
-              pickedUpOn: null,
-              estimatedDeliveryOn: null,
-              deliveredOn: null,
-              observedAt: '2026-10-16T00:00:00.000Z',
-            },
-          },
-        ],
       });
       expect(JSON.stringify(response.body)).not.toMatch(
         /sourceData|source_data|shipmentId|carrierId|lockVersion|createdById/,

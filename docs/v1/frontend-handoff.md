@@ -167,22 +167,19 @@ Search query fields are strict: unknown fields return 400. `tab` is `all`,
 `active` (default), `paused`, `delivered`, or `attention`. `q` is a trimmed,
 case-insensitive literal substring of reference or notes, up to 255 code units;
 `%`, `_`, and `\\` have no wildcard meaning. `carrierExternalId` is one UUIDv4.
-`lookupOutcome` is `never_checked`, `found`, `not_found`, `failed`, or `skipped`;
-pending-only Shipments are `never_checked`.
-
-`createdFrom`/`createdTo` are inclusive `YYYY-MM-DD` dates in
-`America/New_York`. `estimatedDeliveryFrom`/`estimatedDeliveryTo` are inclusive
-calendar dates and exclude null ETAs. `undeliveredOnly=true` excludes completed
-Shipments. Reversed or invalid ranges return 400. Pagination defaults to page 1
-and 25 rows; only 25/50/100 are accepted. Sorting defaults to `createdAt desc`;
-`trackingReference`, `estimatedDeliveryOn`, and `lastAttemptedAt` plus `asc` or
-`desc` are also accepted. Null sortable values always appear last.
+Pagination defaults to page 1 and 25 rows; only 25/50/100 are accepted. Sorting
+defaults to `createdAt desc`; `trackingReference` and `estimatedDeliveryOn` plus
+`asc` or `desc` are also accepted. Null sortable values always appear last.
+Removed lookup-outcome, created-date, delivery-date, undelivered-only and
+last-attempted sort parameters are rejected as unknown fields.
 
 `total` includes the selected tab and all filters. `tabCounts` applies every
-non-tab filter and ignores the selected tab. Attention is intentionally
-overlapping: it means a non-completed Shipment whose latest completed lookup
-failed, or a threshold-paused Shipment. Active Shipments stay Active when their
-Carrier is disabled. Search items, total, and counts come from one PostgreSQL
+non-tab filter and ignores the selected tab. Active, Delivered, and Attention
+partition All. The compatibility-only Paused count is a subset of Attention.
+Attention means any paused Shipment or a non-completed Shipment whose latest
+completed lookup failed. Active means actively monitored without a failed latest
+completed lookup. Otherwise Active Shipments stay Active when their Carrier is
+disabled. Search items, total, and counts come from one PostgreSQL
 statement snapshot. Separate page requests remain live offset reads rather than
 a frozen result set.
 
@@ -220,7 +217,6 @@ uses `Cache-Control: no-store`, accepts no body, and returns:
 type OverviewResponse = {
   asOf: string;
   timezone: 'America/New_York';
-  upcomingWindow: { from: string; to: string };
   counts: {
     all: number;
     active: number;
@@ -229,43 +225,27 @@ type OverviewResponse = {
     attention: number;
   };
   attention: { total: number; items: Shipment[] };
-  upcomingDeliveries: { total: number; items: Shipment[] };
-  recentChanges: Array<{
-    shipmentExternalId: string;
-    trackingReference: string;
-    carrier: { externalId: string; code: string; name: string };
-    snapshot: TrackingSnapshot;
-  }>;
 };
 ```
 
 All values come from one PostgreSQL statement snapshot identified by `asOf`.
 Counts cover nondeleted Shipments and include Shipments whose Carrier is disabled.
 They use the same monitoring and attention predicates as Shipment search.
-Attention is a non-completed Shipment whose latest completed lookup failed, or a
-threshold-paused Shipment; the panel is newest-created first and is unrelated to
+Attention is any paused Shipment or a non-completed Shipment whose latest completed
+lookup failed; the panel is newest-created first and is unrelated to
 delivery lateness.
 
-`upcomingWindow` is the inclusive New York business-date range from today through
-day +6. Upcoming deliveries are non-completed Shipments whose current normalized
-snapshot has a non-null ETA in that range. The panel sorts ETA ascending, then
-creation time and a server-only identity ascending. Drill down with
-`GET /api/v1/shipments/search?tab=all&undeliveredOnly=true&estimatedDeliveryFrom=<from>&estimatedDeliveryTo=<to>&sortBy=estimatedDeliveryOn&sortDirection=asc`.
-
-`attention.total` and `upcomingDeliveries.total` cover every matching Shipment,
-while each panel returns at most 10 full safe Shipment projections. Recent changes
-returns at most the 10 newest persisted normalized snapshots for nondeleted
-Shipments, ordered by `observedAt desc` and a server-only identity tie-breaker.
-It includes first observations and changed observations; unchanged, failed,
-not-found and skipped polls do not create entries. Counts are current monitoring
-state totals, not delivered-today, on-time performance or analytics metrics.
+`attention.total` covers every matching Shipment while the panel returns at most
+5 full safe Shipment projections. Counts are current monitoring state totals,
+not delivered-today, on-time performance or analytics metrics. Upcoming deliveries
+and recent tracking changes are not part of the Overview response.
 
 | Route                                        | Input → success                                                                                                                                               |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/v1/shipments`                      | No input → 200 unpaginated array, newest created first.                                                                                                       |
 | `GET /api/v1/shipments/search`               | Query described above → 200 ShipmentSearchResponse. Static route is registered before UUID detail.                                                            |
 | `GET /api/v1/shipments/:externalId/history`  | Strict `page`/`pageSize` query → 200 ShipmentHistoryResponse; missing/deleted Shipment → 404.                                                                 |
-| `GET /api/v1/dashboard/overview`             | No input → 200 OverviewResponse with bounded operational panels and full attention/upcoming totals.                                                           |
+| `GET /api/v1/dashboard/overview`             | No input → 200 OverviewResponse with bounded Needs attention items and its full total.                                                                        |
 | `GET /api/v1/shipments/:externalId`          | No input → 200 Shipment.                                                                                                                                      |
 | `POST /api/v1/shipments`                     | `{ carrierExternalId, trackingReference, notes? }` → `{ outcome: "created" \| "existing", shipment: Shipment }`; 201 when created, 200 when already existing. |
 | `PATCH /api/v1/shipments/:externalId`        | `{ notes: string \| null }` only → 200 Shipment.                                                                                                              |

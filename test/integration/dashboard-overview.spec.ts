@@ -95,33 +95,7 @@ describe('Dashboard overview PostgreSQL repository', () => {
     );
   }
 
-  it.each([
-    ['2026-03-08T04:59:59.000Z', '2026-03-07', '2026-03-13'],
-    ['2026-03-08T05:00:00.000Z', '2026-03-08', '2026-03-14'],
-    ['2026-11-01T03:59:59.000Z', '2026-10-31', '2026-11-06'],
-    ['2026-11-01T04:00:00.000Z', '2026-11-01', '2026-11-07'],
-  ])('uses the New York business date at %s', async (timestamp, from, to) => {
-    const asOf = new Date(timestamp);
-    const repository = new TypeOrmDashboardRepository(db.source, () => asOf);
-
-    await expect(repository.overview()).resolves.toEqual({
-      asOf,
-      timezone: 'America/New_York',
-      upcomingWindow: { from, to },
-      counts: {
-        all: 0,
-        active: 0,
-        paused: 0,
-        delivered: 0,
-        attention: 0,
-      },
-      attention: { total: 0, items: [] },
-      upcomingDeliveries: { total: 0, items: [] },
-      recentChanges: [],
-    });
-  });
-
-  it('shares search state totals and handles disabled, deleted, null, and ETA rows', async () => {
+  it('shares search state totals and handles disabled, deleted, and projected rows', async () => {
     const active = await create('dashboard-active');
     const failed = await create('dashboard-failed');
     const manual = await create('dashboard-manual');
@@ -191,58 +165,33 @@ describe('Dashboard overview PostgreSQL repository', () => {
     const attentionSearch = await shipments.search(
       shipmentSearchQuerySchema.parse({ tab: 'attention' }),
     );
-    const upcomingSearch = await shipments.search(
-      shipmentSearchQuerySchema.parse({
-        tab: 'all',
-        undeliveredOnly: 'true',
-        estimatedDeliveryFrom: overview.upcomingWindow.from,
-        estimatedDeliveryTo: overview.upcomingWindow.to,
-        sortBy: 'estimatedDeliveryOn',
-        sortDirection: 'asc',
-      }),
-    );
-
     expect(overview.counts).toEqual({
       all: 6,
-      active: 3,
+      active: 2,
       paused: 2,
       delivered: 1,
-      attention: 2,
+      attention: 3,
     });
+    expect(overview.counts.all).toBe(
+      overview.counts.active +
+        overview.counts.delivered +
+        overview.counts.attention,
+    );
     expect(overview.counts).toEqual(attentionSearch.tabCounts);
     expect(overview.attention.total).toBe(attentionSearch.total);
     expect(overview.attention.items.map((item) => item.externalId)).toEqual([
+      manual.externalId,
       threshold.externalId,
       failed.externalId,
     ]);
-    expect(overview.attention.items[1]!.latestLookup).toMatchObject({
+    expect(overview.attention.items[2]!.latestLookup).toMatchObject({
       outcome: 'failed',
       reasonCode: 'DASHBOARD_TEST_FAILURE',
     });
-    expect(overview.upcomingDeliveries.total).toBe(4);
-    expect(overview.upcomingDeliveries.total).toBe(upcomingSearch.total);
-    expect(
-      overview.upcomingDeliveries.items.map(
-        (item) => item.currentTracking?.estimatedDeliveryOn,
-      ),
-    ).toEqual(['2026-03-08', '2026-03-10', '2026-03-12', '2026-03-14']);
-    expect(
-      overview.upcomingDeliveries.items.find(
-        (item) => item.externalId === disabled.externalId,
-      )?.carrier.isActive,
-    ).toBe(false);
-    expect(overview.recentChanges[0]).toMatchObject({
-      shipmentExternalId: disabled.externalId,
-      trackingReference: disabled.trackingReference,
-    });
-    expect(
-      overview.recentChanges.some(
-        (change) => change.shipmentExternalId === removed.externalId,
-      ),
-    ).toBe(false);
+    expect(overview.attention.items[0]?.carrier.isActive).toBe(true);
   });
 
-  it('returns full totals with ten-item panels in their documented order', async () => {
+  it('returns full totals with bounded panels in their documented order', async () => {
     const created: ShipmentEntity[] = [];
 
     for (let index = 0; index < 12; index += 1) {
@@ -275,24 +224,10 @@ describe('Dashboard overview PostgreSQL repository', () => {
     ).overview();
 
     expect(overview.attention.total).toBe(12);
-    expect(overview.attention.items).toHaveLength(10);
+    expect(overview.attention.items).toHaveLength(5);
     expect(overview.attention.items.map((item) => item.externalId)).toEqual(
       created
-        .slice(2)
-        .reverse()
-        .map((shipment) => shipment.externalId),
-    );
-    expect(overview.upcomingDeliveries.total).toBe(12);
-    expect(overview.upcomingDeliveries.items).toHaveLength(10);
-    expect(
-      overview.upcomingDeliveries.items.map((item) => item.externalId),
-    ).toEqual(created.slice(0, 10).map((shipment) => shipment.externalId));
-    expect(overview.recentChanges).toHaveLength(10);
-    expect(
-      overview.recentChanges.map((change) => change.shipmentExternalId),
-    ).toEqual(
-      created
-        .slice(2)
+        .slice(7)
         .reverse()
         .map((shipment) => shipment.externalId),
     );
@@ -323,7 +258,7 @@ describe('Dashboard overview PostgreSQL repository', () => {
       await runner.commitTransaction();
 
       await expect(repository.overview()).resolves.toMatchObject({
-        counts: { all: 1, active: 0, paused: 1, delivered: 0, attention: 0 },
+        counts: { all: 1, active: 0, paused: 1, delivered: 0, attention: 1 },
       });
     } finally {
       if (runner.isTransactionActive) await runner.rollbackTransaction();
@@ -384,13 +319,13 @@ describe('Dashboard overview PostgreSQL repository', () => {
 
       expect(overview.counts).toEqual({
         all: 10000,
-        active: 10000,
+        active: 0,
         paused: 0,
         delivered: 0,
         attention: 10000,
       });
       expect(overview.attention.total).toBe(10000);
-      expect(overview.attention.items).toHaveLength(10);
+      expect(overview.attention.items).toHaveLength(5);
       expect(overview.attention.items[0]!.latestLookup).toMatchObject({
         outcome: 'failed',
         reasonCode: 'DASHBOARD_SCALE_FAILURE',
@@ -399,9 +334,6 @@ describe('Dashboard overview PostgreSQL repository', () => {
         attemptCount: 10000,
         status: 'failed',
       });
-      expect(overview.upcomingDeliveries.total).toBe(10000);
-      expect(overview.upcomingDeliveries.items).toHaveLength(10);
-      expect(overview.recentChanges).toHaveLength(10);
       expect(queries).toHaveBeenCalledTimes(1);
       explainedQuery = queries.mock.calls[0]![0];
       const loggedParameters = queries.mock.calls[0]![1];

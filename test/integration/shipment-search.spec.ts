@@ -109,20 +109,6 @@ describe('Shipment search PostgreSQL repository', () => {
     );
   }
 
-  async function pendingAttempt(shipment: ShipmentEntity) {
-    const [run]: Array<{ id: string }> = await db.source.query(
-      `INSERT INTO tracking_runs (carrier_id, trigger, status)
-       VALUES ($1, 'manual', 'queued') RETURNING id`,
-      [shipment.carrierId],
-    );
-
-    await db.source.query(
-      `INSERT INTO tracking_attempts (tracking_run_id, shipment_id)
-       VALUES ($1, $2)`,
-      [run!.id, shipment.id],
-    );
-  }
-
   it('defaults to Active and returns overlapping tab counts from all matching rows', async () => {
     const group = `states-${sequence + 1}`;
     const active = await create(`${group}-active`);
@@ -176,30 +162,33 @@ describe('Shipment search PostgreSQL repository', () => {
     expect(result).toMatchObject({
       page: 1,
       pageSize: 25,
-      total: 3,
-      tabCounts: { all: 6, active: 3, paused: 2, delivered: 1, attention: 2 },
+      total: 2,
+      tabCounts: { all: 6, active: 2, paused: 2, delivered: 1, attention: 3 },
     });
+    expect(result.tabCounts.all).toBe(
+      result.tabCounts.active +
+        result.tabCounts.delivered +
+        result.tabCounts.attention,
+    );
     expect(result.items.map((item) => item.externalId)).toEqual([
       disabled.externalId,
-      failed.externalId,
       active.externalId,
     ]);
     expect(result.items[0]!.carrier.isActive).toBe(false);
+    const attention = await search({ q: group, tab: 'attention' });
+
+    expect(attention.total).toBe(3);
+    expect(attention.tabCounts).toEqual(result.tabCounts);
+    expect(attention.items.map((item) => item.externalId).sort()).toEqual(
+      [failed.externalId, manual.externalId, threshold.externalId].sort(),
+    );
     expect(
-      result.items.find((item) => item.externalId === failed.externalId)
+      attention.items.find((item) => item.externalId === failed.externalId)
         ?.latestLookup,
     ).toMatchObject({
       outcome: 'failed',
       reasonCode: 'TEST_FAILURE',
     });
-
-    const attention = await search({ q: group, tab: 'attention' });
-
-    expect(attention.total).toBe(2);
-    expect(attention.tabCounts).toEqual(result.tabCounts);
-    expect(attention.items.map((item) => item.externalId).sort()).toEqual(
-      [failed.externalId, threshold.externalId].sort(),
-    );
 
     for (const [tab, expected] of [
       ['all', [active, failed, manual, threshold, delivered, disabled]],
@@ -215,7 +204,7 @@ describe('Shipment search PostgreSQL repository', () => {
     }
   });
 
-  it('combines literal search, Carrier, completed-outcome, and undelivered filters', async () => {
+  it('combines literal search and Carrier filters', async () => {
     const otherCarrier = await db.source.getRepository(CarrierEntity).save({
       code: `search-filter-${sequence}`,
       name: 'Search filter Carrier',
@@ -231,40 +220,6 @@ describe('Shipment search PostgreSQL repository', () => {
       otherCarrier.externalId,
       'Other',
     );
-    const pending = await create(
-      'literal-pending',
-      otherCarrier.externalId,
-      'Pending note',
-    );
-    const completed = await create(
-      'literal-completed',
-      otherCarrier.externalId,
-      'Needle delivered',
-    );
-    const found = await create('outcome-found', otherCarrier.externalId);
-    const notFound = await create('outcome-not-found', otherCarrier.externalId);
-    const skipped = await create('outcome-skipped', otherCarrier.externalId);
-
-    await pendingAttempt(pending);
-    await attempt(literal, 'not_found', '2026-02-01T12:00:00Z');
-    await attempt(literal, 'failed', '2026-02-02T12:00:00Z');
-    await attempt(
-      found,
-      'found',
-      '2026-02-03T12:00:00Z',
-      await snapshot(found, '2026-05-01'),
-    );
-    await attempt(notFound, 'not_found', '2026-02-03T12:00:00Z');
-    await attempt(skipped, 'skipped', '2026-02-03T12:00:00Z');
-    await db.source.getRepository(ShipmentEntity).update(
-      { id: completed.id },
-      {
-        monitoringStatus: ShipmentMonitoringStatus.Completed,
-        monitoringReason: ShipmentMonitoringReason.Delivered,
-        nextCheckAt: null,
-      },
-    );
-
     expect(
       (
         await search({
@@ -275,104 +230,9 @@ describe('Shipment search PostgreSQL repository', () => {
       ).items.map((item) => item.externalId),
     ).toEqual([literal.externalId]);
     expect(wildcardLookalike.externalId).not.toBe(literal.externalId);
-
-    const latestFailed = await search({
-      tab: 'all',
-      carrierExternalId: otherCarrier.externalId,
-      lookupOutcome: 'failed',
-    });
-
-    expect(latestFailed.items.map((item) => item.externalId)).toEqual([
-      literal.externalId,
-    ]);
-
-    for (const [lookupOutcome, expected] of [
-      ['found', found],
-      ['not_found', notFound],
-      ['skipped', skipped],
-    ] as const) {
-      const result = await search({
-        tab: 'all',
-        carrierExternalId: otherCarrier.externalId,
-        lookupOutcome,
-      });
-
-      expect(result.items.map((item) => item.externalId)).toEqual([
-        expected.externalId,
-      ]);
-    }
-
-    const neverChecked = await search({
-      tab: 'all',
-      carrierExternalId: otherCarrier.externalId,
-      lookupOutcome: 'never_checked',
-    });
-
-    expect(neverChecked.items.map((item) => item.externalId).sort()).toEqual(
-      [
-        completed.externalId,
-        pending.externalId,
-        wildcardLookalike.externalId,
-      ].sort(),
-    );
-
-    const undelivered = await search({
-      tab: 'all',
-      carrierExternalId: otherCarrier.externalId,
-      undeliveredOnly: 'true',
-    });
-
-    expect(undelivered.items.map((item) => item.externalId)).not.toContain(
-      completed.externalId,
-    );
-    expect(undelivered.tabCounts.delivered).toBe(0);
   });
 
-  it('uses New York calendar boundaries across spring and fall DST changes', async () => {
-    const springBefore = await create('dst-spring-before');
-    const springStart = await create('dst-spring-start');
-    const springEnd = await create('dst-spring-end');
-    const springAfter = await create('dst-spring-after');
-    const fallStart = await create('dst-fall-start');
-    const fallEnd = await create('dst-fall-end');
-
-    const timestamps = new Map<ShipmentEntity, string>([
-      [springBefore, '2026-03-08T04:59:59.999Z'],
-      [springStart, '2026-03-08T05:00:00.000Z'],
-      [springEnd, '2026-03-09T03:59:59.999Z'],
-      [springAfter, '2026-03-09T04:00:00.000Z'],
-      [fallStart, '2026-11-01T04:00:00.000Z'],
-      [fallEnd, '2026-11-02T04:59:59.999Z'],
-    ]);
-
-    for (const [shipment, createdAt] of timestamps)
-      await db.source
-        .getRepository(ShipmentEntity)
-        .update({ id: shipment.id }, { createdAt: new Date(createdAt) });
-
-    expect(
-      (
-        await search({
-          tab: 'all',
-          q: 'dst-spring',
-          createdFrom: '2026-03-08',
-          createdTo: '2026-03-08',
-        })
-      ).items.map((item) => item.externalId),
-    ).toEqual([springEnd.externalId, springStart.externalId]);
-    expect(
-      (
-        await search({
-          tab: 'all',
-          q: 'dst-fall',
-          createdFrom: '2026-11-01',
-          createdTo: '2026-11-01',
-        })
-      ).items.map((item) => item.externalId),
-    ).toEqual([fallEnd.externalId, fallStart.externalId]);
-  });
-
-  it('filters date-only ETAs, sorts nulls last, and keeps ties deterministic', async () => {
+  it('sorts date-only ETAs with nulls last and keeps ties deterministic', async () => {
     const first = await create('eta-tie');
     const second = await create('eta-tie');
     const outside = await create('eta-outside');
@@ -399,25 +259,6 @@ describe('Shipment search PostgreSQL repository', () => {
       ).items.map((item) => item.externalId),
     ).toEqual([second.externalId, first.externalId]);
 
-    const ranged = await search({
-      tab: 'all',
-      q: 'eta-',
-      estimatedDeliveryFrom: '2026-05-10',
-      estimatedDeliveryTo: '2026-05-10',
-      sortBy: 'estimatedDeliveryOn',
-      sortDirection: 'asc',
-    });
-
-    expect(ranged.items.map((item) => item.externalId)).toEqual([
-      first.externalId,
-      second.externalId,
-    ]);
-    expect(
-      ranged.items.every(
-        (item) => item.currentTracking?.estimatedDeliveryOn === '2026-05-10',
-      ),
-    ).toBe(true);
-
     const ascending = await search({
       tab: 'all',
       q: 'eta-',
@@ -433,29 +274,24 @@ describe('Shipment search PostgreSQL repository', () => {
     const alpha = await create('ordering-search-alpha');
     const gamma = await create('ordering-search-gamma');
 
-    await db.source.getRepository(ShipmentEntity).update(
-      { id: beta.id },
-      {
-        createdAt: new Date('2026-01-02T00:00:00Z'),
-        lastAttemptedAt: new Date('2026-01-03T00:00:00Z'),
-      },
-    );
-    await db.source.getRepository(ShipmentEntity).update(
-      { id: alpha.id },
-      {
-        createdAt: new Date('2026-01-01T00:00:00Z'),
-        lastAttemptedAt: new Date('2026-01-02T00:00:00Z'),
-      },
-    );
+    await db.source
+      .getRepository(ShipmentEntity)
+      .update({ id: beta.id }, { createdAt: new Date('2026-01-02T00:00:00Z') });
+    await db.source
+      .getRepository(ShipmentEntity)
+      .update(
+        { id: alpha.id },
+        { createdAt: new Date('2026-01-01T00:00:00Z') },
+      );
     await db.source
       .getRepository(ShipmentEntity)
       .update(
         { id: gamma.id },
-        { createdAt: new Date('2026-01-03T00:00:00Z'), lastAttemptedAt: null },
+        { createdAt: new Date('2026-01-03T00:00:00Z') },
       );
 
     const ids = async (
-      sortBy: 'createdAt' | 'trackingReference' | 'lastAttemptedAt',
+      sortBy: 'createdAt' | 'trackingReference',
       sortDirection: 'asc' | 'desc',
     ) =>
       (
@@ -474,16 +310,6 @@ describe('Shipment search PostgreSQL repository', () => {
       gamma.externalId,
     ]);
     expect(await ids('trackingReference', 'asc')).toEqual([
-      alpha.externalId,
-      beta.externalId,
-      gamma.externalId,
-    ]);
-    expect(await ids('lastAttemptedAt', 'desc')).toEqual([
-      beta.externalId,
-      alpha.externalId,
-      gamma.externalId,
-    ]);
-    expect(await ids('lastAttemptedAt', 'asc')).toEqual([
       alpha.externalId,
       beta.externalId,
       gamma.externalId,
@@ -524,7 +350,7 @@ describe('Shipment search PostgreSQL repository', () => {
 
       expect(afterCommit).toMatchObject({
         total: 1,
-        tabCounts: { all: 1, active: 0, paused: 1, delivered: 0, attention: 0 },
+        tabCounts: { all: 1, active: 0, paused: 1, delivered: 0, attention: 1 },
       });
       expect(afterCommit.items[0]!.monitoringStatus).toBe('paused');
     } finally {
