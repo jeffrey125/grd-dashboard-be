@@ -72,3 +72,10 @@ in one session. See the [implementation summary](../implementation-summary/V1-01
 for verification, boundaries, and deployment notes.
 
 Every implementation ticket must finish with passing relevant format, lint, typecheck, unit, integration/e2e, and build checks. If a listed check cannot run, the handoff must state the exact blocker; it is not silently skipped. Every database behavior is verified against real PostgreSQL, not SQLite or an in-memory substitute.
+
+## Shipment quote calculator extension
+
+The approved post-baseline shipment quote calculator has its own dependency graph and
+nine vertical-slice tickets in [`shipping-quotes/`](shipping-quotes/README.md). Those
+tickets span this backend and the sibling frontend repository and use the existing
+application stack without adding a production dependency.

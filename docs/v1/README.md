@@ -24,6 +24,7 @@ Each ticket is intended for one branch and one implementation agent. A ticket ma
 | [`cache-design.md`](cache-design.md)                               | In-memory cache module, abstract cache service, feature ownership, and sample tests.             |
 | [`tracking-source-data-policy.md`](tracking-source-data-policy.md) | Approved sanitized `source_data` and deferred raw-artifact policy.                               |
 | [`auth-plan.md`](auth-plan.md)                                     | Auth sequencing, current schema seams, decision gate, and production requirement.                |
+| [`shipping-quotes.md`](shipping-quotes.md)                         | Approved unified shipment quote calculator behavior, persistence, execution, and UI contract.    |
 | [`tickets/README.md`](tickets/README.md)                           | Ticket dependency graph and execution order.                                                     |
 
 When documents appear to conflict, the narrowest authoritative document wins: database schema over general architecture, cache design over the stack summary, and the assigned ticket over its summary in the ticket index. Surface any unresolved conflict before implementation.

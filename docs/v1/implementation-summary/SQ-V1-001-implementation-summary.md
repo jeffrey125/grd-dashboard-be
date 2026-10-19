@@ -103,6 +103,9 @@ specifications remain separate. No tracked source outside `package.json` changed
 
 ## Remaining Issues
 
+See the [implementation issue log](../tickets/shipping-quotes/SQ-V1-001-issues.md)
+for open follow-ups, resolved bugs, reproduction steps, and closing conditions.
+
 Amazon intermittent HTTP 500 and possible verification challenges remain external
 reliability limits. Complete safe sender refresh, international/customs, signature,
 insurance, transit mapping, and expiry semantics remain unverified. The harness is

@@ -157,6 +157,10 @@ input stop explicitly; the harness does not silently submit one box or change mo
 
 ## Sanitization and remaining gates
 
+See the [implementation issue log](SQ-V1-001-issues.md) when investigating
+failures or revisiting an unverified capability. It preserves the resolved
+implementation problems and defines the remaining follow-ups.
+
 Live output includes status, endpoint path, header names, identifier names, money,
 carrier/service, package count, and provider expiry text only. Zod strips unknown
 response fields before output. A failed `clientStatus` is never counted as a quote.
