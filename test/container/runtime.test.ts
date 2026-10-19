@@ -112,7 +112,7 @@ test(
             '90',
             'api',
           );
-          assert.equal(await sql('SELECT count(*) FROM migrations'), '8');
+          assert.equal(await sql('SELECT count(*) FROM migrations'), '11');
           assert.equal(await sql('SELECT count(*) FROM carriers'), '3');
 
           const address = (await compose('port', 'api', '3000')).stdout.trim();
@@ -205,12 +205,12 @@ test(
           await compose('stop', 'api');
           await waitForLog('api', 'application.stopped');
 
-          for (let index = 0; index < 8; index++)
+          for (let index = 0; index < 11; index++)
             await migration('migration:revert');
 
           assert.equal(await sql('SELECT count(*) FROM migrations'), '0');
           await migration('migration:run');
-          assert.equal(await sql('SELECT count(*) FROM migrations'), '8');
+          assert.equal(await sql('SELECT count(*) FROM migrations'), '11');
           await compose('up', '--wait', '--wait-timeout', '60', 'api');
         },
       );

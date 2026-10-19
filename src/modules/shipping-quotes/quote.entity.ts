@@ -388,6 +388,10 @@ export class QuoteProviderAttemptsEntity {
   'shipping_quotes_clearance_status_check',
   "clearance_status IN ('included','excluded','unknown')",
 )
+@Check(
+  'shipping_quotes_group_contributions_array_check',
+  "jsonb_typeof(group_contributions) = 'array'",
+)
 @ForeignKey('QuoteProviderAttemptsEntity', ['attempt_id'], ['id'], {
   name: 'shipping_quotes_attempt_id_fkey',
   onDelete: 'NO ACTION',
@@ -438,6 +442,9 @@ export class ShippingQuotesEntity {
 
   @Column({ type: 'varchar', nullable: false, length: 10 })
   clearance_status: string;
+
+  @Column({ type: 'jsonb', nullable: false, default: () => "'[]'::jsonb" })
+  group_contributions: unknown[];
 
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
   created_at: Date;

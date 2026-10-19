@@ -113,10 +113,10 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
       if (!current) return false;
 
       for (const quote of result.quotes) {
-        await manager.query(
+        const [savedQuote] = await manager.query(
           `INSERT INTO shipping_quotes(attempt_id,carrier,service,transportation_total,currency,
-          estimate_method,retrieved_at,option_coverage,duty_status,tax_status,clearance_status)
-          VALUES ($1,$2,$3,$4,$5,$6,clock_timestamp(),'unverified','unknown','unknown','unknown')`,
+          estimate_method,transit_description,expires_at,retrieved_at,option_coverage,duty_status,tax_status,clearance_status,group_contributions)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp(),$9,$10,$11,$12,$13::jsonb) RETURNING id`,
           [
             job.id,
             quote.carrier,
@@ -124,8 +124,35 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
             quote.total,
             quote.currency,
             quote.estimateMethod,
+            quote.transitDescription ?? null,
+            quote.expiresAt ?? null,
+            quote.optionCoverage ?? 'unverified',
+            quote.dutyStatus ?? 'unknown',
+            quote.taxStatus ?? 'unknown',
+            quote.clearanceStatus ?? 'unknown',
+            JSON.stringify(quote.groupContributions ?? []),
           ],
         );
+        for (const charge of quote.charges ?? []) {
+          const [group] =
+            charge.packageGroupPosition === null
+              ? []
+              : await manager.query(
+                  'SELECT id FROM quote_package_groups WHERE request_id=$1 AND position=$2',
+                  [job.requestId, charge.packageGroupPosition],
+                );
+          await manager.query(
+            `INSERT INTO shipping_quote_items(quote_id,package_group_id,description,amount,scope)
+            VALUES ($1,$2,$3,$4,$5)`,
+            [
+              savedQuote.id,
+              group?.id ?? null,
+              charge.description,
+              charge.amount,
+              charge.scope,
+            ],
+          );
+        }
       }
       // Diagnostics are constructed here; raw errors and provider payloads are never accepted.
       await manager.query(

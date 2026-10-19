@@ -1,5 +1,6 @@
 import { QuoteComparisons1792540800000 } from '@infrastructure/database/migrations/1792540800000-QuoteComparisons.js';
 import { QuoteExecution1792627200000 } from '@infrastructure/database/migrations/1792627200000-QuoteExecution.js';
+import { AmazonQuoteBreakdown1792713600000 } from '@infrastructure/database/migrations/1792713600000-AmazonQuoteBreakdown.js';
 import { QUOTE_ENTITIES } from '@modules/shipping-quotes/quote.entities.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
@@ -94,6 +95,7 @@ describe('production migrations and repository foundation', () => {
         SalesRepsAndShipmentFollowUp1792454400000,
         QuoteComparisons1792540800000,
         QuoteExecution1792627200000,
+        AmazonQuoteBreakdown1792713600000,
       ],
     });
     await source.initialize();
@@ -369,6 +371,7 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Amazon quote breakdown migration.
     await source.undoLastMigration(); // Quote execution migration.
     await source.undoLastMigration(); // Quote comparison migration.
     await source.undoLastMigration(); // Sales Rep and follow-up migration.

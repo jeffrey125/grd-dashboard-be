@@ -13,6 +13,7 @@ afterAll(async () => {
 });
 
 it('backfills unique immutable public identities without changing populated history or ownership', async () => {
+  await db.source.undoLastMigration(); // Amazon quote breakdown migration.
   await db.source.undoLastMigration(); // Quote execution migration.
   await db.source.undoLastMigration(); // Quote comparison migration.
   await db.source.undoLastMigration(); // Sales Rep and follow-up migration.
@@ -123,6 +124,7 @@ it('backfills unique immutable public identities without changing populated hist
     )[0].external_id,
   ).toBe(after[0].external_id);
 
+  await db.source.undoLastMigration(); // Amazon quote breakdown migration.
   await db.source.undoLastMigration(); // Quote execution migration.
   await db.source.undoLastMigration(); // Quote comparison migration.
   await db.source.undoLastMigration(); // Sales Rep and follow-up migration.

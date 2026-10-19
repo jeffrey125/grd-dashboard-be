@@ -124,7 +124,8 @@ describe('Durable quote execution', () => {
     );
     await db.source.query("UPDATE quote_requests SET status='saved'");
 
-    await db.source.undoLastMigration();
+    await db.source.undoLastMigration(); // Amazon quote breakdown migration.
+    await db.source.undoLastMigration(); // Quote execution migration.
     await db.source.runMigrations();
 
     expect(await jobs.claim(120000)).toBeNull();
@@ -133,6 +134,131 @@ describe('Durable quote execution', () => {
       input: original,
       status: 'saved',
       ratesRun: false,
+    });
+  });
+
+  it('persists Amazon charge lines and calculated group contributions with the result', async () => {
+    const baseInput = input();
+    const comparisonInput = {
+      ...baseInput,
+      providers: baseInput.providers.slice(0, 1),
+      packageGroups: baseInput.packageGroups.map((group) => ({
+        ...group,
+        quantity: 2,
+      })),
+    };
+    const saved = await quotes.create(
+      comparisonInput,
+      actor,
+      senders.slice(0, 1),
+    );
+    const job = (await jobs.claim(120000))!;
+
+    await jobs.finish(job, {
+      outcome: 'success',
+      reason: null,
+      simulated: false,
+      relogins: 0,
+      quotes: [
+        {
+          carrier: 'Not provided',
+          service: 'Not provided',
+          total: '27.620000',
+          currency: 'USD',
+          estimateMethod: 'calculated',
+          charges: [
+            {
+              description: 'BASE_CHARGE',
+              amount: '15.660000',
+              scope: 'package',
+              packageGroupPosition: 0,
+            },
+            {
+              description: 'DELIVERY_AREA_SURCHARGE',
+              amount: '7.120000',
+              scope: 'package',
+              packageGroupPosition: 0,
+            },
+            {
+              description: 'FUEL_SURCHARGE',
+              amount: '4.840000',
+              scope: 'package',
+              packageGroupPosition: 0,
+            },
+          ],
+          groupContributions: [
+            { packageGroupPosition: 0, quantity: 2, subtotal: '27.620000' },
+          ],
+        },
+      ],
+    });
+
+    const snapshot = await quotes.find(saved.comparison.externalId);
+    expect(snapshot?.attempts[0]?.quotes[0]).toMatchObject({
+      platform: 'Amazon Shipping',
+      transportationTotal: '27.620000',
+      estimateMethod: 'calculated',
+      charges: [
+        {
+          description: 'BASE_CHARGE',
+          amount: '15.660000',
+          scope: 'package',
+          packageGroupPosition: 0,
+        },
+        {
+          description: 'DELIVERY_AREA_SURCHARGE',
+          amount: '7.120000',
+          scope: 'package',
+          packageGroupPosition: 0,
+        },
+        {
+          description: 'FUEL_SURCHARGE',
+          amount: '4.840000',
+          scope: 'package',
+          packageGroupPosition: 0,
+        },
+      ],
+      groupContributions: [
+        { packageGroupPosition: 0, quantity: 2, subtotal: '27.620000' },
+      ],
+    });
+  });
+
+  it('persists group contributions even when the provider returns no charge rows', async () => {
+    const saved = await quotes.create(
+      { ...input(), providers: input().providers.slice(0, 1) },
+      actor,
+      senders.slice(0, 1),
+    );
+    const job = (await jobs.claim(120000))!;
+
+    await jobs.finish(job, {
+      outcome: 'success',
+      reason: null,
+      simulated: false,
+      relogins: 0,
+      quotes: [
+        {
+          carrier: 'Not provided',
+          service: 'Not provided',
+          total: '13.810000',
+          currency: 'USD',
+          estimateMethod: 'native',
+          charges: [],
+          groupContributions: [
+            { packageGroupPosition: 0, quantity: 1, subtotal: '13.810000' },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      (await quotes.find(saved.comparison.externalId))?.attempts[0]?.quotes[0],
+    ).toMatchObject({
+      charges: [],
+      groupContributions: [
+        { packageGroupPosition: 0, quantity: 1, subtotal: '13.810000' },
+      ],
     });
   });
 

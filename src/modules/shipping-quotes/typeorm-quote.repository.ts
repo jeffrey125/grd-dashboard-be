@@ -13,10 +13,16 @@ const projection = `SELECT q.external_id AS "externalId", q.status, q.created_at
     'executionMode',a.execution_mode,'startedAt',a.started_at,'completedAt',a.completed_at,
     'recoveryCount',a.recovery_count,'outcome',a.outcome,'reasonCode',a.reason_code,'simulated',a.simulated,
     'quotes',COALESCE((SELECT jsonb_agg(jsonb_build_object(
-      'carrier',r.carrier,'service',r.service,'transportationTotal',r.transportation_total::text,
+      'platform',p.name,'carrier',r.carrier,'service',r.service,'transportationTotal',r.transportation_total::text,
       'currency',r.currency,'estimateMethod',r.estimate_method,'transitDescription',r.transit_description,
       'retrievedAt',r.retrieved_at,'expiresAt',r.expires_at,'optionCoverage',r.option_coverage,
-      'dutyStatus',r.duty_status,'taxStatus',r.tax_status,'clearanceStatus',r.clearance_status
+      'dutyStatus',r.duty_status,'taxStatus',r.tax_status,'clearanceStatus',r.clearance_status,
+      'charges',COALESCE((SELECT jsonb_agg(jsonb_build_object(
+        'description',i.description,'amount',i.amount::text,'scope',i.scope,
+        'packageGroupPosition',g.position) ORDER BY i.id)
+        FROM shipping_quote_items i LEFT JOIN quote_package_groups g ON g.id=i.package_group_id
+        WHERE i.quote_id=r.id),'[]'::jsonb),
+      'groupContributions',COALESCE(r.group_contributions,'[]'::jsonb)
     ) ORDER BY r.id) FROM shipping_quotes r WHERE r.attempt_id=a.id),'[]'::jsonb)
   ) ORDER BY a.id) FROM quote_provider_attempts a JOIN shipping_accounts s ON s.id=a.account_id
     JOIN shipping_providers p ON p.id=s.provider_id WHERE a.request_id=q.id),'[]'::jsonb) AS attempts
@@ -43,6 +49,8 @@ function comparison(
         ...q,
         retrievedAt: new Date(q.retrievedAt).toISOString(),
         expiresAt: q.expiresAt ? new Date(q.expiresAt).toISOString() : null,
+        charges: q.charges ?? [],
+        groupContributions: q.groupContributions ?? [],
       })),
     })),
     warnings: row.attempts.some((a) => a.simulated)

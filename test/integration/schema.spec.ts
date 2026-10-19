@@ -828,7 +828,7 @@ describe('initial application schema', () => {
       quote_provider_attempts:
         'id external_id request_id account_id sender execution_mode status lease_until recovery_count reason_code created_at completed_at lease_owner attempt_number started_at outcome simulated diagnostics',
       shipping_quotes:
-        'id attempt_id carrier service transportation_total currency estimate_method transit_description expires_at retrieved_at option_coverage duty_status tax_status clearance_status created_at',
+        'id attempt_id carrier service transportation_total currency estimate_method transit_description expires_at retrieved_at option_coverage duty_status tax_status clearance_status created_at group_contributions',
       shipping_quote_items:
         'id quote_id package_group_id description amount scope created_at',
 
