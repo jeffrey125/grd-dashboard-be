@@ -287,6 +287,11 @@ export class QuoteCustomsItemsEntity {
   'quote_provider_attempts_recovery_count_check',
   'recovery_count BETWEEN 0 AND 1',
 )
+@Check('quote_attempt_number_check', 'attempt_number > 0')
+@Check(
+  'quote_attempt_outcome_check',
+  "outcome IN ('success','validation_failed','unsupported','timeout','authentication_failed','failed')",
+)
 @ForeignKey('QuoteRequestsEntity', ['request_id'], ['id'], {
   name: 'quote_provider_attempts_request_id_fkey',
   onDelete: 'NO ACTION',
@@ -316,14 +321,32 @@ export class QuoteProviderAttemptsEntity {
   @Column({ type: 'jsonb', nullable: false })
   sender: Record<string, unknown>;
 
-  @Column({ type: 'varchar', nullable: false, length: 10 })
-  execution_mode: string;
+  @Column({ type: 'varchar', nullable: true, length: 10 })
+  execution_mode: string | null;
 
   @Column({ type: 'varchar', nullable: false, length: 12 })
   status: string;
 
   @Column({ type: 'timestamptz', nullable: true })
   lease_until: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  lease_owner: string | null;
+
+  @Column({ type: 'integer', nullable: false, default: 1 })
+  attempt_number: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  started_at: Date | null;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  outcome: string | null;
+
+  @Column({ type: 'boolean', nullable: false, default: false })
+  simulated: boolean;
+
+  @Column({ type: 'jsonb', nullable: false, default: {} })
+  diagnostics: Record<string, unknown>;
 
   @Column({ type: 'integer', nullable: false, default: 0 })
   recovery_count: number;

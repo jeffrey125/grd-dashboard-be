@@ -1,4 +1,5 @@
 import { QuoteComparisons1792540800000 } from '@infrastructure/database/migrations/1792540800000-QuoteComparisons.js';
+import { QuoteExecution1792627200000 } from '@infrastructure/database/migrations/1792627200000-QuoteExecution.js';
 import { QUOTE_ENTITIES } from '@modules/shipping-quotes/quote.entities.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
@@ -92,6 +93,7 @@ describe('production migrations and repository foundation', () => {
         TrackingChangeEvents1792368000000,
         SalesRepsAndShipmentFollowUp1792454400000,
         QuoteComparisons1792540800000,
+        QuoteExecution1792627200000,
       ],
     });
     await source.initialize();
@@ -367,12 +369,13 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Quote execution migration.
     await source.undoLastMigration(); // Quote comparison migration.
+    await source.undoLastMigration(); // Sales Rep and follow-up migration.
     await source.undoLastMigration(); // Precise tracking event migration.
     await source.undoLastMigration(); // Tracking projection migration.
     await source.undoLastMigration(); // Event trigger migration.
     await source.undoLastMigration(); // Auth migration.
-    await source.undoLastMigration();
     await source.undoLastMigration(); // FFE mode migration.
 
     expect((await service.find(carrier.externalId)).fetchMode).toBe('browser');
@@ -389,15 +392,8 @@ describe('production migrations and repository foundation', () => {
   });
 
   it('runs the shipped CLI show/run/revert/run sequence and leaves no migration drift', async () => {
-    await source.undoLastMigration();
-    await source.undoLastMigration();
-    await source.undoLastMigration();
-    await source.undoLastMigration();
-    await source.undoLastMigration();
-    await source.undoLastMigration();
-    await source.undoLastMigration();
-    await source.undoLastMigration();
-    await source.undoLastMigration();
+    for (let count = 0; count < source.migrations.length; count++)
+      await source.undoLastMigration();
 
     expect((await cli('migration:show')).stdout).toContain(
       '[ ] InitialSchema1791849600000',
@@ -408,15 +404,8 @@ describe('production migrations and repository foundation', () => {
     expect(firstRun.stdout).toContain('CREATE TABLE carriers');
     expect((await cli('migration:show')).stdout).toContain('[X]');
 
-    await cli('migration:revert');
-    await cli('migration:revert');
-    await cli('migration:revert');
-    await cli('migration:revert');
-    await cli('migration:revert');
-    await cli('migration:revert');
-    await cli('migration:revert');
-    await cli('migration:revert');
-    await cli('migration:revert');
+    for (let count = 0; count < source.migrations.length; count++)
+      await cli('migration:revert');
 
     expect(
       await source.query(

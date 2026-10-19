@@ -530,8 +530,8 @@ All new foreign keys explicitly use `ON DELETE NO ACTION` in SQL and ORM mapping
 Database triggers reject mutations of comparison input/audit identity, package and
 customs snapshots, result snapshots, and attempt sender/identity. Lifecycle fields
 are reserved; this ticket exposes no lifecycle mutation endpoint. Saving creates
-`saved` attempts, never queued work. A later explicit
-rate action must transition eligible records; adding a worker cannot run old saves.
+`saved` attempts under SQ-V1-002. SQ-V1-003 creates new attempts as `queued`;
+adding the worker does not transition historical saves.
 
 Creation is one transaction, with a per-actor/key advisory lock and shared provider
 locks. Equal JSON input retries return the original, including after the ship date
@@ -543,3 +543,27 @@ positive values, 1–100 package groups, 1–10,000 boxes per group, and up to 1
 items per group are application validation limits, not provider capability claims.
 Canonical conversion uses PostgreSQL decimal arithmetic (1 in = 2.54 cm;
 1 lb = 0.45359237 kg), without overwriting original units or values.
+
+### SQ-V1-003 durable execution
+
+Migration `1792627200000-QuoteExecution` is needed for leased execution and
+cross-process change notifications. It adds `lease_owner` (nullable UUID),
+`attempt_number` (positive integer, initially 1), `started_at`, nullable normalized
+`outcome`, `simulated` (default false), and allowlisted `diagnostics` JSON to
+`quote_provider_attempts`. `execution_mode` becomes nullable until claim time.
+It introduces no foreign keys or tables and preserves all historical saved records.
+
+Account-row locks and the existing unique running-account index prevent duplicate
+claims. Request-row locks serialize aggregate status changes across providers.
+Each claim gets a fresh lease token; completion requires that token and an unexpired
+lease. Results and terminal attempt status commit together. A recovered attempt
+retains its identity and recovery count; a second expiry records `recovery_exhausted`.
+The relogin allowance is durably reserved in `diagnostics.reloginCount` before the
+external relogin, so a crash cannot reset the one-replay budget. No raw errors,
+provider payloads, credentials, or browser session material are persisted.
+
+The `quote_attempt_change` trigger signals `grd_changes` transactionally with only
+the comparison public UUID. API reads remain authoritative. Rollback drops the
+trigger/function and new columns, filling unstarted null modes from provider
+configuration to restore the prior non-null constraint. Stop the new worker before
+rollback; rollback discards the new execution metadata.

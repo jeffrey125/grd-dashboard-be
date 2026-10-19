@@ -1,4 +1,5 @@
 import { QUOTE_ENTITIES } from '@modules/shipping-quotes/quote.entities.js';
+import { QuoteExecution1792627200000 } from '@infrastructure/database/migrations/1792627200000-QuoteExecution.js';
 import { QuoteComparisons1792540800000 } from '@infrastructure/database/migrations/1792540800000-QuoteComparisons.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
@@ -48,6 +49,7 @@ export async function shipmentDatabase() {
       TrackingChangeEvents1792368000000,
       SalesRepsAndShipmentFollowUp1792454400000,
       QuoteComparisons1792540800000,
+      QuoteExecution1792627200000,
     ],
   });
 
