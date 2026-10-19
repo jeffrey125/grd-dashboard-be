@@ -76,6 +76,7 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
         enabled: attempt.enabled,
         input: attempt.input,
         sender: attempt.sender,
+        conversionSnapshot: attempt.conversion_snapshot,
         reloginCount: attempt.diagnostics.reloginCount === 1 ? 1 : 0,
       };
     });

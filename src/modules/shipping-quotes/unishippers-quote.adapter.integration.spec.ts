@@ -61,6 +61,7 @@ function pageHtml(state: FixtureState) {
       <label>Address 1<input aria-label="Address 1" id="receiver-street"></label>
       <label>Address 2<input aria-label="Address 2" id="receiver-street2"></label>
       <label>Address 3<input aria-label="Address 3" id="receiver-street3"></label>
+      <mat-select formcontrolname="country" role="combobox" aria-label="Country"><span>United States</span></mat-select>
       <label>Postal Code<input aria-label="Postal Code" id="receiver-zip"></label>
       <input role="combobox" aria-label="City" id="receiver-city">
       <mat-select formcontrolname="state" role="combobox" aria-label="State/Prov"><span>State/Prov</span></mat-select>
@@ -73,6 +74,11 @@ function pageHtml(state: FixtureState) {
         <input formcontrolname="length"><input formcontrolname="width"><input formcontrolname="height"><input formcontrolname="weight">
       </div></section>
       <button type="button" id="add">ADD</button>
+      <label>Specific Description of Contents for label<input aria-label="Specific Description of Contents for label" id="contents-description"></label>
+      <label>Total Value<input aria-label="Total Value" id="total-value"></label>
+      <mat-select id="signatureOptions" role="combobox" aria-label="Signature Options"><span>No Signature Option</span></mat-select>
+      <label><input type="checkbox" aria-label="Insure Shipment" id="insure-shipment">Insure Shipment</label>
+      <label>Insured Value<input aria-label="Insured Value" id="insured-value"></label>
       <button type="button" id="get-rates">GET RATES</button>
       <mat-select id="billOption" role="combobox" aria-label="Select Billing Details"><span>Bill My Account</span></mat-select>
       <button type="button" id="quick-quote">QUICK QUOTE</button>
@@ -83,6 +89,7 @@ function pageHtml(state: FixtureState) {
       <label>Address 1<input aria-label="Address 1" id="sender-street"></label>
       <label>Address 2<input aria-label="Address 2" id="sender-street2"></label>
       <label>Address 3<input aria-label="Address 3" id="sender-street3"></label>
+      <mat-select formcontrolname="country" role="combobox" aria-label="Country"><span>United States</span></mat-select>
       <label>Postal Code<input aria-label="Postal Code" id="sender-zip"></label>
       <input role="combobox" aria-label="City" id="sender-city">
       <mat-select formcontrolname="state" role="combobox" aria-label="State/Prov"><span>State/Prov</span></mat-select>
@@ -137,8 +144,10 @@ function pageHtml(state: FixtureState) {
         });
       }
       optionList(document.querySelector('#billOption'), ['Bill My Account', 'Bill Receiver']);
-      document.querySelectorAll('mat-select[formcontrolname="state"]').forEach(select => optionList(select, ['Wisconsin', 'New York']));
+      document.querySelectorAll('mat-select[formcontrolname="country"]').forEach(select => optionList(select, ['United States', 'Canada']));
+      document.querySelectorAll('mat-select[formcontrolname="state"]').forEach(select => optionList(select, ['Wisconsin', 'New York', 'British Columbia']));
       document.querySelectorAll('mat-select[formcontrolname="numPackages"]').forEach(select => optionList(select, ['1', '2', '3']));
+      optionList(document.querySelector('#signatureOptions'), ['No Signature Option', 'Signature Required', 'Adult Signature Required']);
       document.querySelector('#edit-sender').onclick = () => document.querySelector('#sender-dialog').hidden = false;
       document.querySelector('#ow-save-btn-edit-address').onclick = () => {
         if (${state.unsafeSenderSave === true}) void fetch('/svc/addressBookUnexpectedFlow', {method:'POST',headers:authHeaders,body:'{}'}).catch(() => {});
@@ -158,8 +167,11 @@ function pageHtml(state: FixtureState) {
         const account = await profile;
         await fetch('/svc/shopFlow', {method:'POST',headers:authHeaders,body:JSON.stringify({request:{productType:'SMALLPACK',mode:'SHOP',shipment:{
           originAddress:{address:{companyName:value('sender-company') || 'Fixture Sender',addressLineList:[value('sender-street') || '1 Example Street',value('sender-street2')].filter(Boolean),locality:value('sender-city') || 'Walworth',region:document.querySelector('#sender-dialog mat-select[formcontrolname="state"]').dataset.value === 'New York' ? 'NY' : 'WI',postalCode:value('sender-zip') || '53125',countryCode:'US',phone:value('sender-phone') || '2025550147',contactList:[{lastName:value('sender-contact') || 'Fixture Contact',phone:value('sender-phone') || '2025550147'}]}},
-          destinationAddress:{address:{companyName:value('receiver-company'),addressLineList:[value('receiver-street'),value('receiver-street2')].filter(Boolean),locality:value('receiver-city'),region:document.querySelector('main mat-select[formcontrolname="state"]').dataset.value === 'New York' ? 'NY' : 'WI',postalCode:value('receiver-zip'),countryCode:'US',phone:value('receiver-phone'),contactList:[{lastName:value('receiver-contact'),phone:value('receiver-phone')}] }},
-          shipmentDate:value('shipping-date'),handlingUnitList:units
+          destinationAddress:{address:{companyName:value('receiver-company'),addressLineList:[value('receiver-street'),value('receiver-street2')].filter(Boolean),locality:value('receiver-city'),region:document.querySelector('main mat-select[formcontrolname="state"]').dataset.value === 'New York' ? 'NY' : document.querySelector('main mat-select[formcontrolname="state"]').dataset.value === 'British Columbia' ? 'British Columbia' : 'WI',postalCode:value('receiver-zip'),countryCode:document.querySelector('main mat-select[formcontrolname="country"]').dataset.value === 'Canada' ? 'CA' : 'US',phone:value('receiver-phone'),contactList:[{lastName:value('receiver-contact'),phone:value('receiver-phone')}] }},
+          shipmentDate:value('shipping-date'),handlingUnitList:units,
+          internationalDetails:{contentsDescription:value('contents-description'),totalValue:value('total-value')},
+          signatureOption:document.querySelector('#signatureOptions').dataset.value || 'No Signature Option',
+          insurance:document.querySelector('#insure-shipment').checked ? {amount:value('insured-value'),currency:'USD'} : null
         }},orgInfo:{namespace:account.response.orgUnit.namespace}})});
       };
       let confirmations = 0;
@@ -456,6 +468,60 @@ describe('myUnishippers production adapter contract', () => {
       expect(testFixture.state.mutations).toEqual([]);
     } finally {
       await adapter.close(makeJob('browser', [group(1)]));
+      await testFixture.context.close();
+    }
+  });
+
+  it('maps verified international, signature, and per-box insurance fields in browser mode', async () => {
+    const testFixture = await fixture();
+    const adapter = new UnishippersShippingAdapter({
+      origin,
+      context: testFixture.context,
+    });
+    const job = makeJob('browser', [group(2)], 'account_default');
+    job.input.destination = {
+      ...destination,
+      city: 'Abbotsford',
+      division: 'British Columbia',
+      postalCode: 'V2T 0J8',
+      country: 'CA',
+    };
+    job.input.international = {
+      contentsDescription: 'Flour',
+      customsMode: 'summary',
+      totalValue: { amount: '1', currency: 'USD' },
+    };
+    job.input.providers[0]!.options = {
+      signature: 'signature',
+      insurance: { amount: '50', currency: 'USD' },
+    };
+    try {
+      const result = await adapter.quote(job, new AbortController().signal);
+
+      expect(result).toMatchObject({ outcome: 'success', reason: null });
+      expect(result.quotes[0]?.optionCoverage).toBe('included');
+      expect(testFixture.state.shopRequests[0]).toMatchObject({
+        request: {
+          shipment: {
+            destinationAddress: {
+              address: {
+                countryCode: 'CA',
+                region: 'British Columbia',
+                postalCode: 'V2T 0J8',
+              },
+            },
+            internationalDetails: {
+              contentsDescription: 'Flour',
+              totalValue: '1',
+            },
+            signatureOption: 'Signature Required',
+            insurance: { amount: '50', currency: 'USD' },
+          },
+        },
+      });
+      expect(testFixture.state.mutations).toEqual([]);
+    } finally {
+      await adapter.close(job);
       await testFixture.context.close();
     }
   });

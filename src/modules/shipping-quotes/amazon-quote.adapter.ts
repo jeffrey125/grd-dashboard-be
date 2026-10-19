@@ -6,6 +6,8 @@ import {
   type Page,
 } from 'playwright';
 import { z } from 'zod';
+import { QuoteDecimal, type Decimal } from './quote-decimal.js';
+import { toProviderLength, toProviderWeight } from './quote-conversions.js';
 import type {
   ExecutionResult,
   LeasedQuote,
@@ -20,7 +22,6 @@ import type {
 
 const LOGIN_TIMEOUT_MS = 30_000;
 const RATE_TIMEOUT_MS = 30_000;
-const MONEY_SCALE = 1_000_000n;
 const PACKAGE_CHARGE_CODES = new Set([
   'BASE_CHARGE',
   'DELIVERY_AREA_SURCHARGE',
@@ -124,25 +125,10 @@ export class AmazonChargeScopeUnknown extends Error {
   }
 }
 
-function parseMoney(value: unknown): bigint {
+function parseMoney(value: unknown): Decimal {
   const text = String(value);
   if (!/^\d+(?:\.\d{1,6})?$/.test(text)) throw new AmazonUnsupported();
-  const [whole, fraction = ''] = text.split('.');
-  return BigInt(whole) * MONEY_SCALE + BigInt(fraction.padEnd(6, '0'));
-}
-
-function formatMoney(value: bigint): string {
-  const whole = value / MONEY_SCALE;
-  const fraction = (value % MONEY_SCALE).toString().padStart(6, '0');
-  return `${whole}.${fraction}`;
-}
-
-function addMoney(left: bigint, right: bigint): bigint {
-  return left + right;
-}
-
-function multiplyMoney(value: bigint, quantity: number): bigint {
-  return value * BigInt(quantity);
+  return new QuoteDecimal(text);
 }
 
 function chargeScope(code: string): QuoteCharge['scope'] | undefined {
@@ -184,7 +170,7 @@ export function normalizeAmazonRate(body: unknown): AmazonRate {
     if (!money || money.unit !== currency) throw new AmazonUnsupported();
     charges.push({
       description: line.chargeCode,
-      amount: formatMoney(parseMoney(money.value)),
+      amount: parseMoney(money.value).toFixed(6),
       scope,
       packageGroupPosition: null,
     });
@@ -194,7 +180,7 @@ export function normalizeAmazonRate(body: unknown): AmazonRate {
     carrier:
       parsed.data.deliveringCarrier ?? parsed.data.carrier ?? 'Not provided',
     service: parsed.data.serviceName ?? parsed.data.service ?? 'Not provided',
-    total: formatMoney(total),
+    total: total.toFixed(6),
     currency,
     transitDescription:
       parsed.data.transitDescription ??
@@ -205,12 +191,15 @@ export function normalizeAmazonRate(body: unknown): AmazonRate {
   };
 }
 
-function packageAmount(rate: AmazonRate): bigint {
+function packageAmount(rate: AmazonRate): Decimal {
   const nonPackage = rate.charges
     .filter((charge) => charge.scope !== 'package')
-    .reduce((sum, charge) => addMoney(sum, parseMoney(charge.amount)), 0n);
-  const result = parseMoney(rate.total) - nonPackage;
-  if (result < 0n) throw new AmazonUnsupported();
+    .reduce(
+      (sum, charge) => sum.plus(parseMoney(charge.amount)),
+      new QuoteDecimal(0),
+    );
+  const result = parseMoney(rate.total).minus(nonPackage);
+  if (result.isNegative()) throw new AmazonUnsupported();
   return result;
 }
 
@@ -231,27 +220,30 @@ export function aggregateAmazonRates(
     throw new AmazonUnsupported();
 
   const charges: QuoteCharge[] = [];
-  const groupTotals = new Map<number, bigint>();
-  let packageTotal = 0n;
-  const nonPackage = new Map<string, { charge: QuoteCharge; amount: bigint }>();
+  const groupTotals = new Map<number, Decimal>();
+  let packageTotal = new QuoteDecimal(0);
+  const nonPackage = new Map<
+    string,
+    { charge: QuoteCharge; amount: Decimal }
+  >();
 
   for (const batch of batches) {
     const perBox = packageAmount(batch.rate);
     for (const group of batch.groups) {
-      const subtotal = multiplyMoney(perBox, group.quantity);
-      packageTotal = addMoney(packageTotal, subtotal);
+      const subtotal = perBox.times(group.quantity);
+      packageTotal = packageTotal.plus(subtotal);
       groupTotals.set(
         group.packageGroupPosition,
-        addMoney(groupTotals.get(group.packageGroupPosition) ?? 0n, subtotal),
+        (
+          groupTotals.get(group.packageGroupPosition) ?? new QuoteDecimal(0)
+        ).plus(subtotal),
       );
       for (const charge of batch.rate.charges.filter(
         (line) => line.scope === 'package',
       ))
         charges.push({
           ...charge,
-          amount: formatMoney(
-            multiplyMoney(parseMoney(charge.amount), group.quantity),
-          ),
+          amount: parseMoney(charge.amount).times(group.quantity).toFixed(6),
           packageGroupPosition: group.packageGroupPosition,
         });
     }
@@ -260,7 +252,7 @@ export function aggregateAmazonRates(
     )) {
       const key = `${charge.scope}:${charge.description}:${first.currency}`;
       const existing = nonPackage.get(key);
-      if (existing && existing.amount !== parseMoney(charge.amount))
+      if (existing && !existing.amount.equals(parseMoney(charge.amount)))
         throw new AmazonUnsupported();
       if (!existing)
         nonPackage.set(key, { charge, amount: parseMoney(charge.amount) });
@@ -270,7 +262,7 @@ export function aggregateAmazonRates(
   for (const { charge, amount } of nonPackage.values())
     charges.push({
       ...charge,
-      amount: formatMoney(amount),
+      amount: amount.toFixed(6),
       packageGroupPosition: null,
     });
 
@@ -284,14 +276,13 @@ export function aggregateAmazonRates(
         .flatMap((batch) => batch.groups)
         .filter((group) => group.packageGroupPosition === packageGroupPosition)
         .reduce((sum, group) => sum + group.quantity, 0),
-      subtotal: formatMoney(subtotal),
+      subtotal: subtotal.toFixed(6),
     }));
 
-  const total = addMoney(
-    packageTotal,
+  const total = packageTotal.plus(
     Array.from(nonPackage.values()).reduce(
-      (sum, entry) => addMoney(sum, entry.amount),
-      0n,
+      (sum, entry) => sum.plus(entry.amount),
+      new QuoteDecimal(0),
     ),
   );
   const calculated =
@@ -302,12 +293,12 @@ export function aggregateAmazonRates(
     calculated &&
     batches.some((batch) => {
       const lineTotal = batch.rate.charges.reduce(
-        (sum, charge) => addMoney(sum, parseMoney(charge.amount)),
-        0n,
+        (sum, charge) => sum.plus(parseMoney(charge.amount)),
+        new QuoteDecimal(0),
       );
       return (
         batch.rate.charges.length === 0 ||
-        lineTotal !== parseMoney(batch.rate.total)
+        !lineTotal.equals(parseMoney(batch.rate.total))
       );
     })
   )
@@ -317,12 +308,12 @@ export function aggregateAmazonRates(
     {
       carrier: first.carrier,
       service: first.service,
-      total: formatMoney(total),
+      total: total.toFixed(6),
       currency: first.currency,
       estimateMethod: calculated ? 'calculated' : 'native',
       transitDescription: first.transitDescription,
       expiresAt: first.expiresAt,
-      optionCoverage: 'unverified',
+      optionCoverage: 'included',
       dutyStatus: 'unknown',
       taxStatus: 'unknown',
       clearanceStatus: 'unknown',
@@ -337,15 +328,13 @@ function toProviderNumber(
   units: 'imperial' | 'metric',
   kind: 'length' | 'weight',
 ): number {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) throw new AmazonUnsupported();
-  const converted =
-    units === 'imperial'
-      ? number
-      : kind === 'length'
-        ? number / 2.54
-        : number / 0.45359237;
-  return Number(converted.toFixed(6));
+  const rounded = new QuoteDecimal(
+    kind === 'length'
+      ? toProviderLength(value, units)
+      : toProviderWeight(value, units),
+  );
+  if (rounded.lte(0)) throw new AmazonUnsupported();
+  return rounded.toNumber();
 }
 
 function inputProvider(input: QuoteInput) {

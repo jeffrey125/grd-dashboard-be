@@ -817,7 +817,7 @@ describe('initial application schema', () => {
       'id external_id created_at updated_at deleted_at created_by_id updated_by_id deleted_by_id';
     const expected = {
       shipping_providers:
-        'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at',
+        'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at used_internationally',
       shipping_accounts: 'default_refresh id provider_id created_at updated_at',
       quote_requests:
         'id external_id idempotency_key created_by_id input senders status created_at deleted_at deleted_by_id',
@@ -826,7 +826,7 @@ describe('initial application schema', () => {
       quote_customs_items:
         'id package_group_id position description quantity unit_value currency country_of_manufacture weight hs_code created_at',
       quote_provider_attempts:
-        'id external_id request_id account_id sender execution_mode status lease_until recovery_count reason_code created_at completed_at lease_owner attempt_number started_at outcome simulated diagnostics',
+        'id external_id request_id account_id sender execution_mode status lease_until recovery_count reason_code created_at completed_at lease_owner attempt_number started_at outcome simulated diagnostics conversion_snapshot',
       shipping_quotes:
         'id attempt_id carrier service transportation_total currency estimate_method transit_description expires_at retrieved_at option_coverage duty_status tax_status clearance_status created_at group_contributions',
       shipping_quote_items:

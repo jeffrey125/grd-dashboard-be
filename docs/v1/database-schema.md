@@ -518,12 +518,12 @@ All new foreign keys explicitly use `ON DELETE NO ACTION` in SQL and ORM mapping
 
 | Table                     | Stored data and constraints                                                                                                                                                                                                 |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shipping_providers`      | Two stable codes, enabled state, maintenance message, request/browser mode, positive stale hours, creation/update timestamps.                                                                                               |
+| `shipping_providers`      | Two stable codes, enabled state, international-carriage flag, maintenance message, request/browser mode, positive stale hours, creation/update timestamps.                                                                  |
 | `shipping_accounts`       | Unique provider FK (one account per provider), creation/update timestamps, allowlisted `default_refresh` work/result metadata. No credentials or browser sessions.                                                          |
 | `quote_requests`          | Public UUID, actor FK, actor-scoped unique UUID idempotency key, strict original input JSON, resolved sender snapshots, saved status, created time, reserved soft-delete fields. History index excludes deleted rows.       |
 | `quote_package_groups`    | Request FK and unique position, positive quantities, original decimal strings and units, nullable dimension numeric(15,6) values, required weight value, available canonical cm/kg strings in `normalized`, created time.   |
 | `quote_customs_items`     | Group FK and unique position, per-box description/quantity, exact numeric(15,6) unit value and weight, currency, manufacture country, optional HS code, created time. Original formatting remains in request input.         |
-| `quote_provider_attempts` | Request/account FKs, UUID, immutable reviewed sender/identity, recorded mode, `saved` status, lease/recovery/outcome fields and timestamps. Partial unique index allows only one running attempt per account.               |
+| `quote_provider_attempts` | Request/account FKs, UUID, immutable reviewed sender/identity and conversion snapshot, recorded mode, status, lease/recovery/outcome fields and timestamps. Partial unique index allows one running attempt per account.    |
 | `shipping_quotes`         | Attempt FK, carrier/service, numeric(18,6) transportation total, currency, estimate method, transit/expiry/retrieval fields, option and duty/tax/clearance status, persisted package-group contribution JSON, created time. |
 | `shipping_quote_items`    | Quote/group FKs, scoped charge description and numeric(18,6) amount, created time.                                                                                                                                          |
 
@@ -547,8 +547,18 @@ Soft-deleted originals cannot be reopened through idempotency. No shipment row i
 Inputs retain decimal strings with up to nine integer and six fractional digits;
 positive values, 1–100 package groups, 1–10,000 boxes per group, and up to 100 customs
 items per group are application validation limits, not provider capability claims.
-Canonical conversion uses PostgreSQL decimal arithmetic (1 in = 2.54 cm;
-1 lb = 0.45359237 kg), without overwriting original units or values.
+Canonical conversion uses `decimal.js` arithmetic (1 in = 2.54 cm;
+1 lb = 0.45359237 kg) with six-decimal half-up rounding, without overwriting original
+units or values.
+
+Migration `1792886400000-InternationalQuoteOptions` adds
+`shipping_providers.used_internationally`, seeded `false` for Amazon Shipping and
+`true` for myUnishippers. It also adds immutable
+`quote_provider_attempts.conversion_snapshot`, which records the original values,
+provider values, target units, conversion constants, six-decimal precision, and
+half-up rounding used for that attempt. Application conversion uses the approved
+`decimal.js` dependency; original request strings remain unchanged. The same migration
+updates the attempt immutability trigger to protect the conversion snapshot.
 
 Migration `1792800000000-OptionalPackageDimensions` permits the three normalized
 dimension columns to be null when myUnishippers request mode accepts an undimensioned

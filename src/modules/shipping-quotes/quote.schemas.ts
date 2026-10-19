@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { QuoteDecimal } from './quote-decimal.js';
 
 const text = z
   .string()
@@ -51,11 +52,20 @@ const itemSchema = z.strictObject({
     .regex(/^(?:\d{6,10})?$/)
     .optional(),
 });
+const internationalSchema = z.strictObject({
+  contentsDescription: text,
+  customsMode: z.enum(['summary', 'detailed']),
+  totalValue: z.strictObject({
+    amount: decimal,
+    currency: z.string().regex(/^[A-Z]{3}$/),
+  }),
+});
 export const createQuoteSchema = z
   .strictObject({
     idempotencyKey: z.uuidv4(),
     shipDate: z.iso.date(),
     destination: addressSchema,
+    international: internationalSchema.optional(),
     providers: z
       .array(
         z.strictObject({
@@ -109,14 +119,64 @@ export const createQuoteSchema = z
           message: 'Enter all dimensions or leave all three blank',
         });
     });
-    if (value.destination.country !== 'US')
-      value.packageGroups.forEach((group, index) => {
-        if (!group.customsItems.length)
+    const isInternational = value.destination.country !== 'US';
+    if (isInternational && !value.international)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['international'],
+        message: 'International shipments require customs details',
+      });
+    if (!isInternational && value.international)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['international'],
+        message: 'Customs details are only valid for international shipments',
+      });
+
+    if (!isInternational || !value.international) return;
+    const international = value.international;
+    const detailed = international.customsMode === 'detailed';
+    let total = new QuoteDecimal(0);
+    value.packageGroups.forEach((group, groupIndex) => {
+      if (detailed && !group.customsItems.length)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['packageGroups', groupIndex, 'customsItems'],
+          message:
+            'Detailed customs require per-box items for every package group',
+        });
+      if (!detailed && group.customsItems.length)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['packageGroups', groupIndex, 'customsItems'],
+          message: 'Summary customs cannot include detailed items',
+        });
+      for (const [itemIndex, item] of group.customsItems.entries()) {
+        if (item.currency !== international.totalValue.currency)
           ctx.addIssue({
             code: 'custom',
-            path: ['packageGroups', index, 'customsItems'],
-            message: 'International packages require per-box customs items',
+            path: [
+              'packageGroups',
+              groupIndex,
+              'customsItems',
+              itemIndex,
+              'currency',
+            ],
+            message: 'All customs values must use the shipment currency',
           });
+        total = total.add(
+          new QuoteDecimal(item.unitValue)
+            .times(item.quantity)
+            .times(group.quantity),
+        );
+      }
+    });
+    if (detailed && !total.equals(international.totalValue.amount))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['international', 'totalValue', 'amount'],
+        message:
+          'Total customs value must equal item quantity × unit value × box quantity',
       });
   });
 export type QuoteInput = z.infer<typeof createQuoteSchema>;
@@ -127,6 +187,10 @@ export type ProviderConfiguration = {
   name: string;
   enabled: boolean;
   executionMode: 'request' | 'browser';
+  usedInternationally: boolean;
+  internationalAvailable: boolean;
+  supportsSignature: boolean;
+  supportsInsurance: boolean;
 };
 export type SenderSnapshot = {
   code: ProviderCode;
@@ -175,6 +239,7 @@ export type QuoteAttempt = {
   outcome: string | null;
   reasonCode: string | null;
   simulated: boolean;
+  conversionSnapshot: Record<string, unknown>;
   quotes: Array<{
     platform: string;
     carrier: string;

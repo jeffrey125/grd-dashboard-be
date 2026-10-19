@@ -34,6 +34,9 @@ export class ShippingProvidersEntity {
   @Column({ type: 'boolean', nullable: false, default: () => 'true' })
   enabled: boolean;
 
+  @Column({ type: 'boolean', nullable: false, default: () => 'false' })
+  used_internationally: boolean;
+
   @Column({ type: 'text', nullable: true })
   maintenance_message: string | null;
 
@@ -320,6 +323,9 @@ export class QuoteProviderAttemptsEntity {
 
   @Column({ type: 'jsonb', nullable: false })
   sender: Record<string, unknown>;
+
+  @Column({ type: 'jsonb', nullable: false, default: {} })
+  conversion_snapshot: Record<string, unknown>;
 
   @Column({ type: 'varchar', nullable: true, length: 10 })
   execution_mode: string | null;

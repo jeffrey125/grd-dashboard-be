@@ -8,6 +8,7 @@ import {
 import { z } from 'zod';
 import { QUOTE_REPOSITORY, type QuoteRepository } from './quote.repository.js';
 import { createQuoteSchema, type SenderSnapshot } from './quote.schemas.js';
+import { canQueueProvider } from './quote-provider-eligibility.js';
 
 function hasBlankDimensions(input: z.infer<typeof createQuoteSchema>) {
   return input.packageGroups.some((group) => group.length === '');
@@ -44,13 +45,14 @@ export class QuoteService {
       const selectedConfigurations = configurations.filter((provider) =>
         selected.has(provider.code),
       );
-      const blankDimensionsSupported =
-        selectedConfigurations.length === selected.size &&
-        selectedConfigurations.every(
-          (provider) =>
-            provider.code === 'unishippers' &&
-            provider.executionMode === 'request',
-        );
+      const queueableConfigurations = selectedConfigurations.filter(
+        (configuration) => canQueueProvider(input, configuration),
+      );
+      const blankDimensionsSupported = queueableConfigurations.every(
+        (provider) =>
+          provider.code === 'unishippers' &&
+          provider.executionMode === 'request',
+      );
       if (!blankDimensionsSupported)
         throw new BadRequestException({
           message: 'Invalid comparison inputs',

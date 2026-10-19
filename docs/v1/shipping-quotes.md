@@ -35,9 +35,12 @@ One immutable comparison contains:
   conversions; and
 - requested provider-specific signature or insurance options.
 
-International package groups also contain per-box customs items: description,
-quantity, unit value and currency, country of manufacture, item weight, and HS code
-when the provider or route requires it. V1 compares transportation charges. Duty,
+International shipments contain a label description and total customs value/currency.
+Users may keep that shipment summary or enter detailed per-box customs items:
+description, quantity, unit value and currency, country of manufacture, item weight,
+and HS code when the provider or route requires it. Detailed totals multiply item
+quantity and unit value by the package-group box quantity. All items use the shipment
+currency. V1 compares transportation charges. Duty,
 tax, clearance, and landed-cost status must be `included`, `excluded`, or `unknown`;
 unknown values are never displayed as zero.
 
@@ -148,12 +151,12 @@ The implementation adds these tables through reviewed migrations:
 
 | Table                     | Purpose                                                                                                                               |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `shipping_providers`      | Stable platform adapter, enabled state, maintenance message, execution mode, and stale policy.                                        |
+| `shipping_providers`      | Stable platform adapter, enabled and international-carriage state, maintenance message, execution mode, and stale policy.             |
 | `shipping_accounts`       | One configured account per provider and safe account/default metadata; never credentials or session secrets.                          |
 | `quote_requests`          | Immutable comparison input, actor, idempotency key, timestamps, and soft-delete lifecycle.                                            |
 | `quote_package_groups`    | Identical-box group, quantity, original units/values, and normalized provider conversion data.                                        |
 | `quote_customs_items`     | Per-box international item snapshots belonging to a package group.                                                                    |
-| `quote_provider_attempts` | Durable work item, account/provider, resolved sender snapshot, mode, lease/recovery, outcome, and sanitized diagnostics.              |
+| `quote_provider_attempts` | Durable work item, account/provider, resolved sender and unit-conversion snapshots, mode, lease/recovery, outcome, and diagnostics.   |
 | `shipping_quotes`         | Normalized service result, money, timing, estimate method, option coverage, international status, and calculated group contributions. |
 | `shipping_quote_items`    | Provider charge lines with scope and optional package-group association.                                                              |
 

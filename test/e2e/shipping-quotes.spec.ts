@@ -111,9 +111,111 @@ describe('Saved quote comparisons HTTP API', () => {
         expect.objectContaining({
           code: 'unishippers',
           executionMode: 'request',
+          usedInternationally: true,
+          internationalAvailable: false,
+          supportsSignature: false,
+          supportsInsurance: false,
+        }),
+        expect.objectContaining({
+          code: 'amazon',
+          usedInternationally: false,
         }),
       ]),
     );
+  });
+
+  it('rejects Amazon before queueing while an eligible international provider continues', async () => {
+    await db.source.query(
+      "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
+    );
+    try {
+      const body = {
+        ...input(),
+        destination: {
+          ...input().destination,
+          country: 'CA',
+          division: 'British Columbia',
+          postalCode: 'V2T 0J8',
+          contactName: 'Nichol Hood',
+          phone: '2077627747',
+        },
+        international: {
+          contentsDescription: 'Flour',
+          customsMode: 'detailed',
+          totalValue: { amount: '12.000000', currency: 'USD' },
+        },
+        providers: [
+          input().providers[0],
+          {
+            code: 'unishippers',
+            sender: {
+              mode: 'explicit',
+              address: {
+                ...address,
+                contactName: 'Shipping Contact',
+                phone: '2025550147',
+              },
+            },
+            options: {
+              signature: 'signature',
+              insurance: { amount: '50.00', currency: 'USD' },
+            },
+          },
+        ],
+        packageGroups: [
+          {
+            ...input().packageGroups[0],
+            quantity: 3,
+            units: 'metric',
+            customsItems: [
+              {
+                description: 'Flour bag',
+                quantity: 2,
+                unitValue: '2.00',
+                currency: 'USD',
+                countryOfManufacture: 'CA',
+                weight: '0.5',
+              },
+            ],
+          },
+        ],
+      };
+      const saved = await request(app.getHttpServer() as Server)
+        .post('/api/v1/quote-comparisons')
+        .set('Cookie', cookie)
+        .set('Origin', 'http://dashboard.example.test')
+        .send(body)
+        .expect(201);
+
+      expect(saved.body.comparison.status).toBe('queued');
+      expect(saved.body.comparison.attempts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            provider: 'amazon',
+            status: 'failed',
+            outcome: 'unsupported',
+            reasonCode: 'unsupported',
+          }),
+          expect.objectContaining({
+            provider: 'unishippers',
+            status: 'queued',
+            conversionSnapshot: expect.objectContaining({
+              policy: expect.objectContaining({ rounding: 'half_up' }),
+              packageGroups: [
+                expect.objectContaining({
+                  original: expect.objectContaining({ length: '10.00' }),
+                  provider: expect.objectContaining({ length: '3.937008' }),
+                }),
+              ],
+            }),
+          }),
+        ]),
+      );
+    } finally {
+      await db.source.query(
+        "UPDATE shipping_providers SET execution_mode='request' WHERE code='unishippers'",
+      );
+    }
   });
 
   it('allows blank dimensions only for myUnishippers request mode', async () => {
@@ -472,7 +574,7 @@ describe('Saved quote comparisons HTTP API', () => {
           buffer += decoder.decode(chunk.value, { stream: true });
           let end: number;
           while ((end = buffer.indexOf('\n\n')) >= 0) {
-            frames.push(buffer.slice(0, end));
+            frames.push(buffer.slice(0, end).trimStart());
             buffer = buffer.slice(end + 2);
           }
         }

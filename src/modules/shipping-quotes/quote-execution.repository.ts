@@ -16,6 +16,7 @@ export interface LeasedQuote {
   enabled: boolean;
   input: QuoteInput;
   sender: SenderSnapshot;
+  conversionSnapshot?: Record<string, unknown>;
   reloginCount: 0 | 1;
 }
 

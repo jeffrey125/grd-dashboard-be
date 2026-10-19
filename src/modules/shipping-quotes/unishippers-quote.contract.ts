@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { QuoteDecimal } from './quote-decimal.js';
+import { toProviderLength, toProviderWeight } from './quote-conversions.js';
 import { randomUUID } from 'node:crypto';
 import type {
   ExecutionResult,
@@ -69,11 +71,16 @@ function assertSupportedJob(job: LeasedQuote): void {
   );
   if (
     !provider ||
-    provider.options.signature !== 'none' ||
-    provider.options.insurance ||
     job.sender.address.country !== 'US' ||
-    job.input.destination.country !== 'US' ||
-    job.input.packageGroups.some((group) => group.customsItems.length)
+    (job.input.destination.country !== 'US' &&
+      job.input.international?.totalValue.currency !== 'USD') ||
+    (provider.options.insurance !== null &&
+      provider.options.insurance.currency !== 'USD') ||
+    (job.mode === 'request' &&
+      (provider.options.signature !== 'none' ||
+        provider.options.insurance ||
+        job.input.destination.country !== 'US' ||
+        job.input.packageGroups.some((group) => group.customsItems.length)))
   )
     throw new UnishippersContractError();
 }
@@ -92,14 +99,15 @@ function assertPackageQuantity(
 function convertMeasurement(
   group: LeasedQuote['input']['packageGroups'][number],
   value: string,
-  divisor: number,
+  kind: 'length' | 'weight',
 ): number {
-  const result = Number(
-    (Number(value) / (group.units === 'metric' ? divisor : 1)).toFixed(6),
+  const result = new QuoteDecimal(
+    kind === 'length'
+      ? toProviderLength(value, group.units)
+      : toProviderWeight(value, group.units),
   );
-  if (!Number.isFinite(result) || result <= 0)
-    throw new UnishippersContractError();
-  return result;
+  if (!result.isFinite() || result.lte(0)) throw new UnishippersContractError();
+  return result.toNumber();
 }
 
 function packageDimensions(
@@ -107,15 +115,15 @@ function packageDimensions(
 ) {
   return {
     length: {
-      value: String(convertMeasurement(group, group.length, 2.54)),
+      value: String(convertMeasurement(group, group.length, 'length')),
       unit: 'in',
     },
     width: {
-      value: String(convertMeasurement(group, group.width, 2.54)),
+      value: String(convertMeasurement(group, group.width, 'length')),
       unit: 'in',
     },
     height: {
-      value: String(convertMeasurement(group, group.height, 2.54)),
+      value: String(convertMeasurement(group, group.height, 'length')),
       unit: 'in',
     },
     dimensionType: 'NET',
@@ -135,7 +143,7 @@ function packageUnit(group: LeasedQuote['input']['packageGroups'][number]) {
     packagingType: '02',
     packagingTypeName: 'Custom',
     weight: {
-      value: convertMeasurement(group, group.weight, 0.45359237),
+      value: convertMeasurement(group, group.weight, 'weight'),
       unit: 'LB',
     },
   };
@@ -339,13 +347,13 @@ function decimal(value: string | number): string {
   const text = String(value);
   if (!/^\d{1,12}(?:\.\d{1,6})?$/.test(text))
     throw new UnishippersContractError();
-  const [whole, fraction = ''] = text.split('.');
-  return `${BigInt(whole)}.${fraction.padEnd(6, '0')}`;
+  return new QuoteDecimal(text).toFixed(6);
 }
 
 export function normalizeUnishippersOffers(
   body: unknown,
   packageCount: number,
+  optionCoverage: 'included' | 'unsupported' | 'unverified' = 'unverified',
 ): ExecutionResult['quotes'] {
   const parsed = offers.safeParse(body);
   if (!parsed.success) throw new UnishippersContractError();
@@ -419,7 +427,7 @@ export function normalizeUnishippersOffers(
       estimateMethod: 'native',
       transitDescription: transit || null,
       expiresAt: expiry.success ? new Date(expiry.data).toISOString() : null,
-      optionCoverage: 'unverified',
+      optionCoverage,
       dutyStatus: 'unknown',
       taxStatus: 'unknown',
       clearanceStatus: 'unknown',

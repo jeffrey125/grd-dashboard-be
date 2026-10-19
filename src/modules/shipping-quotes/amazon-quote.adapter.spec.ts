@@ -210,6 +210,33 @@ describe('Amazon quote normalization and aggregation', () => {
     );
   });
 
+  it('preserves fractional cents when aggregating package and shipment charges', () => {
+    const rate = normalizeAmazonRate({
+      ...evidenceBody,
+      shippingCharges: [
+        {
+          chargeCode: 'BASE_CHARGE',
+          charge: { unit: 'USD', value: '0.100001' },
+        },
+        {
+          chargeCode: 'SHIPMENT_FEE',
+          charge: { unit: 'USD', value: '0.200002' },
+        },
+      ],
+      totalCharge: { unit: 'USD', value: '0.300003' },
+    });
+    const [quote] = aggregateAmazonRates([
+      { rate, groups: [{ packageGroupPosition: 0, quantity: 3 }] },
+      { rate, groups: [{ packageGroupPosition: 1, quantity: 2 }] },
+    ]);
+
+    expect(quote?.total).toBe('0.700007');
+    expect(quote?.groupContributions).toEqual([
+      { packageGroupPosition: 0, quantity: 3, subtotal: '0.300003' },
+      { packageGroupPosition: 1, quantity: 2, subtotal: '0.200002' },
+    ]);
+  });
+
   it('stops when a returned charge cannot be assigned a scope', () => {
     expect(() =>
       normalizeAmazonRate({

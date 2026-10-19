@@ -2,16 +2,23 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import type {
   Comparison,
+  ProviderCode,
   QuoteInput,
   SenderSnapshot,
 } from './quote.schemas.js';
 import { QUOTE_REPOSITORY, type QuoteRepository } from './quote.repository.js';
+import {
+  canonicalMeasurements,
+  conversionSnapshot,
+} from './quote-conversions.js';
+import { canQueueProvider } from './quote-provider-eligibility.js';
 
 const projection = `SELECT q.external_id AS "externalId", q.status, q.created_at AS "createdAt", u.external_id AS "createdBy", q.input, q.senders, q.deleted_at AS "deletedAt",
   COALESCE((SELECT jsonb_agg(jsonb_build_object(
     'externalId',a.external_id,'provider',p.code,'status',a.status,'attemptNumber',a.attempt_number,
     'executionMode',a.execution_mode,'startedAt',a.started_at,'completedAt',a.completed_at,
     'recoveryCount',a.recovery_count,'outcome',a.outcome,'reasonCode',a.reason_code,'simulated',a.simulated,
+    'conversionSnapshot',a.conversion_snapshot,
     'quotes',COALESCE((SELECT jsonb_agg(jsonb_build_object(
       'platform',p.name,'carrier',r.carrier,'service',r.service,'transportationTotal',r.transportation_total::text,
       'currency',r.currency,'estimateMethod',r.estimate_method,'transitDescription',r.transit_description,
@@ -63,7 +70,12 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
 
   providers() {
     return this.source.query(
-      'SELECT code,name,enabled,execution_mode AS "executionMode" FROM shipping_providers ORDER BY id',
+      `SELECT code,name,enabled,execution_mode AS "executionMode",
+      used_internationally AS "usedInternationally",
+      (used_internationally AND execution_mode='browser') AS "internationalAvailable",
+      (code='unishippers' AND execution_mode='browser') AS "supportsSignature",
+      (code='unishippers' AND execution_mode='browser') AS "supportsInsurance"
+      FROM shipping_providers ORDER BY id`,
     );
   }
 
@@ -106,11 +118,12 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
         };
       }
       const providers: Array<{
-        code: string;
+        code: ProviderCode;
         enabled: boolean;
         executionMode: 'request' | 'browser';
+        usedInternationally: boolean;
       }> = await manager.query(
-        'SELECT code,enabled,execution_mode AS "executionMode" FROM shipping_providers WHERE code=ANY($1::text[]) ORDER BY id FOR SHARE',
+        'SELECT code,enabled,execution_mode AS "executionMode",used_internationally AS "usedInternationally" FROM shipping_providers WHERE code=ANY($1::text[]) ORDER BY id FOR SHARE',
         [input.providers.map((p) => p.code)],
       );
       if (
@@ -120,24 +133,36 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
         throw new BadRequestException(
           'Selected provider is disabled or unavailable',
         );
+      const configurations = new Map(
+        providers.map((provider) => [provider.code, provider]),
+      );
+      const queueable = (code: ProviderCode) => {
+        const provider = configurations.get(code);
+        return provider ? canQueueProvider(input, provider) : false;
+      };
       if (
         input.packageGroups.some((group) => group.length === '') &&
         providers.some(
           (provider) =>
-            provider.code !== 'unishippers' ||
-            provider.executionMode !== 'request',
+            queueable(provider.code) &&
+            (provider.code !== 'unishippers' ||
+              provider.executionMode !== 'request'),
         )
       )
         throw new BadRequestException(
           'Dimensions are required for the selected provider or execution mode',
         );
+      const hasQueuedAttempt = input.providers.some((provider) =>
+        queueable(provider.code),
+      );
       const [row] = await manager.query(
-        "INSERT INTO quote_requests(idempotency_key,created_by_id,input,senders,status) VALUES ($1,$2,$3,$4,'queued') RETURNING external_id",
+        'INSERT INTO quote_requests(idempotency_key,created_by_id,input,senders,status) VALUES ($1,$2,$3,$4,$5) RETURNING external_id',
         [
           input.idempotencyKey,
           actorId,
           JSON.stringify(input),
           JSON.stringify(senders),
+          hasQueuedAttempt ? 'queued' : 'failed',
         ],
       );
       const [{ id: requestId }] = await manager.query(
@@ -146,8 +171,9 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
       );
       for (const [position, group] of input.packageGroups.entries()) {
         const [{ id: groupId }] = await manager.query(
-          `INSERT INTO quote_package_groups(normalized,request_id,position,quantity,units,length_original,width_original,height_original,weight_original,length_value,width_value,height_value,weight_value) VALUES (jsonb_strip_nulls(jsonb_build_object('lengthCm', CASE WHEN NULLIF($5::text,'') IS NULL THEN NULL ELSE (NULLIF($5::text,'')::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text END,'widthCm', CASE WHEN NULLIF($6::text,'') IS NULL THEN NULL ELSE (NULLIF($6::text,'')::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text END,'heightCm', CASE WHEN NULLIF($7::text,'') IS NULL THEN NULL ELSE (NULLIF($7::text,'')::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text END,'weightKg', ($8::text::numeric * CASE WHEN $4='imperial' THEN 0.45359237 ELSE 1 END)::text)),$1,$2,$3,$4,$5,$6,$7,$8,NULLIF($5::text,'')::numeric,NULLIF($6::text,'')::numeric,NULLIF($7::text,'')::numeric,$8::text::numeric) RETURNING id`,
+          `INSERT INTO quote_package_groups(normalized,request_id,position,quantity,units,length_original,width_original,height_original,weight_original,length_value,width_value,height_value,weight_value) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NULLIF($6::text,'')::numeric,NULLIF($7::text,'')::numeric,NULLIF($8::text,'')::numeric,$9::text::numeric) RETURNING id`,
           [
+            JSON.stringify(canonicalMeasurements(group)),
             requestId,
             position,
             group.quantity,
@@ -174,11 +200,25 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
             ],
           );
       }
-      for (const sender of senders)
+      for (const sender of senders) {
+        const provider = configurations.get(sender.code)!;
+        const queued = queueable(sender.code);
         await manager.query(
-          `INSERT INTO quote_provider_attempts(request_id,account_id,sender,execution_mode,status) SELECT $1,a.id,$2,NULL,'queued' FROM shipping_accounts a JOIN shipping_providers p ON p.id=a.provider_id WHERE p.code=$3`,
-          [requestId, JSON.stringify(sender), sender.code],
+          `INSERT INTO quote_provider_attempts(request_id,account_id,sender,conversion_snapshot,execution_mode,status,outcome,reason_code,completed_at)
+          SELECT $1,a.id,$2,$3,$4,$5::varchar,$6,$7,CASE WHEN $5::varchar='failed' THEN clock_timestamp() ELSE NULL END
+          FROM shipping_accounts a JOIN shipping_providers p ON p.id=a.provider_id WHERE p.code=$8`,
+          [
+            requestId,
+            JSON.stringify(sender),
+            JSON.stringify(conversionSnapshot(input, sender.code)),
+            provider.executionMode,
+            queued ? 'queued' : 'failed',
+            queued ? null : 'unsupported',
+            queued ? null : 'unsupported',
+            sender.code,
+          ],
         );
+      }
       const [saved] = await manager.query(
         `${projection} WHERE q.external_id=$1`,
         [row.external_id],

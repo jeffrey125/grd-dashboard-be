@@ -18,6 +18,7 @@ import {
   unishippersFailure,
 } from './unishippers-quote.contract.js';
 import type { Address } from './quote.schemas.js';
+import { QuoteDecimal } from './quote-decimal.js';
 import { z } from 'zod';
 
 const LOGIN_TIMEOUT_MS = 30_000;
@@ -27,6 +28,10 @@ const US_STATES: Record<string, string> = Object.fromEntries(
     .split('|')
     .map((entry) => entry.split(':')),
 );
+const COUNTRY_NAMES: Record<string, string> = {
+  CA: 'Canada',
+  US: 'United States',
+};
 
 type UnishippersSession = {
   namespace: string;
@@ -366,7 +371,7 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
       reason: null,
       simulated: false,
       relogins: 0,
-      quotes: normalizeUnishippersOffers(body, packageCount),
+      quotes: normalizeUnishippersOffers(body, packageCount, 'included'),
     };
   }
 
@@ -538,6 +543,8 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
         if (Number(await weight.inputValue()) !== unit.weight.value)
           throw new UnishippersContractError();
       }
+      await this.fillInternationalDetails(page, job);
+      await this.fillProviderOptions(page, job);
       const rates = page.getByRole('button', {
         name: 'GET RATES',
         exact: true,
@@ -584,6 +591,7 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
         quotes: normalizeUnishippersOffers(
           result.body,
           expected.request.shipment.handlingUnitList.length,
+          'included',
         ),
       };
     } finally {
@@ -604,11 +612,84 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
         throw new UnishippersContractError();
   }
 
+  private async fillInternationalDetails(
+    page: Page,
+    job: LeasedQuote,
+  ): Promise<void> {
+    if (job.input.destination.country === 'US') return;
+    const international = job.input.international;
+    if (!international) throw new UnishippersContractError();
+    const description = page
+      .getByLabel(/specific description of contents/i)
+      .filter({ visible: true })
+      .first();
+    const total = page
+      .getByLabel(/^total value$/i)
+      .filter({ visible: true })
+      .first();
+    await description.fill(international.contentsDescription);
+    await total.fill(international.totalValue.amount);
+    if (
+      (await description.inputValue()) !== international.contentsDescription ||
+      !new QuoteDecimal(await total.inputValue()).equals(
+        international.totalValue.amount,
+      )
+    )
+      throw new UnishippersContractError();
+  }
+
+  private async fillProviderOptions(
+    page: Page,
+    job: LeasedQuote,
+  ): Promise<void> {
+    const provider = job.input.providers.find(
+      (entry) => entry.code === 'unishippers',
+    );
+    if (!provider) throw new UnishippersContractError();
+    if (provider.options.signature !== 'none') {
+      const signature = page.locator('#signatureOptions:visible').first();
+      await selectMaterialOption(
+        signature,
+        provider.options.signature === 'signature'
+          ? 'Signature Required'
+          : 'Adult Signature Required',
+        page,
+      );
+    }
+    if (provider.options.insurance) {
+      const insurance = page
+        .getByRole('checkbox', { name: /insure shipment/i })
+        .first();
+      await insurance.check();
+      const amount = page
+        .getByLabel(/insured value|insurance amount/i)
+        .filter({ visible: true })
+        .first();
+      await amount.fill(provider.options.insurance.amount);
+      if (
+        !new QuoteDecimal(await amount.inputValue()).equals(
+          provider.options.insurance.amount,
+        )
+      )
+        throw new UnishippersContractError();
+    }
+  }
+
   private async fillAddress(
     page: Page,
     scope: Locator,
     address: Address,
   ): Promise<void> {
+    const country = scope
+      .getByRole('combobox', { name: 'Country', exact: true })
+      .filter({ visible: true })
+      .first();
+    if (await country.isVisible())
+      await selectMaterialOption(
+        country,
+        COUNTRY_NAMES[address.country] ?? address.country,
+        page,
+      );
     await scope
       .getByLabel('Address 1', { exact: true })
       .filter({ visible: true })
@@ -628,7 +709,9 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
     const state = scope.locator('mat-select[formcontrolname="state"]:visible');
     await selectMaterialOption(
       state,
-      US_STATES[address.division.toUpperCase()] ?? address.division,
+      address.country === 'US'
+        ? (US_STATES[address.division.toUpperCase()] ?? address.division)
+        : address.division,
       page,
     );
     const city = scope
