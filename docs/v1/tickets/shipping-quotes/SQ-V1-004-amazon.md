@@ -3,7 +3,7 @@
 ## Status
 
 - Depends on: SQ-V1-001, SQ-V1-003
-- State: ready-for-agent
+- State: implemented pending review
 - Repositories: `grd-dashboard-be`, `grd-dashboard-fe`
 
 ## What to build

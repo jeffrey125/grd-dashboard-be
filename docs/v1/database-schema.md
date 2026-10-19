@@ -516,16 +516,16 @@ Migration `1792540800000-QuoteComparisons` adds eight tables. It is needed to sa
 comparisons independently of monitored shipments. No existing shipment is changed.
 All new foreign keys explicitly use `ON DELETE NO ACTION` in SQL and ORM mappings.
 
-| Table                     | Stored data and constraints                                                                                                                                                                                           |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shipping_providers`      | Two stable codes, enabled state, maintenance message, request/browser mode, positive stale hours, creation/update timestamps.                                                                                         |
-| `shipping_accounts`       | Unique provider FK (one account per provider), creation/update timestamps, allowlisted `default_refresh` work/result metadata. No credentials or browser sessions.                                                    |
-| `quote_requests`          | Public UUID, actor FK, actor-scoped unique UUID idempotency key, strict original input JSON, resolved sender snapshots, saved status, created time, reserved soft-delete fields. History index excludes deleted rows. |
-| `quote_package_groups`    | Request FK and unique position, positive quantities, original decimal strings and units, exact numeric(15,6) values, exact canonical cm/kg strings in `normalized`, created time.                                     |
-| `quote_customs_items`     | Group FK and unique position, per-box description/quantity, exact numeric(15,6) unit value and weight, currency, manufacture country, optional HS code, created time. Original formatting remains in request input.   |
-| `quote_provider_attempts` | Request/account FKs, UUID, immutable reviewed sender/identity, recorded mode, `saved` status, lease/recovery/outcome fields and timestamps. Partial unique index allows only one running attempt per account.         |
-| `shipping_quotes`         | Attempt FK, carrier/service, numeric(18,6) transportation total, currency, estimate method, transit/expiry/retrieval fields, option and duty/tax/clearance status, created time.                                      |
-| `shipping_quote_items`    | Quote/group FKs, scoped charge description and numeric(18,6) amount, created time.                                                                                                                                    |
+| Table                     | Stored data and constraints                                                                                                                                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shipping_providers`      | Two stable codes, enabled state, maintenance message, request/browser mode, positive stale hours, creation/update timestamps.                                                                                               |
+| `shipping_accounts`       | Unique provider FK (one account per provider), creation/update timestamps, allowlisted `default_refresh` work/result metadata. No credentials or browser sessions.                                                          |
+| `quote_requests`          | Public UUID, actor FK, actor-scoped unique UUID idempotency key, strict original input JSON, resolved sender snapshots, saved status, created time, reserved soft-delete fields. History index excludes deleted rows.       |
+| `quote_package_groups`    | Request FK and unique position, positive quantities, original decimal strings and units, exact numeric(15,6) values, exact canonical cm/kg strings in `normalized`, created time.                                           |
+| `quote_customs_items`     | Group FK and unique position, per-box description/quantity, exact numeric(15,6) unit value and weight, currency, manufacture country, optional HS code, created time. Original formatting remains in request input.         |
+| `quote_provider_attempts` | Request/account FKs, UUID, immutable reviewed sender/identity, recorded mode, `saved` status, lease/recovery/outcome fields and timestamps. Partial unique index allows only one running attempt per account.               |
+| `shipping_quotes`         | Attempt FK, carrier/service, numeric(18,6) transportation total, currency, estimate method, transit/expiry/retrieval fields, option and duty/tax/clearance status, persisted package-group contribution JSON, created time. |
+| `shipping_quote_items`    | Quote/group FKs, scoped charge description and numeric(18,6) amount, created time.                                                                                                                                          |
 
 Database triggers reject mutations of comparison input/audit identity, package and
 customs snapshots, result snapshots, and attempt sender/identity. Lifecycle fields
@@ -567,3 +567,12 @@ the comparison public UUID. API reads remain authoritative. Rollback drops the
 trigger/function and new columns, filling unstarted null modes from provider
 configuration to restore the prior non-null constraint. Stop the new worker before
 rollback; rollback discards the new execution metadata.
+
+## SQ-V1-004 Amazon quote breakdown
+
+Migration `1792713600000-AmazonQuoteBreakdown` adds the required immutable
+`shipping_quotes.group_contributions` JSON array. It preserves each calculated
+package-group quantity and subtotal supplied by the provider adapter, including a
+group that has no charge row. The array constraint keeps the stored shape explicit;
+charge details remain normalized in `shipping_quote_items`. The migration is
+reversible by dropping the column and does not add foreign keys.

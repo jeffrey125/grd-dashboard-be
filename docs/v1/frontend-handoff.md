@@ -482,9 +482,13 @@ Known reasons are `adapter_unavailable,provider_disabled,validation_failed,
 unsupported,timeout,authentication_failed,provider_failed,recovery_exhausted`.
 Unknown reasons must use generic safe UI copy.
 
-Each quote contains `carrier,service,transportationTotal,currency,estimateMethod,
+Each quote contains `platform,carrier,service,transportationTotal,currency,estimateMethod,
 transitDescription,retrievedAt,expiresAt,optionCoverage,dutyStatus,taxStatus,
-clearanceStatus`. Money is an exact decimal string; missing transit/expiry is null.
+clearanceStatus,charges,groupContributions`. Each charge contains its description,
+exact amount, scope (`package|shipment|pickup`), and optional package-group position.
+Each group contribution contains its group position, quantity, and exact subtotal.
+Money is an exact decimal string; missing carrier, service, transit, or expiry displays
+**Not provided** in the UI.
 Demo results are always `simulated:true` on the attempt and must be visibly labelled
 **Simulated rates — not provider quotes**. Requested option coverage remains unverified.
 

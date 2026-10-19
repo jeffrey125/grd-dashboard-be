@@ -142,16 +142,16 @@ stale period applies, defaulting to 24 hours. Expired or stale quotes remain in 
 
 The implementation adds these tables through reviewed migrations:
 
-| Table                     | Purpose                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `shipping_providers`      | Stable platform adapter, enabled state, maintenance message, execution mode, and stale policy.                           |
-| `shipping_accounts`       | One configured account per provider and safe account/default metadata; never credentials or session secrets.             |
-| `quote_requests`          | Immutable comparison input, actor, idempotency key, timestamps, and soft-delete lifecycle.                               |
-| `quote_package_groups`    | Identical-box group, quantity, original units/values, and normalized provider conversion data.                           |
-| `quote_customs_items`     | Per-box international item snapshots belonging to a package group.                                                       |
-| `quote_provider_attempts` | Durable work item, account/provider, resolved sender snapshot, mode, lease/recovery, outcome, and sanitized diagnostics. |
-| `shipping_quotes`         | Normalized service result, money, timing, estimate method, option coverage, and international status.                    |
-| `shipping_quote_items`    | Provider charge lines with scope and optional package-group association.                                                 |
+| Table                     | Purpose                                                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `shipping_providers`      | Stable platform adapter, enabled state, maintenance message, execution mode, and stale policy.                                        |
+| `shipping_accounts`       | One configured account per provider and safe account/default metadata; never credentials or session secrets.                          |
+| `quote_requests`          | Immutable comparison input, actor, idempotency key, timestamps, and soft-delete lifecycle.                                            |
+| `quote_package_groups`    | Identical-box group, quantity, original units/values, and normalized provider conversion data.                                        |
+| `quote_customs_items`     | Per-box international item snapshots belonging to a package group.                                                                    |
+| `quote_provider_attempts` | Durable work item, account/provider, resolved sender snapshot, mode, lease/recovery, outcome, and sanitized diagnostics.              |
+| `shipping_quotes`         | Normalized service result, money, timing, estimate method, option coverage, international status, and calculated group contributions. |
+| `shipping_quote_items`    | Provider charge lines with scope and optional package-group association.                                                              |
 
 Every new foreign key explicitly uses `ON DELETE NO ACTION`. Quote input, senders,
 results, and attempts are snapshots; later account/configuration changes do not rewrite

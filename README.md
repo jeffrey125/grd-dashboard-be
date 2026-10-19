@@ -202,11 +202,13 @@ New comparisons now queue provider attempts in the save transaction. The single
 worker scans every second, executes up to two different accounts concurrently,
 and limits each attempt to 90 seconds within a 120-second lease. One expired
 lease is recovered; the next expiry is terminal. Old `saved` comparisons remain
-unchanged; use Copy to new to execute them. Apply migration
-`1792627200000-QuoteExecution` before starting the updated API/worker.
+unchanged; use Copy to new to execute them. Apply migrations
+`1792627200000-QuoteExecution` and `1792713600000-AmazonQuoteBreakdown` before
+starting the updated API/worker.
 
-Real rate adapters arrive in SQ-V1-004/005. Until then, normal execution returns
-`adapter_unavailable`. For a local demonstration only, set `QUOTE_DEMO_MODE=true`:
+The Amazon rate adapter is available through the selected provider execution mode;
+myUnishippers remains `adapter_unavailable` until SQ-V1-005. For a local demonstration
+only, set `QUOTE_DEMO_MODE=true`:
 production configuration rejects it. Optional `QUOTE_DEMO_AMAZON` and
 `QUOTE_DEMO_UNISHIPPERS` select `success`, `validation_failed`, `unsupported`,
 `timeout`, `auth_replay`, `authentication_failed`, or `failed`. Defaults are
