@@ -137,6 +137,12 @@ describe('Shipment HTTP API with PostgreSQL', () => {
         'carrier',
         'trackingReference',
         'notes',
+        'salesRep',
+        'followUpOn',
+        'createdBy',
+        'updatedBy',
+        'recordUpdatedAt',
+        'recordUpdatedBy',
         'verificationUrl',
         'currentTracking',
         'latestLookup',
@@ -314,11 +320,23 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       { lookupOutcome: 'failed' },
       { createdFrom: '2026-03-09' },
       { createdTo: '2026-03-08' },
+      {
+        estimatedDeliveryFrom: '2026-03-09',
+        estimatedDeliveryTo: '2026-03-08',
+      },
+      { estimatedDeliveryFrom: '2026-02-30' },
+      { estimatedDeliveryTo: 'invalid' },
+      { undeliveredOnly: 'yes' },
+    ])
+      await http().get('/api/v1/shipments/search').query(query).expect(400);
+
+    for (const query of [
       { estimatedDeliveryFrom: '2026-03-09' },
       { estimatedDeliveryTo: '2026-03-08' },
       { undeliveredOnly: 'true' },
+      { undeliveredOnly: 'false' },
     ])
-      await http().get('/api/v1/shipments/search').query(query).expect(400);
+      await http().get('/api/v1/shipments/search').query(query).expect(200);
   });
 
   it('serves authenticated normalized Shipment history with strict pagination and 404s', async () => {
@@ -396,6 +414,20 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       },
       trackingReference: '000Ab',
       notes: 'Initial',
+      salesRep: null,
+      followUpOn: null,
+      createdBy: {
+        externalId: expect.any(String),
+        firstName: 'Fixture',
+        lastName: 'Admin',
+      },
+      updatedBy: {
+        externalId: expect.any(String),
+        firstName: 'Fixture',
+        lastName: 'Admin',
+      },
+      recordUpdatedAt: null,
+      recordUpdatedBy: null,
       verificationUrl: null,
       currentTracking: null,
       latestLookup: null,
