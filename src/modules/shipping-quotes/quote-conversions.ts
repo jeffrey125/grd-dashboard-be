@@ -1,33 +1,33 @@
+import { bignumber, unit } from 'mathjs';
 import { QuoteDecimal, type Decimal } from './quote-decimal.js';
 import type { ProviderCode, QuoteInput } from './quote.schemas.js';
 
-const CENTIMETERS_PER_INCH = new QuoteDecimal('2.54');
-const KILOGRAMS_PER_POUND = new QuoteDecimal('0.45359237');
-
 function round(value: Decimal): string {
   return value.toDecimalPlaces(6).toFixed(6);
+}
+
+function convert(value: string, source: string, target: string): string {
+  const converted = unit(bignumber(value), source).toNumeric(target);
+
+  return round(new QuoteDecimal(converted.toString()));
 }
 
 export function toProviderLength(
   value: string,
   units: 'imperial' | 'metric',
 ): string {
-  return round(
-    units === 'metric'
-      ? new QuoteDecimal(value).div(CENTIMETERS_PER_INCH)
-      : new QuoteDecimal(value),
-  );
+  return units === 'metric'
+    ? convert(value, 'cm', 'in')
+    : round(new QuoteDecimal(value));
 }
 
 export function toProviderWeight(
   value: string,
   units: 'imperial' | 'metric',
 ): string {
-  return round(
-    units === 'metric'
-      ? new QuoteDecimal(value).div(KILOGRAMS_PER_POUND)
-      : new QuoteDecimal(value),
-  );
+  return units === 'metric'
+    ? convert(value, 'kg', 'lb')
+    : round(new QuoteDecimal(value));
 }
 
 export function canonicalMeasurements(
@@ -36,20 +36,17 @@ export function canonicalMeasurements(
   const length = (value: string) =>
     value === ''
       ? undefined
-      : round(
-          group.units === 'imperial'
-            ? new QuoteDecimal(value).times(CENTIMETERS_PER_INCH)
-            : new QuoteDecimal(value),
-        );
+      : group.units === 'imperial'
+        ? convert(value, 'in', 'cm')
+        : round(new QuoteDecimal(value));
   return {
     ...(length(group.length) ? { lengthCm: length(group.length) } : {}),
     ...(length(group.width) ? { widthCm: length(group.width) } : {}),
     ...(length(group.height) ? { heightCm: length(group.height) } : {}),
-    weightKg: round(
+    weightKg:
       group.units === 'imperial'
-        ? new QuoteDecimal(group.weight).times(KILOGRAMS_PER_POUND)
-        : new QuoteDecimal(group.weight),
-    ),
+        ? convert(group.weight, 'lb', 'kg')
+        : round(new QuoteDecimal(group.weight)),
   };
 }
 
@@ -60,8 +57,8 @@ export function conversionSnapshot(input: QuoteInput, provider: ProviderCode) {
       targetUnits: 'imperial',
       decimalPlaces: 6,
       rounding: 'half_up',
-      centimetersPerInch: '2.54',
-      kilogramsPerPound: '0.45359237',
+      converter: 'mathjs',
+      measurementType: 'BigNumber',
     },
     packageGroups: input.packageGroups.map((group, position) => ({
       position,

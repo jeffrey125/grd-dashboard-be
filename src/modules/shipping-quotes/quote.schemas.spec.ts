@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { conversionSnapshot } from './quote-conversions.js';
+import {
+  canonicalMeasurements,
+  conversionSnapshot,
+  toProviderLength,
+  toProviderWeight,
+} from './quote-conversions.js';
+import { QuoteDecimal } from './quote-decimal.js';
 import { createQuoteSchema, type QuoteInput } from './quote.schemas.js';
 
 const address = {
@@ -16,7 +23,7 @@ function input(): QuoteInput {
   return {
     idempotencyKey: randomUUID(),
     shipDate: '2099-10-19',
-    destination: address,
+    destination: { ...address },
     international: {
       contentsDescription: 'Flour',
       customsMode: 'detailed',
@@ -105,5 +112,70 @@ describe('international quote input', () => {
         weight: '11.023113',
       },
     });
+  });
+
+  it('validates ISO country/currency codes and country-aware phone numbers', () => {
+    const invalid = input();
+    invalid.destination.country = 'ZZ';
+    invalid.destination.phone = 'not a phone';
+    invalid.international!.totalValue.currency = 'ZZZ';
+
+    expect(createQuoteSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  it('preserves detailed customs quantity semantics across generated values', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 1000 }),
+        fc.integer({ min: 1, max: 50 }),
+        fc.integer({ min: 1, max: 50 }),
+        (unitCents, itemQuantity, boxQuantity) => {
+          const quote = input();
+          const unitValue = new QuoteDecimal(unitCents).div(100).toFixed(2);
+          const total = new QuoteDecimal(unitValue)
+            .times(itemQuantity)
+            .times(boxQuantity)
+            .toFixed(6);
+
+          quote.packageGroups[0]!.quantity = boxQuantity;
+          quote.packageGroups[0]!.customsItems[0]!.quantity = itemQuantity;
+          quote.packageGroups[0]!.customsItems[0]!.unitValue = unitValue;
+          quote.international!.totalValue.amount = total;
+
+          return createQuoteSchema.safeParse(quote).success;
+        },
+      ),
+    );
+  });
+
+  it('round-trips generated metric measurements within six-decimal policy', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 999_999_999 }), (millionths) => {
+        const value = new QuoteDecimal(millionths).div(1_000_000).toFixed(6);
+        const lengthInches = toProviderLength(value, 'metric');
+        const weightPounds = toProviderWeight(value, 'metric');
+        const lengthCm = canonicalMeasurements({
+          ...input().packageGroups[0]!,
+          units: 'imperial',
+          length: lengthInches,
+          width: lengthInches,
+          height: lengthInches,
+          weight: weightPounds,
+        }).lengthCm!;
+        const weightKg = canonicalMeasurements({
+          ...input().packageGroups[0]!,
+          units: 'imperial',
+          length: lengthInches,
+          width: lengthInches,
+          height: lengthInches,
+          weight: weightPounds,
+        }).weightKg;
+
+        return (
+          new QuoteDecimal(lengthCm).minus(value).abs().lte('0.000002') &&
+          new QuoteDecimal(weightKg).minus(value).abs().lte('0.000002')
+        );
+      }),
+    );
   });
 });

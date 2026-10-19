@@ -8,6 +8,7 @@ import {
 import { z } from 'zod';
 import { QuoteDecimal, type Decimal } from './quote-decimal.js';
 import { toProviderLength, toProviderWeight } from './quote-conversions.js';
+import { currencyCodeSchema } from './quote-standards.js';
 import type {
   ExecutionResult,
   LeasedQuote,
@@ -40,7 +41,7 @@ const SHIPMENT_CHARGE_CODES = new Set([
 const PICKUP_CHARGE_CODES = new Set(['PICKUP_FEE']);
 
 const moneySchema = z.object({
-  unit: z.string().regex(/^[A-Z]{3}$/),
+  unit: currencyCodeSchema,
   value: z.union([z.number().finite().nonnegative(), z.string().min(1)]),
 });
 
@@ -55,10 +56,7 @@ const responseSchema = z.object({
         value: z
           .union([z.number().finite().nonnegative(), z.string().min(1)])
           .optional(),
-        unit: z
-          .string()
-          .regex(/^[A-Z]{3}$/)
-          .optional(),
+        unit: currencyCodeSchema.optional(),
       }),
     )
     .default([]),

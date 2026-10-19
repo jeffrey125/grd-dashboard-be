@@ -1,5 +1,10 @@
 import { z } from 'zod';
 import { QuoteDecimal } from './quote-decimal.js';
+import {
+  countryCodeSchema,
+  currencyCodeSchema,
+  isPossibleAddressPhone,
+} from './quote-standards.js';
 
 const text = z
   .string()
@@ -11,32 +16,34 @@ const decimal = z
   .regex(/^(?:0|[1-9]\d{0,8})(?:\.\d{1,6})?$/)
   .refine((value) => Number(value) > 0);
 const dimension = z.union([z.literal(''), decimal]);
-const country = z.string().regex(/^[A-Z]{2}$/);
 export const providerCode = z.enum(['amazon', 'unishippers']);
-export const addressSchema = z.strictObject({
-  name: text,
-  street: text,
-  street2: z.string().max(200).optional(),
-  city: text,
-  division: z.string().max(100),
-  postalCode: text,
-  country,
-  contactName: z.string().max(100).optional(),
-  phone: z
-    .string()
-    .max(30)
-    .refine(
-      (value) =>
-        value === '' ||
-        (/^\+?[\d ().-]+$/.test(value) &&
-          /^\d{10,15}$/.test(value.replace(/\D/g, ''))),
+export const addressSchema = z
+  .strictObject({
+    name: text,
+    street: text,
+    street2: z.string().max(200).optional(),
+    city: text,
+    division: z.string().max(100),
+    postalCode: text,
+    country: countryCodeSchema,
+    contactName: z.string().max(100).optional(),
+    phone: z.string().max(30).optional(),
+  })
+  .superRefine((address, ctx) => {
+    if (
+      address.phone !== undefined &&
+      !isPossibleAddressPhone(address.phone, address.country)
     )
-    .optional(),
-});
+      ctx.addIssue({
+        code: 'custom',
+        path: ['phone'],
+        message: 'Enter a possible phone number for the address country',
+      });
+  });
 const senderSchema = z.discriminatedUnion('mode', [
   z.strictObject({
     mode: z.literal('explicit'),
-    address: addressSchema.extend({ country: z.literal('US') }),
+    address: addressSchema.safeExtend({ country: z.literal('US') }),
   }),
   z.strictObject({ mode: z.literal('account_default'), refreshId: z.uuidv4() }),
 ]);
@@ -44,8 +51,8 @@ const itemSchema = z.strictObject({
   description: text,
   quantity: z.number().int().positive().max(10000),
   unitValue: decimal,
-  currency: z.string().regex(/^[A-Z]{3}$/),
-  countryOfManufacture: country,
+  currency: currencyCodeSchema,
+  countryOfManufacture: countryCodeSchema,
   weight: decimal,
   hsCode: z
     .string()
@@ -57,7 +64,7 @@ const internationalSchema = z.strictObject({
   customsMode: z.enum(['summary', 'detailed']),
   totalValue: z.strictObject({
     amount: decimal,
-    currency: z.string().regex(/^[A-Z]{3}$/),
+    currency: currencyCodeSchema,
   }),
 });
 export const createQuoteSchema = z
@@ -76,7 +83,7 @@ export const createQuoteSchema = z
             insurance: z
               .strictObject({
                 amount: decimal,
-                currency: z.string().regex(/^[A-Z]{3}$/),
+                currency: currencyCodeSchema,
               })
               .nullable(),
           }),

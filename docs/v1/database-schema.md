@@ -547,18 +547,18 @@ Soft-deleted originals cannot be reopened through idempotency. No shipment row i
 Inputs retain decimal strings with up to nine integer and six fractional digits;
 positive values, 1–100 package groups, 1–10,000 boxes per group, and up to 100 customs
 items per group are application validation limits, not provider capability claims.
-Canonical conversion uses `decimal.js` arithmetic (1 in = 2.54 cm;
-1 lb = 0.45359237 kg) with six-decimal half-up rounding, without overwriting original
-units or values.
+Canonical conversion uses Math.js unit definitions with `BigNumber` values and
+six-decimal half-up rounding through `decimal.js`, without overwriting original units
+or values.
 
 Migration `1792886400000-InternationalQuoteOptions` adds
 `shipping_providers.used_internationally`, seeded `false` for Amazon Shipping and
 `true` for myUnishippers. It also adds immutable
 `quote_provider_attempts.conversion_snapshot`, which records the original values,
-provider values, target units, conversion constants, six-decimal precision, and
-half-up rounding used for that attempt. Application conversion uses the approved
-`decimal.js` dependency; original request strings remain unchanged. The same migration
-updates the attempt immutability trigger to protect the conversion snapshot.
+provider values, target units, Math.js converter/value type, six-decimal precision,
+and half-up rounding used for that attempt. Original request strings remain unchanged.
+The same migration updates the attempt immutability trigger to protect the conversion
+snapshot.
 
 Migration `1792800000000-OptionalPackageDimensions` permits the three normalized
 dimension columns to be null when myUnishippers request mode accepts an undimensioned

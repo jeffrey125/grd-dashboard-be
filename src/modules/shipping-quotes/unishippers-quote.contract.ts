@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { QuoteDecimal } from './quote-decimal.js';
 import { toProviderLength, toProviderWeight } from './quote-conversions.js';
+import { currencyCodeSchema, phoneNumbersMatch } from './quote-standards.js';
 import { randomUUID } from 'node:crypto';
 import type {
   ExecutionResult,
@@ -10,7 +11,7 @@ import { quoteFailure } from './quote-executor.js';
 
 const money = z.object({
   value: z.union([z.number().finite().nonnegative(), z.string()]),
-  unit: z.string().regex(/^[A-Z]{3}$/),
+  unit: currencyCodeSchema,
 });
 const timing = z.object({
   serviceDescription: z.string().min(1).max(200).optional(),
@@ -267,13 +268,14 @@ export function matchesUnishippersBrowserRequest(
       normalize(actual.contactList[0]?.lastName ?? '') ===
         normalize(expected.contactName)) &&
     (!expected.phone ||
-      (actual.contactList[0]?.phone ?? actual.phone ?? '').replace(
-        /\D/g,
-        '',
-      ) === expected.phone.replace(/\D/g, '')) &&
+      phoneNumbersMatch(
+        actual.contactList[0]?.phone ?? actual.phone ?? '',
+        expected.phone,
+        expected.country,
+      )) &&
     (!expected.phone ||
       actual.phone === undefined ||
-      actual.phone.replace(/\D/g, '') === expected.phone.replace(/\D/g, ''));
+      phoneNumbersMatch(actual.phone, expected.phone, expected.country));
   const [year, month, day] = job.input.shipDate.split('-');
   if (
     !(

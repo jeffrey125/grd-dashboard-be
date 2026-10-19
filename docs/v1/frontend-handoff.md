@@ -454,7 +454,8 @@ session, password-change, trusted-Origin and no-store policies apply.
 Input contains `idempotencyKey` (UUID), `shipDate` (YYYY-MM-DD, current/future in
 America/New_York), `destination`, `providers[]`, and `packageGroups[]`.
 Addresses contain `name,street,city,division,postalCode,country` plus optional
-`street2`; sender country is US. Country/currency inputs use uppercase codes.
+`street2`; sender country is US. Country and currency values must be assigned ISO 3166-1
+alpha-2 and ISO 4217 codes.
 Provider entries contain `code`, `sender`, and `options`. Sender is
 `{mode:explicit,address}` or `{mode:account_default,refreshId}`. Options contain
 `signature` (`none`, `signature`, `adult_signature`) and nullable
@@ -495,7 +496,7 @@ request mode omits the native `billedDimension` field. Browser mode drives the p
 full small-package form, including native quantities, package groups, converted
 dimensions/weight, addresses, and ship date. It never substitutes Quick Quote.
 Addresses accept optional `contactName` (100 characters) and `phone` (30 characters;
-10–15 digits with conventional phone punctuation). Browser quotes require receiver
+validated against the address country with libphonenumber metadata). Browser quotes require receiver
 contacts and contacts for an explicit sender; missing values return
 `contact_details_required`. Existing comparisons remain readable without these fields.
 `sender_company_too_long` failure is actionable: Copy to new comparison, choose

@@ -17,7 +17,8 @@ map USD customs and insurance values.
   Unsupported providers receive a durable `unsupported` attempt while eligible providers
   continue. Amazon is disabled in the form for international destinations.
 - Preserved original imperial or metric values and added immutable per-attempt conversion
-  snapshots with provider values, constants, six-decimal precision, and half-up rounding.
+  snapshots with Math.js `BigNumber` provider values, six-decimal precision, and half-up
+  rounding through `decimal.js`.
 - Mapped the verified myUnishippers Canada browser fields: destination country/province,
   label contents, total customs value, signature, and insured value per box. Request mode,
   non-USD values, and unsupported routes fail closed.
@@ -31,8 +32,9 @@ map USD customs and insurance values.
 ## Files Changed
 
 - `src/modules/shipping-quotes/quote.schemas.ts`, `quote.schemas.spec.ts`,
-  `quote-decimal.ts`, and `quote-provider-eligibility.ts`: international contracts,
-  exact totals, and shared provider policy.
+  `quote-decimal.ts`, `quote-standards.ts`, and `quote-provider-eligibility.ts`:
+  international contracts, library-backed standards, exact totals, and shared provider
+  policy.
 - `src/modules/shipping-quotes/quote-conversions.ts`, provider adapters, contracts, and
   fixture tests: exact documented conversions and verified provider mappings.
 - `src/modules/shipping-quotes/quote.service.ts`, repositories, executor, worker, entity,
@@ -41,20 +43,22 @@ map USD customs and insurance values.
 - `src/infrastructure/database/migrations/1792886400000-InternationalQuoteOptions.ts`,
   integration support, and schema tests: provider international capability and immutable
   attempt conversion snapshots.
-- Frontend `schemas.ts`, `quote-decimal.ts`, `quote-form.tsx`, detail page, and tests:
-  conditional international/customs UI, provider disabling, and exact displayed totals.
+- Frontend `schemas.ts`, `quote-decimal.ts`, `quote-standards.ts`, `quote-form.tsx`, detail
+  page, and tests: conditional international/customs UI, provider disabling, maintained
+  country/region selections, country-aware phone validation, and exact displayed totals.
 - `docs/v1/database-schema.md` and `docs/v1/shipping-quotes.md`: persistence,
   eligibility, precision, and verified-provider behavior.
-- `package.json` and `pnpm-lock.yaml` in both repositories: approved `decimal.js` use.
+- `package.json` and `pnpm-lock.yaml` in both repositories: approved `decimal.js`, Math.js,
+  libphonenumber, Validator.js, country/region data, and fast-check dependencies.
 - Previously approved audit changes in this working tree adopt Zod, Node timers, Nest
   CORS/SSE, RxJS, Bottleneck, TanStack Query, and `use-debounce` in their relevant areas.
 
 ## Verification
 
-- Backend `pnpm format && pnpm check`: passed formatting, lint, typecheck, 306 unit tests
-  in 32 files, and build after the final eligibility consolidation. The restricted
-  sandbox initially blocked three loopback notification tests with `listen EPERM`; the
-  unchanged gate passed with the required test-server permission.
+- Backend `pnpm format && pnpm check`: passed formatting, lint, typecheck, 309 unit tests
+  in 32 files, including generated customs-quantity and measurement round-trip properties,
+  and build. The restricted sandbox initially blocked three loopback notification tests
+  with `listen EPERM`; the unchanged gate passed with test-server permission.
 - Backend targeted API/provider/schema verification: 3 files and 40 tests passed after
   the final eligibility consolidation.
 - myUnishippers browser fixture: 11 tests passed, including international inputs and
@@ -62,7 +66,7 @@ map USD customs and insurance values.
 - Disposable PostgreSQL migration lifecycle: build plus 10 integration tests passed;
   all migrations applied, reverted, and reapplied without schema drift.
 - Frontend `pnpm format && pnpm check && pnpm build`: passed formatting, lint, typecheck,
-  Knip, 193 tests in 32 files, and production build. Vite retained its existing chunk-size
+  Knip, 194 tests in 32 files, and production build. Vite retained its existing chunk-size
   warning.
 - Local API `http://localhost:3013/api/v1`, frontend `http://localhost:5173/`, and the
   frontend API proxy all returned HTTP 200 and remain available for manual testing.
@@ -73,7 +77,10 @@ map USD customs and insurance values.
 - Later approved product decisions supersede the original ticket's narrower customs rule:
   users may choose a summary or enter detailed per-box items for every group.
 - Currency values remain decimal strings. `decimal.js` owns arithmetic and rounding;
-  JavaScript binary floating-point is not used for money or unit calculations.
+  Math.js `BigNumber` units own measurement conversion. JavaScript binary floating-point
+  is not used for money or unit calculations.
+- Validator.js owns ISO country/currency checks, libphonenumber owns country-aware phone
+  validation and comparison, and `country-region-data` owns address selection data.
 - `used_internationally` records carrier eligibility. Availability also requires a verified
   execution mode and currency mapping, so myUnishippers request mode is shown as unavailable
   and Amazon is unavailable internationally.
@@ -89,9 +96,7 @@ map USD customs and insurance values.
 - The full combined integration suite, whole-backend coverage, and opt-in container suite
   were not run for this change. The migration lifecycle and ticket-focused integration paths
   were run with disposable PostgreSQL.
-- Additional codebase-wide library replacements are recommendations outside SQ-V1-006 and
-  require separate production-dependency approval where applicable.
-- No commit, deployment, or semantic-version tag has been created.
+- No deployment or semantic-version tag has been created.
 
 ## Suggested Review Order
 
