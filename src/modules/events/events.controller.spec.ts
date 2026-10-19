@@ -30,10 +30,10 @@ describe('SSE bounded delivery and fresh authorization', () => {
       { events, start: vi.fn() } as unknown as EventsSource,
       { authenticate } as unknown as AuthService,
     );
-    controller.stream(
-      { headers: {} } as Request,
-      response as unknown as Response,
-    );
+    const subscription = controller
+      .stream({ headers: {} } as Request, response as unknown as Response)
+      .subscribe({ next: response.write, complete: response.end });
+    response.on('close', () => subscription.unsubscribe());
 
     return { events, authenticate, response };
   }
@@ -75,19 +75,28 @@ describe('SSE bounded delivery and fresh authorization', () => {
     });
 
     await vi.waitFor(() => expect(response.write).toHaveBeenCalledOnce());
-    expect(response.write).toHaveBeenCalledWith(
-      'event: tracking.changed\ndata: {"externalId":"8c70a1c2-1ba2-4b85-a973-97ca73c676e4","snapshotExternalId":"aa920a20-af06-46cd-bb22-4596857bcb20","observedAt":"2026-10-16T00:00:00.000Z"}\n\n',
-    );
+    expect(response.write).toHaveBeenCalledWith({
+      type: 'tracking.changed',
+      data: {
+        externalId: '8c70a1c2-1ba2-4b85-a973-97ca73c676e4',
+        snapshotExternalId: 'aa920a20-af06-46cd-bb22-4596857bcb20',
+        observedAt: '2026-10-16T00:00:00.000Z',
+      },
+    });
   });
 
   it('bounds queued events while authorization is slow and ignores late completion', async () => {
     const { events, response, authenticate } = stream();
+    await vi.waitFor(() => expect(response.write).toHaveBeenCalledOnce());
+    response.write.mockClear();
+    authenticate.mockClear();
     let resolve!: (value: unknown) => void;
     authenticate.mockReturnValue(
       new Promise((done) => {
         resolve = done;
       }),
     );
+    events.next({ type: 'resync' });
     await vi.waitFor(() => expect(authenticate).toHaveBeenCalledOnce());
     for (let count = 0; count < 101; count++) events.next({ type: 'resync' });
     expect(response.end).toHaveBeenCalledOnce();

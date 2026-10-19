@@ -96,6 +96,14 @@ export class AuthModule implements NestModule, OnApplicationBootstrap {
   ) {}
 
   configure(consumer: MiddlewareConsumer) {
+    this.adapter.httpAdapter?.enableCors({
+      origin: this.config.origins,
+      credentials: true,
+      methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type'],
+      // The origin policy must still validate preflight requests.
+      preflightContinue: true,
+    });
     consumer.apply(AuthBrowserMiddleware).forRoutes('{*path}');
   }
 

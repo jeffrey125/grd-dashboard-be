@@ -1,6 +1,6 @@
 import {
   Controller,
-  Get,
+  Sse,
   Inject,
   Param,
   ParseUUIDPipe,
@@ -24,18 +24,18 @@ export class QuoteEventsController {
     @Inject(QuoteService) private readonly quotes: QuoteService,
   ) {}
 
-  @Get(':externalId/events')
+  @Sse(':externalId/events')
   async stream(
     @Param('externalId', new ParseUUIDPipe({ version: '4' })) id: string,
     @Req() request: Request,
-    @Res() response: Response,
+    @Res({ passthrough: true }) response: Response,
   ) {
     // Shared staff history is intentional; deleted/missing comparisons are inaccessible.
     const comparisonId = id.toLowerCase();
 
     await this.quotes.find(comparisonId);
     const headers = fromNodeHeaders(request.headers);
-    eventStream(
+    return eventStream(
       response,
       this.events,
       async () => {

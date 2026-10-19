@@ -1,4 +1,21 @@
 import type { Response } from 'express';
+import type { MessageEvent } from '@nestjs/common';
+import {
+  EMPTY,
+  catchError,
+  concatMap,
+  defer,
+  endWith,
+  filter,
+  ignoreElements,
+  interval,
+  map,
+  merge,
+  of,
+  takeUntil,
+  takeWhile,
+  tap,
+} from 'rxjs';
 import type { EventsSource, LiveEvent } from './events.source.js';
 
 function eventData(event: LiveEvent) {
@@ -19,64 +36,33 @@ export function eventStream(
   authorize: () => Promise<boolean>,
   accepts: (event: LiveEvent) => boolean,
 ) {
-  response.set({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-store',
-    'X-Accel-Buffering': 'no',
-  });
-  response.flushHeaders();
+  return defer(() => {
+    let queued = 0;
 
-  let closed = false;
-  let queued = 0;
-  let pending = Promise.resolve();
+    events.start();
 
-  const close = () => {
-    if (closed) return;
-
-    closed = true;
-    clearInterval(timer);
-    subscription.unsubscribe();
-    response.off('close', close);
-    response.end();
-  };
-
-  const send = (event: LiveEvent) => {
-    if (closed || !accepts(event)) return;
-
-    if (++queued > 100 || response.writableLength > 65536) {
-      close();
-
-      return;
-    }
-
-    pending = pending
-      .then(async () => {
-        if (closed) return;
-
-        if (!(await authorize())) {
-          close();
-
-          return;
-        }
-
-        if (!closed)
-          response.write(
-            `event: ${event.type}\ndata: ${JSON.stringify(eventData(event))}\n\n`,
-          );
-      })
-      .catch(close)
-      .finally(() => {
+    return merge(
+      of<LiveEvent>({ type: 'resync' }),
+      events.events,
+      interval(15000).pipe(map((): LiveEvent => ({ type: 'heartbeat' }))),
+    ).pipe(
+      filter(accepts),
+      tap(() => {
+        // Application limits, independent of Nest's transport buffering.
+        if (++queued > 100 || response.writableLength > 65536)
+          throw new Error('Live event capacity exceeded');
+      }),
+      concatMap((event) =>
+        defer(async () => ({ event, allowed: await authorize() })),
+      ),
+      takeWhile(({ allowed }) => allowed),
+      map(({ event }): MessageEvent => {
         queued--;
-      });
-  };
-
-  const timer = setInterval(() => send({ type: 'heartbeat' }), 15000);
-  const subscription = events.events.subscribe({
-    next: send,
-    complete: () => queueMicrotask(close),
+        return { type: event.type, data: eventData(event) };
+      }),
+      takeUntil(events.events.pipe(ignoreElements(), endWith(true))),
+      // Authentication failures close silently; never serialize their diagnostics.
+      catchError(() => EMPTY),
+    );
   });
-
-  response.on('close', close);
-  send({ type: 'resync' });
-  events.start();
 }

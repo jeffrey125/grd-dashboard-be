@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Req, Res } from '@nestjs/common';
+import { Controller, Sse, Inject, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { fromNodeHeaders } from 'better-auth/node';
 import { AuthPolicy } from '@modules/auth/auth.policy.js';
@@ -14,10 +14,13 @@ export class EventsController {
     @Inject(AuthService) private readonly auth: AuthService,
   ) {}
 
-  @Get()
-  stream(@Req() request: Request, @Res() response: Response) {
+  @Sse()
+  stream(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const headers = fromNodeHeaders(request.headers);
-    eventStream(
+    return eventStream(
       response,
       this.events,
       async () => {

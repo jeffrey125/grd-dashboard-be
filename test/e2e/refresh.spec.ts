@@ -159,7 +159,7 @@ async function stream(sessionCookie = cookie) {
       const end = buffer.indexOf('\n\n');
 
       if (end >= 0) {
-        const event = buffer.slice(0, end);
+        const event = buffer.slice(0, end).trimStart();
 
         buffer = buffer.slice(end + 2);
 
@@ -211,7 +211,8 @@ it('streams committed changes, reconnects with resync, and closes revoked sessio
       [snapshots[0].id, id],
     );
 
-    expect(await first.next('tracking.changed')).toBe(
+    const trackingFrame = await first.next('tracking.changed');
+    expect(trackingFrame?.replace(/^id: .*\n/gm, '')).toBe(
       `event: tracking.changed\ndata: {"externalId":"${id}","snapshotExternalId":"${snapshots[0].external_id}","observedAt":"2026-10-16T00:00:00.000Z"}`,
     );
 

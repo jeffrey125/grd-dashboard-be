@@ -26,11 +26,6 @@ export class AuthBrowserMiddleware implements NestMiddleware {
       return;
     }
 
-    if (origin) {
-      response.setHeader('Access-Control-Allow-Origin', origin);
-      response.setHeader('Access-Control-Allow-Credentials', 'true');
-    }
-
     if (request.method === 'OPTIONS') {
       if (!origin) {
         response.status(403).end();
@@ -38,11 +33,6 @@ export class AuthBrowserMiddleware implements NestMiddleware {
         return;
       }
 
-      response.setHeader(
-        'Access-Control-Allow-Methods',
-        'GET, HEAD, POST, PATCH, DELETE, OPTIONS',
-      );
-      response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       response.status(204).end();
 
       return;

@@ -1,7 +1,7 @@
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import type { PostgresDriver } from 'typeorm/driver/postgres/PostgresDriver.js';
-import { Subject } from 'rxjs';
+import { Subject, type Subscription, timer } from 'rxjs';
 import { EventsSource, changeSchema, type LiveEvent } from './events.source.js';
 import { ProjectLogger } from '@infrastructure/logging/logging.types.js';
 
@@ -21,7 +21,7 @@ export class TypeOrmEventsSource
   readonly events = new Subject<LiveEvent>();
   private client?: ListenerClient;
   private connecting?: Promise<void>;
-  private retry?: ReturnType<typeof setTimeout>;
+  private retry?: Subscription;
   private stopped = false;
 
   constructor(
@@ -105,15 +105,16 @@ export class TypeOrmEventsSource
       'Live event listener unavailable; clients must resync',
     );
     this.events.next({ type: 'resync' });
-    this.retry = setTimeout(() => {
+    this.retry = timer(1000).subscribe(() => {
       this.retry = undefined;
       this.start();
-    }, 1000);
+    });
   }
 
   async onModuleDestroy() {
     this.stopped = true;
-    clearTimeout(this.retry);
+    this.retry?.unsubscribe();
+    this.retry = undefined;
     this.events.complete();
     this.disconnected();
     await this.connecting;
