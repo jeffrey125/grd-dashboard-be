@@ -443,7 +443,7 @@ export class ShippingQuotesEntity {
   @Column({ type: 'varchar', nullable: false, length: 10 })
   clearance_status: string;
 
-  @Column({ type: 'jsonb', nullable: false, default: () => "'[]'::jsonb" })
+  @Column({ type: 'jsonb', nullable: false, default: [] })
   group_contributions: unknown[];
 
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
