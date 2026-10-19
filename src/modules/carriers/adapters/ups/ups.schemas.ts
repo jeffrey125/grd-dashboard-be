@@ -9,15 +9,13 @@ const date = z
   .string()
   .regex(/^\d{8}$/)
   .refine((value) => {
-    const year = Number(value.slice(0, 4));
-    const month = Number(value.slice(4, 6));
-    const day = Number(value.slice(6, 8));
-    const parsed = new Date(Date.UTC(year, month - 1, day));
-
     return (
-      parsed.getUTCFullYear() === year &&
-      parsed.getUTCMonth() === month - 1 &&
-      parsed.getUTCDate() === day
+      value.slice(0, 4) >= '0100' &&
+      z.iso
+        .date()
+        .safeParse(
+          `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`,
+        ).success
     );
   });
 

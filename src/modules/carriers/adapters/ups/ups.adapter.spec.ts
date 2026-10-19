@@ -15,6 +15,28 @@ import { LoggingModule } from '@infrastructure/logging/logging.module.js';
 import { testEnvironment } from '@test/support/environment.js';
 import { UPS_HTTP_ADAPTER } from './ups.client.js';
 
+// Vitest's fake clock controls global timers, not native promise timers.
+vi.mock('./ups.async.js', async (original) => {
+  const actual = await original<typeof import('./ups.async.js')>();
+  const { firstValueFrom, timer, fromEvent, race, mergeMap, throwError } =
+    await import('rxjs');
+
+  return {
+    ...actual,
+    delay: async (ms: number, signal: AbortSignal) => {
+      signal.throwIfAborted();
+      await firstValueFrom(
+        race(
+          timer(ms),
+          fromEvent(signal, 'abort').pipe(
+            mergeMap(() => throwError(() => signal.reason)),
+          ),
+        ),
+      );
+    },
+  };
+});
+
 const reference = '1Z999AA10123456784';
 const body = {
   trackResponse: {
