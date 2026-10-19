@@ -438,7 +438,7 @@ See backend test examples in `test/e2e/auth.spec.ts`, `shipments.spec.ts`,
 `carriers.spec.ts` and `refresh.spec.ts`. Tests are evidence, not a reason to copy
 their fixture credentials into frontend configuration.
 
-## SQ-V1-002 saved quote comparisons
+## SQ-V1-003 asynchronous quote comparisons
 
 Staff and Admin can create, list, and read all non-deleted comparisons. Existing
 session, password-change, trusted-Origin and no-store policies apply.
@@ -465,9 +465,39 @@ per-box items with `description,quantity,unitValue,currency,countryOfManufacture
 weight` and optional/blank `hsCode`. Unknown support never implies included coverage.
 
 Comparison returns `externalId,createdAt,createdBy` (actor public UUID), `input`,
-`senders`, `warnings`, `status:saved`, and `ratesRun:false`. Resolved senders contain
+`senders`, `warnings`, `status`, `ratesRun`, and `attempts`. Resolved senders contain
 `code,address,mode,retrievedAt`; explicit addresses have null retrieval time.
-No rate execution, SSE, retry, purchase, deletion or provider-admin endpoint is added.
+New comparisons start `queued`; historical `saved` records remain unchanged.
+Status is `saved|queued|running|completed|failed`; completed means at least one
+successful provider after all attempts finish, so inspect each attempt for partial
+failure. `ratesRun` indicates an execution started, not a successful real quote.
+Retry, purchase, deletion and provider-admin endpoints remain deferred.
+
+Each attempt contains `externalId,provider,status,attemptNumber,executionMode,
+startedAt,completedAt,recoveryCount,outcome,reasonCode,simulated,quotes`.
+Mode is null until execution; timestamps are nullable ISO UTC strings. Outcome is
+null until terminal, then `success|validation_failed|unsupported|timeout|
+authentication_failed|failed`. Diagnostics and lease ownership remain private.
+Known reasons are `adapter_unavailable,provider_disabled,validation_failed,
+unsupported,timeout,authentication_failed,provider_failed,recovery_exhausted`.
+Unknown reasons must use generic safe UI copy.
+
+Each quote contains `carrier,service,transportationTotal,currency,estimateMethod,
+transitDescription,retrievedAt,expiresAt,optionCoverage,dutyStatus,taxStatus,
+clearanceStatus`. Money is an exact decimal string; missing transit/expiry is null.
+Demo results are always `simulated:true` on the attempt and must be visibly labelled
+**Simulated rates — not provider quotes**. Requested option coverage remains unverified.
+
+`GET /quote-comparisons/:externalId/events` is credentialed SSE. It emits
+`quote.changed` with only `{externalId}`, `resync` with `{}` on connect/listener
+recovery, and 15-second `heartbeat` with `{}`. Every frame rechecks the session
+and comparison visibility. All unrestricted employees share non-deleted history;
+streams filter to the requested comparison and close if access is lost.
+Events are transient hints, without replay or sequence guarantees. Subscribe while
+queued/running; fetch authoritative detail after open/resync/change. Serialize reads
+and reread if another hint arrives during a request. The frontend also refreshes
+active comparisons every 15 seconds to recover missed signals, closes streams on
+session loss/unmount/completion, and retries failed connections after session recheck.
 
 The UI lives at `/quotes`, `/quotes/new`, and `/quotes/:comparisonId`. Saved details
 are read-only. Copy uses `/quotes/new?copy=<uuid>`, creates a fresh save key, refreshes

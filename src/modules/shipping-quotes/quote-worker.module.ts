@@ -1,0 +1,39 @@
+import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
+import { DatabaseModule } from '@infrastructure/database/database.module.js';
+import { RuntimeConfigModule } from '@config/config.module.js';
+import type { RuntimeConfiguration } from '@config/configuration.js';
+import { QuoteExecutionRepository } from './quote-execution.repository.js';
+import { TypeOrmQuoteExecutionRepository } from './typeorm-quote-execution.repository.js';
+import {
+  QUOTE_ADAPTERS,
+  QuoteWorker,
+  type QuoteAdapters,
+} from './quote.worker.js';
+import { FixtureQuoteAdapter } from './fixture-quote.adapter.js';
+
+@Module({
+  imports: [DatabaseModule, RuntimeConfigModule],
+  providers: [
+    {
+      provide: QuoteExecutionRepository,
+      inject: [DataSource],
+      useFactory: (source: DataSource) =>
+        new TypeOrmQuoteExecutionRepository(source),
+    },
+    {
+      provide: QUOTE_ADAPTERS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): QuoteAdapters => {
+        const runtime = config.getOrThrow<RuntimeConfiguration>('runtime');
+        return (code) =>
+          runtime.quoteDemo
+            ? new FixtureQuoteAdapter(runtime.quoteScenarios[code])
+            : undefined;
+      },
+    },
+    QuoteWorker,
+  ],
+})
+export class QuoteWorkerModule {}

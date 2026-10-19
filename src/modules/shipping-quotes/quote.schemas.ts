@@ -108,11 +108,40 @@ export type SenderSnapshot = {
 };
 export type Comparison = {
   externalId: string;
-  status: 'saved';
-  ratesRun: false;
+  status: 'saved' | 'queued' | 'running' | 'completed' | 'failed';
+  ratesRun: boolean;
   createdAt: string;
   createdBy: string;
   input: QuoteInput;
   senders: SenderSnapshot[];
   warnings: string[];
+  attempts: QuoteAttempt[];
+};
+
+export type QuoteAttempt = {
+  externalId: string;
+  provider: ProviderCode;
+  status: Comparison['status'];
+  attemptNumber: number;
+  executionMode: 'request' | 'browser' | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  recoveryCount: number;
+  outcome: string | null;
+  reasonCode: string | null;
+  simulated: boolean;
+  quotes: Array<{
+    carrier: string;
+    service: string;
+    transportationTotal: string;
+    currency: string;
+    estimateMethod: 'native' | 'calculated';
+    transitDescription: string | null;
+    retrievedAt: string;
+    expiresAt: string | null;
+    optionCoverage: string;
+    dutyStatus: string;
+    taxStatus: string;
+    clearanceStatus: string;
+  }>;
 };

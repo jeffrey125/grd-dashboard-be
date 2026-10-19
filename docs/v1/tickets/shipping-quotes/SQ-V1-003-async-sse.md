@@ -3,8 +3,10 @@
 ## Status
 
 - Depends on: SQ-V1-002
-- State: ready-for-agent
+- State: implemented; ticket-specific verification passes, eight unrelated backend baseline failures remain
 - Repositories: `grd-dashboard-be`, `grd-dashboard-fe`
+
+Implementation evidence and approved decisions: [SQ-V1-003 summary](../../implementation-summary/SQ-V1-003-implementation-summary.md).
 
 ## What to build
 

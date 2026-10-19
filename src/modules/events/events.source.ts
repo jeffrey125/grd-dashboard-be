@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 const entityChangeSchema = z
   .object({
-    type: z.enum(['shipment.changed', 'run.changed']),
+    type: z.enum(['shipment.changed', 'run.changed', 'quote.changed']),
     externalId: z.uuid(),
   })
   .strict();

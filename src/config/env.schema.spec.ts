@@ -4,6 +4,22 @@ import { createConfiguration } from './configuration.js';
 import { ConfigurationError, validateEnvironment } from './env.schema.js';
 
 describe('runtime configuration', () => {
+  it('rejects simulated rates in production and unknown demo scenarios', () => {
+    expect(() =>
+      createConfiguration({
+        ...testEnvironment,
+        NODE_ENV: 'production',
+        QUOTE_DEMO_MODE: 'true',
+      }),
+    ).toThrow('QUOTE_DEMO_MODE');
+    expect(() =>
+      createConfiguration({ ...testEnvironment, QUOTE_DEMO_AMAZON: 'unknown' }),
+    ).toThrow('QUOTE_DEMO_AMAZON');
+    expect(
+      createConfiguration({ ...testEnvironment, QUOTE_DEMO_MODE: 'true' })
+        .quoteDemo,
+    ).toBe(true);
+  });
   it('maps DB_* values and preserves literal passwords', () => {
     expect(
       createConfiguration({
@@ -13,6 +29,8 @@ describe('runtime configuration', () => {
       }),
     ).toEqual({
       environment: 'test',
+      quoteDemo: false,
+      quoteScenarios: { amazon: 'success', unishippers: 'validation_failed' },
       logLevel: 'silent',
       port: 3137,
       database: {

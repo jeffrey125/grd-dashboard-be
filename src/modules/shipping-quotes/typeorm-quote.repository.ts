@@ -7,9 +7,22 @@ import type {
 } from './quote.schemas.js';
 import { QUOTE_REPOSITORY, type QuoteRepository } from './quote.repository.js';
 
-const projection = `SELECT q.external_id AS "externalId", q.created_at AS "createdAt", u.external_id AS "createdBy", q.input, q.senders, q.deleted_at AS "deletedAt" FROM quote_requests q JOIN auth_users u ON u.id=q.created_by_id`;
+const projection = `SELECT q.external_id AS "externalId", q.status, q.created_at AS "createdAt", u.external_id AS "createdBy", q.input, q.senders, q.deleted_at AS "deletedAt",
+  COALESCE((SELECT jsonb_agg(jsonb_build_object(
+    'externalId',a.external_id,'provider',p.code,'status',a.status,'attemptNumber',a.attempt_number,
+    'executionMode',a.execution_mode,'startedAt',a.started_at,'completedAt',a.completed_at,
+    'recoveryCount',a.recovery_count,'outcome',a.outcome,'reasonCode',a.reason_code,'simulated',a.simulated,
+    'quotes',COALESCE((SELECT jsonb_agg(jsonb_build_object(
+      'carrier',r.carrier,'service',r.service,'transportationTotal',r.transportation_total::text,
+      'currency',r.currency,'estimateMethod',r.estimate_method,'transitDescription',r.transit_description,
+      'retrievedAt',r.retrieved_at,'expiresAt',r.expires_at,'optionCoverage',r.option_coverage,
+      'dutyStatus',r.duty_status,'taxStatus',r.tax_status,'clearanceStatus',r.clearance_status
+    ) ORDER BY r.id) FROM shipping_quotes r WHERE r.attempt_id=a.id),'[]'::jsonb)
+  ) ORDER BY a.id) FROM quote_provider_attempts a JOIN shipping_accounts s ON s.id=a.account_id
+    JOIN shipping_providers p ON p.id=s.provider_id WHERE a.request_id=q.id),'[]'::jsonb) AS attempts
+  FROM quote_requests q JOIN auth_users u ON u.id=q.created_by_id`;
 function comparison(
-  row: Omit<Comparison, 'status' | 'ratesRun' | 'warnings'>,
+  row: Omit<Comparison, 'ratesRun' | 'warnings'>,
 ): Comparison {
   const { deletedAt, ...publicRow } = row as typeof row & {
     deletedAt: Date | null;
@@ -21,9 +34,20 @@ function comparison(
   return {
     ...publicRow,
     createdAt: new Date(row.createdAt).toISOString(),
-    status: 'saved',
-    ratesRun: false,
-    warnings: ['Provider support unverified — no rates run'],
+    ratesRun: row.attempts.some((a) => a.startedAt !== null),
+    attempts: row.attempts.map((a) => ({
+      ...a,
+      startedAt: a.startedAt ? new Date(a.startedAt).toISOString() : null,
+      completedAt: a.completedAt ? new Date(a.completedAt).toISOString() : null,
+      quotes: a.quotes.map((q) => ({
+        ...q,
+        retrievedAt: new Date(q.retrievedAt).toISOString(),
+        expiresAt: q.expiresAt ? new Date(q.expiresAt).toISOString() : null,
+      })),
+    })),
+    warnings: row.attempts.some((a) => a.simulated)
+      ? ['Simulated rates — not provider quotes']
+      : ['Provider support unverified'],
   };
 }
 export class TypeOrmQuoteRepository implements QuoteRepository {
@@ -86,7 +110,7 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
           'Selected provider is disabled or unavailable',
         );
       const [row] = await manager.query(
-        'INSERT INTO quote_requests(idempotency_key,created_by_id,input,senders) VALUES ($1,$2,$3,$4) RETURNING external_id',
+        "INSERT INTO quote_requests(idempotency_key,created_by_id,input,senders,status) VALUES ($1,$2,$3,$4,'queued') RETURNING external_id",
         [
           input.idempotencyKey,
           actorId,
@@ -130,7 +154,7 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
       }
       for (const sender of senders)
         await manager.query(
-          `INSERT INTO quote_provider_attempts(request_id,account_id,sender,execution_mode,status) SELECT $1,a.id,$2,p.execution_mode,'saved' FROM shipping_accounts a JOIN shipping_providers p ON p.id=a.provider_id WHERE p.code=$3`,
+          `INSERT INTO quote_provider_attempts(request_id,account_id,sender,execution_mode,status) SELECT $1,a.id,$2,NULL,'queued' FROM shipping_accounts a JOIN shipping_providers p ON p.id=a.provider_id WHERE p.code=$3`,
           [requestId, JSON.stringify(sender), sender.code],
         );
       const [saved] = await manager.query(

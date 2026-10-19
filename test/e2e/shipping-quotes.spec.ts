@@ -70,6 +70,7 @@ describe('Saved quote comparisons HTTP API', () => {
     app = module.createNestApplication({ logger: false });
     configureApiRoutes(app);
     await app.init();
+    await app.listen(0, '127.0.0.1');
     cookie = await administratorCookie(app);
   });
 
@@ -88,7 +89,7 @@ describe('Saved quote comparisons HTTP API', () => {
       .send(body)
       .expect(201);
     expect(saved.body.comparison).toMatchObject({
-      status: 'saved',
+      status: 'queued',
       ratesRun: false,
       input: body,
     });
@@ -147,7 +148,7 @@ describe('Saved quote comparisons HTTP API', () => {
         .expect(400);
   });
 
-  it('makes snapshot input immutable in PostgreSQL and creates no queued work or shipments', async () => {
+  it('makes snapshot input immutable in PostgreSQL and queues attempts without creating shipments', async () => {
     const body = input();
     const saved = await request(app.getHttpServer() as Server)
       .post('/api/v1/quote-comparisons')
@@ -164,7 +165,8 @@ describe('Saved quote comparisons HTTP API', () => {
     const [counts] = await db.source.query(
       "SELECT (SELECT count(*)::int FROM shipments) shipments, (SELECT count(*)::int FROM quote_provider_attempts WHERE status IN ('queued','running')) active",
     );
-    expect(counts).toEqual({ shipments: 0, active: 0 });
+    expect(counts.shipments).toBe(0);
+    expect(counts.active).toBeGreaterThan(0);
   });
   it('preserves the reviewed default even after another refresh and fails closed on refresh errors', async () => {
     let current = { ...address };
@@ -281,5 +283,136 @@ describe('Saved quote comparisons HTTP API', () => {
     await db.source.query(
       "UPDATE shipping_providers SET enabled=true WHERE code='amazon'",
     );
+  });
+
+  it('isolates comparison streams, refetches after reconnect, and closes revoked or inaccessible resources', async () => {
+    const save = async () =>
+      (
+        await request(app.getHttpServer() as Server)
+          .post('/api/v1/quote-comparisons')
+          .set('Cookie', cookie)
+          .set('Origin', 'http://dashboard.example.test')
+          .send(input())
+          .expect(201)
+      ).body.comparison.externalId as string;
+    const firstId = await save();
+    const otherId = await save();
+    await request(app.getHttpServer() as Server)
+      .get(`/api/v1/quote-comparisons/${firstId}/events`)
+      .expect(401);
+    await request(app.getHttpServer() as Server)
+      .get(`/api/v1/quote-comparisons/${randomUUID()}/events`)
+      .set('Cookie', cookie)
+      .expect(404);
+
+    const address = (app.getHttpServer() as Server).address();
+    if (!address || typeof address === 'string') throw new Error('No listener');
+    const connect = async () => {
+      const controller = new AbortController();
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/api/v1/quote-comparisons/${firstId.toUpperCase()}/events`,
+        {
+          headers: { Cookie: cookie },
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(25000),
+          ]),
+        },
+      );
+      expect(response.status).toBe(200);
+      const frames: string[] = [];
+      let ended = false;
+      const reader = response.body!.getReader();
+      const pump = (async () => {
+        let buffer = '';
+        const decoder = new TextDecoder();
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          let end: number;
+          while ((end = buffer.indexOf('\n\n')) >= 0) {
+            frames.push(buffer.slice(0, end));
+            buffer = buffer.slice(end + 2);
+          }
+        }
+      })()
+        .catch(() => undefined)
+        .finally(() => {
+          ended = true;
+        });
+      return {
+        frames,
+        ended: () => ended,
+        close: async () => {
+          controller.abort();
+          await pump;
+        },
+      };
+    };
+    const first = await connect();
+    try {
+      await vi.waitFor(() =>
+        expect(
+          first.frames.filter((f) => f.startsWith('event: resync')),
+        ).toHaveLength(2),
+      );
+      await db.source.query(
+        `UPDATE quote_provider_attempts SET status='failed',outcome='failed',reason_code='adapter_unavailable',completed_at=now()
+        WHERE request_id IN (SELECT id FROM quote_requests WHERE external_id=ANY($1::uuid[]))`,
+        [[otherId, firstId]],
+      );
+      await vi.waitFor(() =>
+        expect(first.frames.some((f) => f.includes(firstId))).toBe(true),
+      );
+      expect(first.frames.join('')).not.toContain(otherId);
+      expect(first.frames.join('')).not.toContain('sender');
+    } finally {
+      await first.close();
+    }
+
+    const second = await connect();
+    try {
+      await vi.waitFor(() =>
+        expect(second.frames.some((f) => f.startsWith('event: resync'))).toBe(
+          true,
+        ),
+      );
+      const snapshot = await request(app.getHttpServer() as Server)
+        .get(`/api/v1/quote-comparisons/${firstId}`)
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(snapshot.body.attempts[0].reasonCode).toBe('adapter_unavailable');
+      await db.source.query(
+        'UPDATE quote_requests SET deleted_at=now() WHERE external_id=$1',
+        [firstId],
+      );
+      await db.source.query("SELECT pg_notify('grd_changes',$1)", [
+        JSON.stringify({ type: 'quote.changed', externalId: firstId }),
+      ]);
+      await vi.waitFor(() => expect(second.ended()).toBe(true));
+    } finally {
+      await second.close();
+    }
+
+    await db.source.query(
+      'UPDATE quote_requests SET deleted_at=NULL WHERE external_id=$1',
+      [firstId],
+    );
+    const third = await connect();
+    try {
+      await vi.waitFor(() => expect(third.frames.length).toBeGreaterThan(0));
+      await request(app.getHttpServer() as Server)
+        .post('/api/v1/auth/sign-out')
+        .set('Cookie', cookie)
+        .set('Origin', 'http://dashboard.example.test')
+        .expect(204);
+      await db.source.query("SELECT pg_notify('grd_changes',$1)", [
+        JSON.stringify({ type: 'quote.changed', externalId: firstId }),
+      ]);
+      await vi.waitFor(() => expect(third.ended()).toBe(true));
+    } finally {
+      await third.close();
+    }
   });
 });

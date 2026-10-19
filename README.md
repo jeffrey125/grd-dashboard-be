@@ -187,7 +187,7 @@ rate limits are not multi-replica-safe. See the [release gates](docs/v1/release-
 before rollout, including trusted proxy/client-IP handling, TLS/CA mounting,
 migration control, backups, monitoring, and remaining frontend API gaps.
 
-### Quote comparisons (SQ-V1-002)
+### Quote comparisons (SQ-V1-003)
 
 Apply the reviewed quote migration before using `/api/v1/quote-comparisons`.
 Saving explicit senders needs only the API and PostgreSQL. Account-default refresh
@@ -197,3 +197,28 @@ also needs the existing worker process, Playwright Chromium, and environment-onl
 rates. Authentication challenges or missing/default-address contracts require
 explicit sender entry; no account address is modified. See the frontend handoff
 for full input/response shapes, refresh lifetime, and failure behavior.
+
+New comparisons now queue provider attempts in the save transaction. The single
+worker scans every second, executes up to two different accounts concurrently,
+and limits each attempt to 90 seconds within a 120-second lease. One expired
+lease is recovered; the next expiry is terminal. Old `saved` comparisons remain
+unchanged; use Copy to new to execute them. Apply migration
+`1792627200000-QuoteExecution` before starting the updated API/worker.
+
+Real rate adapters arrive in SQ-V1-004/005. Until then, normal execution returns
+`adapter_unavailable`. For a local demonstration only, set `QUOTE_DEMO_MODE=true`:
+production configuration rejects it. Optional `QUOTE_DEMO_AMAZON` and
+`QUOTE_DEMO_UNISHIPPERS` select `success`, `validation_failed`, `unsupported`,
+`timeout`, `auth_replay`, `authentication_failed`, or `failed`. Defaults are
+Amazon success and myUnishippers validation failure. Simulated results remain
+labelled in saved history, even after demo mode is disabled. Demo mode replaces rate
+execution only; account-default refresh and tracking retain their live behavior.
+The isolated harness below avoids provider I/O. Existing tracking-worker credential/enablement
+requirements still apply when starting the complete worker.
+
+An isolated full-stack demo (disposable PostgreSQL, no tracking/provider I/O) is
+available through the frontend harness after `pnpm build` here:
+`FE_TEST_QUOTE_DEMO=true FE_TEST_API_PORT=3013 node scripts/auth-backend.mjs`
+from `../grd-dashboard-fe`. Start its UI with
+`VITE_API_ORIGIN=http://localhost:3013 pnpm exec vite --host localhost --port 5173 --strictPort`.
+The fixture account is `frontend-staff@example.test` / `staff fixture password`.

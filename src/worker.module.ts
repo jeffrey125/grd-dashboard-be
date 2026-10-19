@@ -1,4 +1,5 @@
 import { SenderDefaultsWorkerModule } from '@modules/shipping-quotes/sender-defaults-worker.module.js';
+import { QuoteWorkerModule } from '@modules/shipping-quotes/quote-worker.module.js';
 import { Module } from '@nestjs/common';
 import { RuntimeConfigModule } from '@config/config.module.js';
 import { ApplicationCacheModule } from '@infrastructure/cache/application-cache.module.js';
@@ -16,6 +17,7 @@ import { TrackingWorkerModule } from '@modules/tracking/tracking-worker.module.j
     ReadinessModule,
     TrackingWorkerModule,
     SenderDefaultsWorkerModule,
+    QuoteWorkerModule,
   ],
 })
 export class WorkerModule {}

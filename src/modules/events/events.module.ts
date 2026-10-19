@@ -9,5 +9,6 @@ import { EventsController } from './events.controller.js';
   imports: [DatabaseModule, AuthModule],
   providers: [{ provide: EventsSource, useClass: TypeOrmEventsSource }],
   controllers: [EventsController],
+  exports: [EventsSource],
 })
 export class EventsModule {}

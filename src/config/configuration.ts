@@ -13,6 +13,11 @@ export function createConfiguration(environment: Record<string, unknown>) {
 
   return {
     environment: env.NODE_ENV,
+    quoteDemo: env.QUOTE_DEMO_MODE === 'true',
+    quoteScenarios: {
+      amazon: env.QUOTE_DEMO_AMAZON,
+      unishippers: env.QUOTE_DEMO_UNISHIPPERS,
+    },
     logLevel: env.LOG_LEVEL ?? defaultLogLevel[env.NODE_ENV],
     port: env.PORT,
     database: {

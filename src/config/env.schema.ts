@@ -6,6 +6,15 @@ const port = z
   .transform(Number)
   .pipe(z.int().min(1).max(65535));
 const requiredText = z.string().trim().min(1);
+const quoteScenario = z.enum([
+  'success',
+  'validation_failed',
+  'unsupported',
+  'timeout',
+  'auth_replay',
+  'authentication_failed',
+  'failed',
+]);
 
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'silent'] as const;
 
@@ -17,6 +26,9 @@ const environmentSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
+    QUOTE_DEMO_MODE: z.enum(['true', 'false']).default('false'),
+    QUOTE_DEMO_AMAZON: quoteScenario.default('success'),
+    QUOTE_DEMO_UNISHIPPERS: quoteScenario.default('validation_failed'),
     PORT: port.default(3000),
     DB_HOST: requiredText,
     DB_PORT: port.default(5432),
@@ -31,6 +43,10 @@ const environmentSchema = z
       .transform((value) => value || undefined)
       .optional(),
   })
+  .refine(
+    (env) => env.QUOTE_DEMO_MODE !== 'true' || env.NODE_ENV !== 'production',
+    { path: ['QUOTE_DEMO_MODE'] },
+  )
   .refine((env) => !env.DB_SSL_CA_FILE || env.DB_SSL_MODE === 'verify-full', {
     path: ['DB_SSL_CA_FILE'],
   });
@@ -38,6 +54,10 @@ const environmentSchema = z
 const guidance: Record<keyof z.infer<typeof environmentSchema>, string> = {
   NODE_ENV: 'must be development, test, or production',
   LOG_LEVEL: 'must be debug, info, warn, error, or silent',
+  QUOTE_DEMO_MODE:
+    'must be true or false; demo execution is forbidden in production',
+  QUOTE_DEMO_AMAZON: 'must be a supported fixture scenario',
+  QUOTE_DEMO_UNISHIPPERS: 'must be a supported fixture scenario',
   PORT: 'must be an integer from 1 to 65535',
   DB_HOST: 'is required and must not be blank',
   DB_PORT: 'must be an integer from 1 to 65535',

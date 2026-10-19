@@ -1,0 +1,56 @@
+import type {
+  ProviderCode,
+  QuoteInput,
+  SenderSnapshot,
+} from './quote.schemas.js';
+
+export interface LeasedQuote {
+  id: string;
+  requestId: string;
+  accountId: number;
+  owner: string;
+  code: ProviderCode;
+  mode: 'request' | 'browser';
+  enabled: boolean;
+  input: QuoteInput;
+  sender: SenderSnapshot;
+  reloginCount: 0 | 1;
+}
+
+export type QuoteOutcome =
+  | 'success'
+  | 'validation_failed'
+  | 'unsupported'
+  | 'timeout'
+  | 'authentication_failed'
+  | 'failed';
+
+export type QuoteReason =
+  | 'validation_failed'
+  | 'unsupported'
+  | 'timeout'
+  | 'authentication_failed'
+  | 'provider_failed'
+  | 'adapter_unavailable'
+  | 'provider_disabled'
+  | 'recovery_exhausted';
+
+export interface ExecutionResult {
+  outcome: QuoteOutcome;
+  reason: QuoteReason | null;
+  simulated: boolean;
+  relogins: 0 | 1;
+  quotes: Array<{
+    carrier: string;
+    service: string;
+    total: string;
+    currency: string;
+    estimateMethod: 'native' | 'calculated';
+  }>;
+}
+
+export abstract class QuoteExecutionRepository {
+  abstract claim(leaseMs: number): Promise<LeasedQuote | null>;
+  abstract finish(job: LeasedQuote, result: ExecutionResult): Promise<boolean>;
+  abstract reserveRelogin(job: LeasedQuote): Promise<boolean>;
+}
