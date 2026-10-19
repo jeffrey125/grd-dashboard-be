@@ -140,7 +140,7 @@ function unishippersLoginPage(challenge: boolean) {
   return html(`<!doctype html>
     <div role="alert">${challenge ? 'Additional verification required' : ''}</div>
     <div id="email-panel">
-      <label>Email<input id="email" type="email"></label>
+      <label>Email<input id="username" name="username" type="email"></label>
       <button id="continue-email" type="button">Continue</button>
     </div>
     <div id="password-panel" hidden>
