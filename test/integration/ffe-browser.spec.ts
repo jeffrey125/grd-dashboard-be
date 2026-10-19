@@ -1,4 +1,7 @@
 import { chromium, type Browser } from 'playwright';
+import { createServer, type Server } from 'node:http';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FfeAdapter } from '@modules/carriers/adapters/ffe/ffe.adapter.js';
 import { FfeConfiguration } from '@modules/carriers/adapters/ffe/ffe.config.js';
@@ -6,11 +9,14 @@ import { FfeConfiguration } from '@modules/carriers/adapters/ffe/ffe.config.js';
 describe('FFE UI-driven tracking in real Chromium', () => {
   let adapter: FfeAdapter;
   let browser: Browser;
+  let server: Server;
   const signal = new AbortController().signal;
 
   afterEach(async () => {
     await adapter?.onModuleDestroy();
     await browser?.close();
+    server?.closeAllConnections();
+    await new Promise<void>((resolve) => server?.close(() => resolve()));
   });
 
   async function fixture(
@@ -27,116 +33,94 @@ describe('FFE UI-driven tracking in real Chromium', () => {
     const calls: string[] = [];
     let expired = false;
 
-    adapter = new FfeAdapter(
-      new FfeConfiguration({
-        FFE_URL: 'https://www.ffeinc.com/Customer/ShipmentTracking',
-        FFE_USERNAME: 'fixture',
-        FFE_PASSWORD: 'PRIVATE',
-      }),
-      http,
-      async () => {
-        browser = await chromium.launch({ headless: true });
+    // Use real loopback redirects. Playwright route interception and the
+    // adapter's CDP Fetch interception otherwise compete for redirected requests.
+    server = createServer(async (request, response) => {
+      const path = new URL(request.url!, 'http://fixture.test').pathname;
+      calls.push(path);
 
-        const original = browser.newContext.bind(browser);
+      if (path === '/Account/Login') {
+        if (request.method === 'POST') {
+          request.resume();
+          response.writeHead(302, { location: '/Customer' });
+          response.end();
+          return;
+        }
 
-        browser.newContext = async (settings) => {
-          const context = await original(settings);
+        response.setHeader('content-type', 'text/html');
+        response.end(
+          '<form action="/Account/Login" method="post"><input id="UserName" name="UserName"><input id="Password" name="Password"><button>Login</button></form>',
+        );
+        return;
+      }
 
-          context.on('page', (page) => {
-            void page.route('**/*', async (route) => {
-              const request = route.request();
-              const url = new URL(request.url());
+      if (path === '/Customer/LoadShipmentTrackingData') {
+        const chunks: Buffer[] = [];
+        for await (const chunk of request) chunks.push(Buffer.from(chunk));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const reference = body.columns[0].search.value;
 
-              calls.push(url.pathname);
+        if (options.timeoutFirst && reference === '001') return;
+        if (options.expired && reference) expired = true;
+        if (options.expiredArchive && body.archiveLimit === '365')
+          expired = true;
 
-              if (url.pathname === '/Account/Login') {
-                if (request.method() === 'POST') {
-                  await route.fulfill({
-                    status: 302,
-                    headers: { location: '/Customer' },
-                    body: '',
-                  });
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify({
+            draw: body.draw,
+            recordsTotal: expired ? 0 : 50,
+            recordsFiltered:
+              expired || options.missing ? (options.partial ? 30 : 0) : 2,
+            data:
+              expired || options.missing
+                ? []
+                : [
+                    {
+                      orderNumber: reference || '001',
+                      shipmentStatus: 'Delivered',
+                      apptPickupDate: '2026-10-01T00:00:00',
+                      pickupDate: '2026-10-02T00:00:00',
+                      deliveryDate: '2026-10-06T00:00:00',
+                    },
+                    {
+                      orderNumber: reference || '001',
+                      shipmentStatus: 'Scheduled',
+                    },
+                  ],
+          }),
+        );
+        return;
+      }
 
-                  return;
-                }
+      if (expired && path === '/Customer/ShipmentTracking') {
+        response.writeHead(302, { location: '/Account/Login' });
+        response.end();
+        return;
+      }
 
-                await route.fulfill({
-                  contentType: 'text/html',
-                  body: '<form action="/Account/Login" method="post"><input id="UserName" name="UserName"><input id="Password" name="Password"><button>Login</button></form>',
-                });
+      response.setHeader('content-type', 'text/html');
+      response.end(
+        path === '/Customer/ShipmentTracking'
+          ? `<table id="shipmentTrackingDataTable"><tbody><tr><td>${options.conflictingDom ? 'Conflicting DOM status' : 'Loading'}</td></tr></tbody></table><input id="archive-toggle-value" value="90" type="hidden"><button id="archive-toggle-button" onclick="document.querySelector('#archive-toggle-value').value='365';search()">Archive 1 Year</button><input placeholder="Order# Search" onchange="search()"><script>let draw=0;function search(){return fetch('/Customer/LoadShipmentTrackingData',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({draw:++draw,start:0,length:25,archiveLimit:document.querySelector('#archive-toggle-value').value,columns:[{data:'orderNumber',search:{value:document.querySelector('[placeholder="Order# Search"]').value}}]})});}search();</script>`
+          : '<a href="/Customer/ShipmentTracking">Shipment Tracking</a>',
+      );
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const configuration = new FfeConfiguration({});
+    vi.spyOn(configuration, 'read').mockReturnValue({
+      origin,
+      username: 'fixture',
+      password: 'PRIVATE',
+      executablePath: undefined,
+    });
 
-                return;
-              }
-
-              if (url.pathname === '/Customer/LoadShipmentTrackingData') {
-                const body = request.postDataJSON();
-                const reference = body.columns[0].search.value;
-
-                if (options.timeoutFirst && reference === '001') return;
-
-                if (options.expired && reference) expired = true;
-
-                if (options.expiredArchive && body.archiveLimit === '365')
-                  expired = true;
-
-                await route.fulfill({
-                  contentType: 'application/json',
-                  body: JSON.stringify({
-                    draw: expired ? 1 : body.draw,
-                    recordsTotal: expired ? 0 : 50,
-                    recordsFiltered:
-                      expired || options.missing
-                        ? options.partial
-                          ? 30
-                          : 0
-                        : 2,
-                    data:
-                      expired || options.missing
-                        ? []
-                        : [
-                            {
-                              orderNumber: reference || '001',
-                              shipmentStatus: 'Delivered',
-                              apptPickupDate: '2026-10-01T00:00:00',
-                              pickupDate: '2026-10-02T00:00:00',
-                              deliveryDate: '2026-10-06T00:00:00',
-                            },
-                            {
-                              orderNumber: reference || '001',
-                              shipmentStatus: 'Scheduled',
-                            },
-                          ],
-                  }),
-                });
-
-                return;
-              }
-
-              if (expired && url.pathname === '/Customer/ShipmentTracking') {
-                await route.fulfill({
-                  status: 302,
-                  headers: { location: '/Account/Login' },
-                  body: '',
-                });
-
-                return;
-              }
-
-              const body =
-                url.pathname === '/Customer/ShipmentTracking'
-                  ? `<table id="shipmentTrackingDataTable"><tbody><tr><td>${options.conflictingDom ? 'Conflicting DOM status' : 'Loading'}</td></tr></tbody></table><input id="archive-toggle-value" value="90" type="hidden"><button id="archive-toggle-button" onclick="document.querySelector('#archive-toggle-value').value='365';search()">Archive 1 Year</button><input placeholder="Order# Search" onchange="search()"><script>let draw=0;function search(){return fetch('/Customer/LoadShipmentTrackingData',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({draw:++draw,start:0,length:25,archiveLimit:document.querySelector('#archive-toggle-value').value,columns:[{data:'orderNumber',search:{value:document.querySelector('[placeholder="Order# Search"]').value}}]})});}search();</script>`
-                  : '<a href="/Customer/ShipmentTracking">Shipment Tracking</a>';
-
-              await route.fulfill({ contentType: 'text/html', body });
-            });
-          });
-
-          return context;
-        };
-
-        return browser;
-      },
-    );
+    adapter = new FfeAdapter(configuration, http, async () => {
+      browser = await chromium.launch({ headless: true });
+      return browser;
+    });
 
     const session = await adapter.openSession({
       signal,
