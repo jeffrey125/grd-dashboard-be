@@ -106,6 +106,23 @@ export type SenderSnapshot = {
   retrievedAt: string | null;
   mode: 'explicit' | 'account_default';
 };
+
+export const quoteChargeSchema = z.object({
+  description: z.string().min(1),
+  amount: z.string().regex(/^\d+(?:\.\d+)?$/),
+  scope: z.enum(['package', 'shipment', 'pickup']),
+  packageGroupPosition: z.number().int().min(0).nullable(),
+});
+export type QuoteCharge = z.infer<typeof quoteChargeSchema>;
+
+export const quoteGroupContributionSchema = z.object({
+  packageGroupPosition: z.number().int().min(0),
+  quantity: z.number().int().positive(),
+  subtotal: z.string().regex(/^\d+(?:\.\d+)?$/),
+});
+export type QuoteGroupContribution = z.infer<
+  typeof quoteGroupContributionSchema
+>;
 export type Comparison = {
   externalId: string;
   status: 'saved' | 'queued' | 'running' | 'completed' | 'failed';
@@ -131,6 +148,7 @@ export type QuoteAttempt = {
   reasonCode: string | null;
   simulated: boolean;
   quotes: Array<{
+    platform: string;
     carrier: string;
     service: string;
     transportationTotal: string;
@@ -143,5 +161,7 @@ export type QuoteAttempt = {
     dutyStatus: string;
     taxStatus: string;
     clearanceStatus: string;
+    charges: QuoteCharge[];
+    groupContributions: QuoteGroupContribution[];
   }>;
 };

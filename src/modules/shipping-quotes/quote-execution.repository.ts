@@ -1,6 +1,8 @@
 import type {
   ProviderCode,
   QuoteInput,
+  QuoteCharge,
+  QuoteGroupContribution,
   SenderSnapshot,
 } from './quote.schemas.js';
 
@@ -41,11 +43,20 @@ export interface ExecutionResult {
   simulated: boolean;
   relogins: 0 | 1;
   quotes: Array<{
+    platform?: string;
     carrier: string;
     service: string;
     total: string;
     currency: string;
     estimateMethod: 'native' | 'calculated';
+    transitDescription?: string | null;
+    expiresAt?: string | null;
+    optionCoverage?: 'included' | 'unsupported' | 'unverified';
+    dutyStatus?: 'included' | 'excluded' | 'unknown';
+    taxStatus?: 'included' | 'excluded' | 'unknown';
+    clearanceStatus?: 'included' | 'excluded' | 'unknown';
+    charges?: QuoteCharge[];
+    groupContributions?: QuoteGroupContribution[];
   }>;
 }
 
