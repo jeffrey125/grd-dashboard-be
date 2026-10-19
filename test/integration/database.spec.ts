@@ -1,3 +1,5 @@
+import { QuoteComparisons1792540800000 } from '@infrastructure/database/migrations/1792540800000-QuoteComparisons.js';
+import { QUOTE_ENTITIES } from '@modules/shipping-quotes/quote.entities.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
 import { SalesRepsAndShipmentFollowUp1792454400000 } from '@infrastructure/database/migrations/1792454400000-SalesRepsAndShipmentFollowUp.js';
@@ -72,6 +74,7 @@ describe('production migrations and repository foundation', () => {
       ),
       entities: [
         ...AUTH_ENTITIES,
+        ...QUOTE_ENTITIES,
         CarrierEntity,
         SalesRepEntity,
         ShipmentEntity,
@@ -88,6 +91,7 @@ describe('production migrations and repository foundation', () => {
         TrackingReadProjection1792281600000,
         TrackingChangeEvents1792368000000,
         SalesRepsAndShipmentFollowUp1792454400000,
+        QuoteComparisons1792540800000,
       ],
     });
     await source.initialize();
@@ -363,6 +367,7 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Quote comparison migration.
     await source.undoLastMigration(); // Precise tracking event migration.
     await source.undoLastMigration(); // Tracking projection migration.
     await source.undoLastMigration(); // Event trigger migration.
@@ -392,6 +397,7 @@ describe('production migrations and repository foundation', () => {
     await source.undoLastMigration();
     await source.undoLastMigration();
     await source.undoLastMigration();
+    await source.undoLastMigration();
 
     expect((await cli('migration:show')).stdout).toContain(
       '[ ] InitialSchema1791849600000',
@@ -402,6 +408,7 @@ describe('production migrations and repository foundation', () => {
     expect(firstRun.stdout).toContain('CREATE TABLE carriers');
     expect((await cli('migration:show')).stdout).toContain('[X]');
 
+    await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');
     await cli('migration:revert');

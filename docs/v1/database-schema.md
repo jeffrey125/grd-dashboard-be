@@ -509,3 +509,37 @@ Snapshot inserts alone, unchanged pointer assignments, null pointer updates and
 updates to notes, scheduling or monitoring state do not publish the precise event.
 The migration adds no table, column, index or foreign key and is independently
 reversible by dropping its trigger and function.
+
+## SQ-V1-002 quote persistence
+
+Migration `1792540800000-QuoteComparisons` adds eight tables. It is needed to save
+comparisons independently of monitored shipments. No existing shipment is changed.
+All new foreign keys explicitly use `ON DELETE NO ACTION` in SQL and ORM mappings.
+
+| Table                     | Stored data and constraints                                                                                                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shipping_providers`      | Two stable codes, enabled state, maintenance message, request/browser mode, positive stale hours, creation/update timestamps.                                                                                         |
+| `shipping_accounts`       | Unique provider FK (one account per provider), creation/update timestamps, allowlisted `default_refresh` work/result metadata. No credentials or browser sessions.                                                    |
+| `quote_requests`          | Public UUID, actor FK, actor-scoped unique UUID idempotency key, strict original input JSON, resolved sender snapshots, saved status, created time, reserved soft-delete fields. History index excludes deleted rows. |
+| `quote_package_groups`    | Request FK and unique position, positive quantities, original decimal strings and units, exact numeric(15,6) values, exact canonical cm/kg strings in `normalized`, created time.                                     |
+| `quote_customs_items`     | Group FK and unique position, per-box description/quantity, exact numeric(15,6) unit value and weight, currency, manufacture country, optional HS code, created time. Original formatting remains in request input.   |
+| `quote_provider_attempts` | Request/account FKs, UUID, immutable reviewed sender/identity, recorded mode, `saved` status, lease/recovery/outcome fields and timestamps. Partial unique index allows only one running attempt per account.         |
+| `shipping_quotes`         | Attempt FK, carrier/service, numeric(18,6) transportation total, currency, estimate method, transit/expiry/retrieval fields, option and duty/tax/clearance status, created time.                                      |
+| `shipping_quote_items`    | Quote/group FKs, scoped charge description and numeric(18,6) amount, created time.                                                                                                                                    |
+
+Database triggers reject mutations of comparison input/audit identity, package and
+customs snapshots, result snapshots, and attempt sender/identity. Lifecycle fields
+are reserved; this ticket exposes no lifecycle mutation endpoint. Saving creates
+`saved` attempts, never queued work. A later explicit
+rate action must transition eligible records; adding a worker cannot run old saves.
+
+Creation is one transaction, with a per-actor/key advisory lock and shared provider
+locks. Equal JSON input retries return the original, including after the ship date
+passes; a changed payload returns 409. A new key deliberately creates another record.
+Soft-deleted originals cannot be reopened through idempotency. No shipment row is made.
+
+Inputs retain decimal strings with up to nine integer and six fractional digits;
+positive values, 1–100 package groups, 1–10,000 boxes per group, and up to 100 customs
+items per group are application validation limits, not provider capability claims.
+Canonical conversion uses PostgreSQL decimal arithmetic (1 in = 2.54 cm;
+1 lb = 0.45359237 kg), without overwriting original units or values.

@@ -180,7 +180,7 @@ describe('initial application schema', () => {
     );
   });
 
-  it('maps all ten production entities without schema drift', async () => {
+  it('maps all eighteen production entities without schema drift', async () => {
     expect(
       source.entityMetadatas.map((metadata) => metadata.tableName).sort(),
     ).toEqual([
@@ -189,9 +189,17 @@ describe('initial application schema', () => {
       'auth_users',
       'auth_verifications',
       'carriers',
+      'quote_customs_items',
+      'quote_package_groups',
+      'quote_provider_attempts',
+      'quote_requests',
       'sales_reps',
       'shipment_tracking_snapshots',
       'shipments',
+      'shipping_accounts',
+      'shipping_providers',
+      'shipping_quote_items',
+      'shipping_quotes',
       'tracking_attempts',
       'tracking_runs',
     ]);
@@ -689,6 +697,16 @@ describe('initial application schema', () => {
 
     expect(foreignKeys).toEqual(
       [
+        'quote_customs_items_package_group_id_fkey',
+        'quote_package_groups_request_id_fkey',
+        'quote_provider_attempts_account_id_fkey',
+        'quote_provider_attempts_request_id_fkey',
+        'quote_requests_created_by_id_fkey',
+        'quote_requests_deleted_by_id_fkey',
+        'shipping_accounts_provider_id_fkey',
+        'shipping_quote_items_package_group_id_fkey',
+        'shipping_quote_items_quote_id_fkey',
+        'shipping_quotes_attempt_id_fkey',
         'fk_attempts_run',
         'fk_attempts_shipment',
         'fk_attempts_snapshot',
@@ -798,6 +816,22 @@ describe('initial application schema', () => {
     const audit =
       'id external_id created_at updated_at deleted_at created_by_id updated_by_id deleted_by_id';
     const expected = {
+      shipping_providers:
+        'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at',
+      shipping_accounts: 'default_refresh id provider_id created_at updated_at',
+      quote_requests:
+        'id external_id idempotency_key created_by_id input senders status created_at deleted_at deleted_by_id',
+      quote_package_groups:
+        'normalized id request_id position quantity units length_original width_original height_original weight_original length_value width_value height_value weight_value created_at',
+      quote_customs_items:
+        'id package_group_id position description quantity unit_value currency country_of_manufacture weight hs_code created_at',
+      quote_provider_attempts:
+        'id external_id request_id account_id sender execution_mode status lease_until recovery_count reason_code created_at completed_at',
+      shipping_quotes:
+        'id attempt_id carrier service transportation_total currency estimate_method transit_description expires_at retrieved_at option_coverage duty_status tax_status clearance_status created_at',
+      shipping_quote_items:
+        'id quote_id package_group_id description amount scope created_at',
+
       auth_users:
         'id external_id name first_name last_name email email_verified image role active must_change_password created_at updated_at created_by_id updated_by_id',
       auth_accounts:
@@ -844,9 +878,17 @@ describe('initial application schema', () => {
         ['auth_users', 'integer'],
         ['auth_verifications', 'integer'],
         ['carriers', 'integer'],
+        ['quote_customs_items', 'bigint'],
+        ['quote_package_groups', 'bigint'],
+        ['quote_provider_attempts', 'bigint'],
+        ['quote_requests', 'bigint'],
         ['sales_reps', 'integer'],
         ['shipment_tracking_snapshots', 'bigint'],
         ['shipments', 'integer'],
+        ['shipping_accounts', 'integer'],
+        ['shipping_providers', 'integer'],
+        ['shipping_quote_items', 'bigint'],
+        ['shipping_quotes', 'bigint'],
         ['tracking_attempts', 'bigint'],
         ['tracking_runs', 'bigint'],
       ].map(([table_name, data_type]) => ({
