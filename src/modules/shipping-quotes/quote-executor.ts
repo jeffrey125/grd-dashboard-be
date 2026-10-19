@@ -4,6 +4,7 @@ import type {
   QuoteReason,
   QuoteOutcome,
 } from './quote-execution.repository.js';
+import { firstValueFrom, from, fromEvent, map, race, take, timer } from 'rxjs';
 
 export interface QuoteAdapter {
   readonly simulated: boolean;
@@ -51,16 +52,14 @@ export async function executeQuote(
   const deadline = new AbortController();
   const signal = AbortSignal.any([shutdown, deadline.signal]);
 
-  const timer = setTimeout(() => deadline.abort(), timeoutMs);
-  let abort: () => void = () => undefined;
+  const deadlineTimer = setTimeout(() => deadline.abort(), timeoutMs);
 
   try {
-    const cancelled = new Promise<ExecutionResult>((resolve) => {
-      abort = () => resolve(quoteFailure('timeout', adapter.simulated));
-      signal.addEventListener('abort', abort, { once: true });
-
-      if (signal.aborted) abort();
-    });
+    if (signal.aborted)
+      return {
+        ...quoteFailure('timeout', adapter.simulated),
+        relogins,
+      };
 
     const run = async () => {
       signal.throwIfAborted();
@@ -83,7 +82,15 @@ export async function executeQuote(
       return { ...result, simulated: adapter.simulated };
     };
 
-    return { ...(await Promise.race([run(), cancelled])), relogins };
+    const cancelled = fromEvent(signal, 'abort').pipe(
+      take(1),
+      map(() => quoteFailure('timeout', adapter.simulated)),
+    );
+
+    return {
+      ...(await firstValueFrom(race(from(run()), cancelled))),
+      relogins,
+    };
   } catch {
     return {
       ...quoteFailure(
@@ -93,19 +100,16 @@ export async function executeQuote(
       relogins,
     };
   } finally {
-    clearTimeout(timer);
-    signal.removeEventListener('abort', abort);
+    clearTimeout(deadlineTimer);
     deadline.abort();
     // Cleanup is bounded even when a provider adapter ignores cancellation.
-    let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      Promise.resolve()
-        .then(() => adapter.close(job))
-        .catch(() => undefined),
-      new Promise<void>((resolve) => {
-        cleanupTimer = setTimeout(resolve, 1000);
-      }),
-    ]);
-    clearTimeout(cleanupTimer);
+    await firstValueFrom(
+      race(
+        from(Promise.resolve().then(() => adapter.close(job))).pipe(
+          map(() => undefined),
+        ),
+        timer(1000).pipe(map(() => undefined)),
+      ),
+    ).catch(() => undefined);
   }
 }

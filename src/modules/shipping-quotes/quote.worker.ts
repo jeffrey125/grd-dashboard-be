@@ -4,6 +4,7 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
 } from '@nestjs/common';
+import Bottleneck from 'bottleneck';
 import { ProjectLogger } from '@infrastructure/logging/logging.types.js';
 import { QuoteExecutionRepository } from './quote-execution.repository.js';
 import { executeQuote, type QuoteAdapter } from './quote-executor.js';
@@ -17,7 +18,7 @@ export type QuoteAdapters = (code: ProviderCode) => QuoteAdapter | undefined;
 export class QuoteWorker implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setTimeout>;
   private readonly shutdown = new AbortController();
-  private readonly active = new Set<Promise<void>>();
+  private readonly executions = new Bottleneck({ maxConcurrent: 2 });
   private scanning?: Promise<void>;
 
   constructor(
@@ -48,19 +49,27 @@ export class QuoteWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async runOnce() {
-    while (!this.shutdown.signal.aborted && this.active.size < 2) {
+    while (
+      !this.shutdown.signal.aborted &&
+      Object.values(this.executions.counts()).reduce(
+        (total, count) => total + count,
+        0,
+      ) < 2
+    ) {
       const job = await this.jobs.claim(120000);
 
       if (!job) return;
 
-      const task = executeQuote(
-        job,
-        this.adapters(job.code),
-        this.shutdown.signal,
-        90000,
-        () => this.jobs.reserveRelogin(job),
-      )
-        .then(async (result) => {
+      void this.executions
+        .schedule(async () => {
+          const result = await executeQuote(
+            job,
+            this.adapters(job.code),
+            this.shutdown.signal,
+            90000,
+            () => this.jobs.reserveRelogin(job),
+          );
+
           if (!this.shutdown.signal.aborted)
             await this.jobs.finish(job, result);
         })
@@ -69,11 +78,7 @@ export class QuoteWorker implements OnModuleInit, OnModuleDestroy {
             'quotes.execution.failed',
             'Quote persistence failed; lease recovery will resume work',
           );
-        })
-        .finally(() => {
-          this.active.delete(task);
         });
-      this.active.add(task);
     }
   }
 
@@ -81,6 +86,6 @@ export class QuoteWorker implements OnModuleInit, OnModuleDestroy {
     this.shutdown.abort();
     clearTimeout(this.timer);
     await this.scanning;
-    await Promise.all(this.active);
+    await this.executions.stop({ dropWaitingJobs: false });
   }
 }

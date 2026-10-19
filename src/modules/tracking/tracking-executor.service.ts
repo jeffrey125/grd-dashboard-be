@@ -8,6 +8,14 @@ import type {
   TrackingSession,
 } from '@modules/carriers/adapters/carrier-adapter.js';
 import { trackingResultSchema } from '@modules/carriers/adapters/carrier-result.js';
+import {
+  firstValueFrom,
+  from,
+  fromEvent,
+  mergeMap,
+  race,
+  throwError,
+} from 'rxjs';
 import { TrackingService } from './tracking.service.js';
 import type {
   StartedTrackingRun,
@@ -16,16 +24,16 @@ import type {
 
 /** Observe cancellation even if a provider ignores its signal; discard late results. */
 function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => reject(new Error('Tracking interrupted'));
+  const interrupted = () => new Error('Tracking interrupted');
 
-    signal.addEventListener('abort', abort, { once: true });
-    operation
-      .then(resolve, reject)
-      .finally(() => signal.removeEventListener('abort', abort));
+  if (signal.aborted) return Promise.reject(interrupted());
 
-    if (signal.aborted) abort();
-  });
+  return firstValueFrom(
+    race(
+      from(operation),
+      fromEvent(signal, 'abort').pipe(mergeMap(() => throwError(interrupted))),
+    ),
+  );
 }
 
 function technicalFailure(

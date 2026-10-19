@@ -108,7 +108,10 @@ describe('composition roots', () => {
         { status: 'ok' },
       );
     } finally {
-      await module.close();
+      const closing = module.close();
+
+      await vi.runAllTimersAsync();
+      await closing;
     }
 
     expect(vi.getTimerCount()).toBe(0);

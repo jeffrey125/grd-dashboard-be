@@ -1,6 +1,7 @@
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ProjectLogger } from '@infrastructure/logging/logging.types.js';
+import { firstValueFrom, from, map, race, timer } from 'rxjs';
 import { safeErrorFields } from '@infrastructure/logging/safe-error-fields.js';
 import {
   CARRIERS_REPOSITORY,
@@ -97,23 +98,21 @@ export class TrackingSchedulerService implements OnModuleDestroy {
     this.state = 'stopping';
     this.controller.abort();
 
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-
     try {
-      await Promise.race([
-        this.active,
-        new Promise<void>((resolve) => {
-          timeout = setTimeout(() => {
-            this.logger.warn(
-              'tracking.shutdown.timeout',
-              'Worker cleanup exceeded 30 seconds; startup recovery will finish interrupted state',
-            );
-            resolve();
-          }, 30_000);
-        }),
-      ]);
+      await firstValueFrom(
+        race(
+          from(this.active ?? Promise.resolve()),
+          timer(30_000).pipe(
+            map(() => {
+              this.logger.warn(
+                'tracking.shutdown.timeout',
+                'Worker cleanup exceeded 30 seconds; startup recovery will finish interrupted state',
+              );
+            }),
+          ),
+        ),
+      );
     } finally {
-      clearTimeout(timeout);
       this.state = 'stopped';
     }
   }
