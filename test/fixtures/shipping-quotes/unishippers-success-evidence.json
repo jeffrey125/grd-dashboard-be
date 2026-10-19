@@ -1,0 +1,276 @@
+{
+  "baseline": {
+    "clientStatus": {
+      "success": false,
+      "fieldMap": {
+        "AddressV3.Company Name": ["ERR_TOO_LONG"]
+      }
+    }
+  },
+  "corrected": {
+    "offers": [
+      {
+        "totalOfferPrice": { "value": 179.04, "unit": "USD" },
+        "expirationDate": "2026-10-22 14:12:24",
+        "products": [
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS Next Day Air® Early",
+              "transitDays": 1,
+              "estimatedDeliveryDate": "2026-10-20",
+              "deliveryBy": "08:00:00"
+            },
+            "charges": [
+              {
+                "code": "SUR",
+                "description": "EARLY A.M. SURCHARGE",
+                "customerPrice": { "value": 30, "unit": "USD" }
+              },
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 59.52, "unit": "USD" }
+              }
+            ]
+          },
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS Next Day Air® Early",
+              "transitDays": 1,
+              "estimatedDeliveryDate": "2026-10-20",
+              "deliveryBy": "08:00:00"
+            },
+            "charges": [
+              {
+                "code": "SUR",
+                "description": "EARLY A.M. SURCHARGE",
+                "customerPrice": { "value": 30, "unit": "USD" }
+              },
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 59.52, "unit": "USD" }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "totalOfferPrice": { "value": 103.78, "unit": "USD" },
+        "expirationDate": "2026-10-22 14:12:24",
+        "products": [
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS Next Day Air Saver®",
+              "transitDays": 1,
+              "estimatedDeliveryDate": "2026-10-20",
+              "deliveryBy": "23:00:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 51.89, "unit": "USD" }
+              }
+            ]
+          },
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS Next Day Air Saver®",
+              "transitDays": 1,
+              "estimatedDeliveryDate": "2026-10-20",
+              "deliveryBy": "23:00:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 51.89, "unit": "USD" }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "totalOfferPrice": { "value": 119.04, "unit": "USD" },
+        "expirationDate": "2026-10-22 14:12:24",
+        "products": [
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS Next Day Air®",
+              "transitDays": 1,
+              "estimatedDeliveryDate": "2026-10-20",
+              "deliveryBy": "10:30:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 59.52, "unit": "USD" }
+              }
+            ]
+          },
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS Next Day Air®",
+              "transitDays": 1,
+              "estimatedDeliveryDate": "2026-10-20",
+              "deliveryBy": "10:30:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 59.52, "unit": "USD" }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "totalOfferPrice": { "value": 47.7, "unit": "USD" },
+        "expirationDate": "2026-10-22 14:12:24",
+        "products": [
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS 2nd Day Air A.M.®",
+              "transitDays": 2,
+              "estimatedDeliveryDate": "2026-10-21",
+              "deliveryBy": "10:30:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 23.85, "unit": "USD" }
+              }
+            ]
+          },
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS 2nd Day Air A.M.®",
+              "transitDays": 2,
+              "estimatedDeliveryDate": "2026-10-21",
+              "deliveryBy": "10:30:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 23.85, "unit": "USD" }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "totalOfferPrice": { "value": 35.94, "unit": "USD" },
+        "expirationDate": "2026-10-22 14:12:24",
+        "products": [
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS 2nd Day Air®",
+              "transitDays": 2,
+              "estimatedDeliveryDate": "2026-10-21",
+              "deliveryBy": "23:00:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 17.97, "unit": "USD" }
+              }
+            ]
+          },
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS 2nd Day Air®",
+              "transitDays": 2,
+              "estimatedDeliveryDate": "2026-10-21",
+              "deliveryBy": "23:00:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 17.97, "unit": "USD" }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "totalOfferPrice": { "value": 24.16, "unit": "USD" },
+        "expirationDate": "2026-10-22 14:12:24",
+        "products": [
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS Ground",
+              "transitDays": 2,
+              "estimatedDeliveryDate": "2026-10-21",
+              "deliveryBy": "23:00:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 12.08, "unit": "USD" }
+              }
+            ]
+          },
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS Ground",
+              "transitDays": 2,
+              "estimatedDeliveryDate": "2026-10-21",
+              "deliveryBy": "23:00:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 12.08, "unit": "USD" }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "totalOfferPrice": { "value": 31.9, "unit": "USD" },
+        "expirationDate": "2026-10-22 14:12:24",
+        "products": [
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS 3 Day Select®",
+              "transitDays": 3,
+              "estimatedDeliveryDate": "2026-10-22",
+              "deliveryBy": "23:00:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 15.95, "unit": "USD" }
+              }
+            ]
+          },
+          {
+            "timeInTransit": {
+              "serviceDescription": "UPS 3 Day Select®",
+              "transitDays": 3,
+              "estimatedDeliveryDate": "2026-10-22",
+              "deliveryBy": "23:00:00"
+            },
+            "charges": [
+              {
+                "code": "FRT",
+                "description": "SMALL PACKAGE FREIGHT",
+                "customerPrice": { "value": 15.95, "unit": "USD" }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

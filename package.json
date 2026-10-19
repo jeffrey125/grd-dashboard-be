@@ -30,6 +30,7 @@
     "test:cov:all": "pnpm build && vitest run --coverage",
     "test:container": "node --test test/container/runtime.test.ts",
     "test:shipping-quotes": "vitest run --project integration test/integration/shipping-quotes-contracts.spec.ts",
+    "test:shipping-quotes:adapter:live": "pnpm build && node --env-file=.env test/support/shipping-quotes/live-adapter-smoke.mts",
     "test:shipping-quotes:live": "pnpm exec tsc --ignoreConfig --outDir .test-dist/sq-v1-001 --rootDir . --module nodenext --moduleResolution nodenext --target ES2023 --types node --strict --esModuleInterop --skipLibCheck test/support/shipping-quotes/provider-contracts.ts test/support/shipping-quotes/playwright-harness.ts test/support/shipping-quotes/live-contract-smoke.mts && node --env-file=.env .test-dist/sq-v1-001/test/support/shipping-quotes/live-contract-smoke.mjs",
     "test:integration": "pnpm build && vitest run --project integration",
     "typeorm": "typeorm",

@@ -18,6 +18,8 @@ export function quoteFailure(
 ): ExecutionResult {
   const outcomes: Partial<Record<QuoteReason, QuoteOutcome>> = {
     validation_failed: 'validation_failed',
+    sender_company_too_long: 'validation_failed',
+    contact_details_required: 'validation_failed',
     unsupported: 'unsupported',
     timeout: 'timeout',
     authentication_failed: 'authentication_failed',

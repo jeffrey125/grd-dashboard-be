@@ -153,7 +153,7 @@ export class BrowserSenderDefaults {
       .locator(
         provider === 'amazon'
           ? '#ap_email:visible,input[type="email"]:visible'
-          : '#email:visible,#username:visible,input[name="username"]:visible',
+          : '#username:visible,input[name="username"]:visible',
       )
       .first();
     const authenticated = page

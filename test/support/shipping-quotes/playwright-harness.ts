@@ -551,9 +551,7 @@ export class UnishippersContractHarness implements ProviderHarness {
 
   private loginEmail(page: Page): Locator {
     // The shipping form also has a contact-email field. It is not a login form.
-    return page
-      .locator('#email, #username, input[name="email"], input[name="username"]')
-      .first();
+    return page.locator('#username, input[name="username"]').first();
   }
 
   private quoteButton(page: Page): Locator {

@@ -19,6 +19,17 @@ export const addressSchema = z.strictObject({
   division: z.string().max(100),
   postalCode: text,
   country,
+  contactName: z.string().max(100).optional(),
+  phone: z
+    .string()
+    .max(30)
+    .refine(
+      (value) =>
+        value === '' ||
+        (/^\+?[\d ().-]+$/.test(value) &&
+          /^\d{10,15}$/.test(value.replace(/\D/g, ''))),
+    )
+    .optional(),
 });
 const senderSchema = z.discriminatedUnion('mode', [
   z.strictObject({

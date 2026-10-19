@@ -121,6 +121,55 @@ describe('Saved quote comparisons HTTP API', () => {
     );
   });
 
+  it('preserves myUnishippers contact inputs in immutable comparison snapshots', async () => {
+    const body = {
+      ...input(),
+      destination: {
+        ...input().destination,
+        contactName: 'Receiving Contact',
+        phone: '+1 (202) 555-0148',
+      },
+      providers: [
+        {
+          ...input().providers[0],
+          code: 'unishippers',
+          sender: {
+            mode: 'explicit',
+            address: {
+              ...address,
+              contactName: 'Shipping Contact',
+              phone: '2025550147',
+            },
+          },
+        },
+      ],
+    };
+    const saved = await request(app.getHttpServer() as Server)
+      .post('/api/v1/quote-comparisons')
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send(body)
+      .expect(201);
+    const reopened = await request(app.getHttpServer() as Server)
+      .get(`/api/v1/quote-comparisons/${saved.body.comparison.externalId}`)
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(reopened.body.input).toEqual(body);
+    expect(reopened.body.senders[0].address).toEqual(
+      body.providers[0].sender.address,
+    );
+    await request(app.getHttpServer() as Server)
+      .post('/api/v1/quote-comparisons')
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({
+        ...body,
+        idempotencyKey: randomUUID(),
+        destination: { ...body.destination, phone: 'not a phone' },
+      })
+      .expect(400);
+  });
+
   it('validates inputs and requires authentication and trusted origin', async () => {
     await request(app.getHttpServer() as Server)
       .get('/api/v1/quote-comparisons')

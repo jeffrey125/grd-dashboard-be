@@ -115,7 +115,7 @@ describe('Authenticated sender default boundary', () => {
             })
           : route.fulfill({
               contentType: 'text/html',
-              body: `<button>QUICK QUOTE</button><script>fetch('/svc/getUserProfileFlow')</script>`,
+              body: `<label>Contact Email<input id="email" name="email"></label><button>QUICK QUOTE</button><script>fetch('/svc/getUserProfileFlow')</script>`,
             }),
       );
       const gateway = new BrowserSenderDefaults();
@@ -131,6 +131,7 @@ describe('Authenticated sender default boundary', () => {
         postalCode: '53125',
         country: 'US',
       });
+      expect(await page.locator('#email').inputValue()).toBe('');
       shipping = undefined;
       await expect(
         gateway.readPage('unishippers', page, credentials),

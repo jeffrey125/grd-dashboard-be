@@ -7,7 +7,10 @@ import type {
   QuoteInput,
   SenderSnapshot,
 } from '@modules/shipping-quotes/quote.schemas.js';
-import { executeQuote } from '@modules/shipping-quotes/quote-executor.js';
+import {
+  executeQuote,
+  quoteFailure,
+} from '@modules/shipping-quotes/quote-executor.js';
 import { FixtureQuoteAdapter } from '@modules/shipping-quotes/fixture-quote.adapter.js';
 
 const address = {
@@ -69,6 +72,33 @@ describe('Durable quote execution', () => {
     await db.source.query(
       'TRUNCATE shipping_quote_items,shipping_quotes,quote_provider_attempts,quote_customs_items,quote_package_groups,quote_requests RESTART IDENTITY',
     );
+  });
+
+  it('preserves the actionable myUnishippers sender error through the comparison read contract', async () => {
+    const original = input();
+    original.providers = original.providers.filter(
+      (provider) => provider.code === 'unishippers',
+    );
+    const saved = await quotes.create(
+      original,
+      actor,
+      senders.filter((sender) => sender.code === 'unishippers'),
+    );
+    const job = (await jobs.claim(120000))!;
+
+    expect(
+      await jobs.finish(job, quoteFailure('sender_company_too_long')),
+    ).toBe(true);
+
+    const snapshot = await quotes.find(saved.comparison.externalId);
+    expect(snapshot?.attempts[0]).toMatchObject({
+      provider: 'unishippers',
+      outcome: 'validation_failed',
+      reasonCode: 'sender_company_too_long',
+      quotes: [],
+    });
+    expect(snapshot?.input).toEqual(original);
+    expect(snapshot?.senders[0]?.address).toEqual(address);
   });
 
   it('queues atomically and leases different accounts concurrently without duplicating an account', async () => {

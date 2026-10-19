@@ -29,6 +29,8 @@ export type QuoteOutcome =
 
 export type QuoteReason =
   | 'validation_failed'
+  | 'sender_company_too_long'
+  | 'contact_details_required'
   | 'unsupported'
   | 'timeout'
   | 'authentication_failed'

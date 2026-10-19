@@ -13,6 +13,7 @@ import {
 } from './quote.worker.js';
 import { FixtureQuoteAdapter } from './fixture-quote.adapter.js';
 import { AmazonShippingAdapter } from './amazon-quote.adapter.js';
+import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
 
 @Module({
   imports: [DatabaseModule, RuntimeConfigModule],
@@ -29,12 +30,15 @@ import { AmazonShippingAdapter } from './amazon-quote.adapter.js';
       useFactory: (config: ConfigService): QuoteAdapters => {
         const runtime = config.getOrThrow<RuntimeConfiguration>('runtime');
         const amazon = new AmazonShippingAdapter();
+        const unishippers = new UnishippersShippingAdapter();
         return (code) =>
           runtime.quoteDemo
             ? new FixtureQuoteAdapter(runtime.quoteScenarios[code])
             : code === 'amazon'
               ? amazon
-              : undefined;
+              : code === 'unishippers'
+                ? unishippers
+                : undefined;
       },
     },
     QuoteWorker,
