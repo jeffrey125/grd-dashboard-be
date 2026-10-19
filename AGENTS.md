@@ -1,3 +1,22 @@
+# Library-first implementation
+
+Before implementing or refactoring functionality in any domain, inspect installed
+dependencies and evaluate established, maintained npm packages. Present the
+recommended package, its fit and material tradeoffs, and ask the user to approve
+the choice before writing implementation code. Reuse a suitable installed package
+when available. Existing approval for the same choice and scope remains valid.
+
+Use the approved package for reusable functionality rather than writing a custom
+replacement. If a platform built-in is more appropriate, or no suitable package
+exists, explain the reason and obtain explicit approval for that alternative.
+Custom business rules and provider mappings also require an agreed scope; keep
+their reusable validation, arithmetic, protocols and scheduling library-backed.
+This policy applies across all domains, not only money and unit calculations.
+
+Obtain explicit approval before adding any production dependency, then use the
+project's package manager and update its lockfile. Review the final diff for
+remaining custom replacements and report any exceptions and their approvals.
+
 # Database foreign keys
 
 For every new foreign key, explicitly use `ON DELETE NO ACTION` in migrations
