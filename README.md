@@ -186,3 +186,14 @@ One API and one worker are required for v1; memory-only auth throttles and provi
 rate limits are not multi-replica-safe. See the [release gates](docs/v1/release-readiness.md)
 before rollout, including trusted proxy/client-IP handling, TLS/CA mounting,
 migration control, backups, monitoring, and remaining frontend API gaps.
+
+### Quote comparisons (SQ-V1-002)
+
+Apply the reviewed quote migration before using `/api/v1/quote-comparisons`.
+Saving explicit senders needs only the API and PostgreSQL. Account-default refresh
+also needs the existing worker process, Playwright Chromium, and environment-only
+`AMAZON_SHIPPING_EMAIL`, `AMAZON_SHIPPING_PASSWORD`, `MYUNISHIPPERS_EMAIL`, and
+`MYUNISHIPPERS_PASSWORD`. The worker refreshes sender details without requesting
+rates. Authentication challenges or missing/default-address contracts require
+explicit sender entry; no account address is modified. See the frontend handoff
+for full input/response shapes, refresh lifetime, and failure behavior.

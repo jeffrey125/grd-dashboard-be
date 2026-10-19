@@ -1,3 +1,4 @@
+import { QuoteModule } from '@modules/shipping-quotes/quote.module.js';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '@modules/auth/auth.module.js';
 import { RuntimeConfigModule } from '@config/config.module.js';
@@ -26,6 +27,7 @@ import { SalesRepsModule } from '@modules/sales-reps/sales-reps.module.js';
     EventsModule,
     DashboardModule,
     SalesRepsModule,
+    QuoteModule,
   ],
 })
 export class AppModule {}

@@ -437,3 +437,58 @@ Before frontend handoff, test these groups against the real local backend:
 See backend test examples in `test/e2e/auth.spec.ts`, `shipments.spec.ts`,
 `carriers.spec.ts` and `refresh.spec.ts`. Tests are evidence, not a reason to copy
 their fixture credentials into frontend configuration.
+
+## SQ-V1-002 saved quote comparisons
+
+Staff and Admin can create, list, and read all non-deleted comparisons. Existing
+session, password-change, trusted-Origin and no-store policies apply.
+
+| Method/path (under `/api/v1`)                             | Contract                                                                                                                                                                                 |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET `/quote-comparisons/providers`                        | Array of `{code,name,enabled}`; codes are `amazon` and `unishippers`.                                                                                                                    |
+| POST `/quote-comparisons/providers/:code/default-refresh` | Empty body; waits up to 90 seconds for the worker. Returns `{refreshId,address,retrievedAt}`; failure is 503 and explicit sender entry remains available. Client timeout is 120 seconds. |
+| POST `/quote-comparisons`                                 | Strict input below; returns `{outcome: created/existing,comparison}`, HTTP 201/200. Reused key with changed input is 409.                                                                |
+| GET `/quote-comparisons?page=1`                           | `{items,total,page,pageSize:25}`, newest first with a stable ID tie-breaker.                                                                                                             |
+| GET `/quote-comparisons/:externalId`                      | One immutable comparison, or 404.                                                                                                                                                        |
+
+Input contains `idempotencyKey` (UUID), `shipDate` (YYYY-MM-DD, current/future in
+America/New_York), `destination`, `providers[]`, and `packageGroups[]`.
+Addresses contain `name,street,city,division,postalCode,country` plus optional
+`street2`; sender country is US. Country/currency inputs use uppercase codes.
+Provider entries contain `code`, `sender`, and `options`. Sender is
+`{mode:explicit,address}` or `{mode:account_default,refreshId}`. Options contain
+`signature` (`none`, `signature`, `adult_signature`) and nullable
+`insurance:{amount,currency}`. Amounts and measurements are decimal strings.
+Groups contain positive integer `quantity`, `units` (`imperial` or `metric`),
+`length,width,height,weight`, and `customsItems`. International groups require
+per-box items with `description,quantity,unitValue,currency,countryOfManufacture,
+weight` and optional/blank `hsCode`. Unknown support never implies included coverage.
+
+Comparison returns `externalId,createdAt,createdBy` (actor public UUID), `input`,
+`senders`, `warnings`, `status:saved`, and `ratesRun:false`. Resolved senders contain
+`code,address,mode,retrievedAt`; explicit addresses have null retrieval time.
+No rate execution, SSE, retry, purchase, deletion or provider-admin endpoint is added.
+
+The UI lives at `/quotes`, `/quotes/new`, and `/quotes/:comparisonId`. Saved details
+are read-only. Copy uses `/quotes/new?copy=<uuid>`, creates a fresh save key, refreshes
+account defaults, omits now-disabled providers, and retains other original inputs.
+An old ship date must be corrected before saving the copy. Failed save retries keep
+the same key while input is unchanged; edited input receives a new key.
+
+### Sender refresh operational boundary
+
+The API queues a bounded refresh in the provider account row and the worker reads
+it through a feature-owned repository. Only the worker launches Playwright and
+holds browser credentials/cookies. Each operation uses a fresh isolated browser,
+with a 75-second browser deadline. Missing configuration, authentication challenges,
+incomplete addresses, and ambiguous Amazon pickup addresses fail closed. There is
+no quote request or provider-account mutation. Concurrent API refreshes for one
+provider share work. The worker handles one default lookup at a time; no rates run.
+
+After success the API keeps an actor-bound immutable refresh snapshot (up to 2,000
+across the single API process). Later refreshes cannot overwrite it. API restart or
+capacity eviction requires refreshing again before saving; explicit input is the
+fallback. Completed comparisons persist their resolved sender permanently.
+Provider disablement is rechecked in the save transaction. Credentials are read only
+from `AMAZON_SHIPPING_EMAIL/PASSWORD` and `MYUNISHIPPERS_EMAIL/PASSWORD` environment
+variables; raw provider responses, tokens, and cookies are never persisted.

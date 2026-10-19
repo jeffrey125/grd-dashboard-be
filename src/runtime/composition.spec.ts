@@ -1,3 +1,4 @@
+import { SenderDefaultsWorker } from '@modules/shipping-quotes/sender-defaults.worker.js';
 import { AUTH_ENGINE } from '@modules/auth/auth.engine.js';
 import { Test } from '@nestjs/testing';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -71,6 +72,7 @@ describe('composition roots', () => {
     try {
       expect(module.get(HealthController)).toBeDefined();
       expect(() => module.get(TrackingSchedulerService)).toThrow();
+      expect(() => module.get(SenderDefaultsWorker)).toThrow();
     } finally {
       await module.close();
     }
@@ -96,7 +98,8 @@ describe('composition roots', () => {
 
       await module.init();
 
-      expect(vi.getTimerCount()).toBe(1);
+      expect(module.get(SenderDefaultsWorker)).toBeDefined();
+      expect(vi.getTimerCount()).toBe(2);
 
       await expect(module.get(ReadinessService).check()).resolves.toMatchObject(
         { status: 'ok' },
