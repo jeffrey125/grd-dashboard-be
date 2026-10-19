@@ -32,6 +32,13 @@ PostgreSQL for migration/integration checks. Keep secrets and diagnostic capture
 outside tracked files and the Docker build context. Production database TLS uses
 `verify-full`; never resolve a certificate failure by disabling verification.
 
+# Commit subjects
+
+Include the applicable ticket ID after the Conventional Commit prefix, for example:
+`test(shipping-quotes): SQ-V1-001 add authenticated provider contract harness`.
+Use that ticket ID for every related commit, and the new ticket ID when starting
+another ticket. Apply this format to proposed messages and actual commits.
+
 # Completion evidence
 
 Run the applicable commands from `README.md`; release/container changes also need
