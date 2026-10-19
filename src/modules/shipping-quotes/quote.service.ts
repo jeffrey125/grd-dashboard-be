@@ -9,6 +9,10 @@ import { z } from 'zod';
 import { QUOTE_REPOSITORY, type QuoteRepository } from './quote.repository.js';
 import { createQuoteSchema, type SenderSnapshot } from './quote.schemas.js';
 
+function hasBlankDimensions(input: z.infer<typeof createQuoteSchema>) {
+  return input.packageGroups.some((group) => group.length === '');
+}
+
 @Injectable()
 export class QuoteService {
   constructor(
@@ -32,6 +36,37 @@ export class QuoteService {
     const input = parsed.data;
     const existing = await this.repository.existing(input, actorId);
     if (existing) return { outcome: 'existing' as const, comparison: existing };
+    if (hasBlankDimensions(input)) {
+      const configurations = await this.repository.providers();
+      const selected = new Set(
+        input.providers.map((provider) => provider.code),
+      );
+      const selectedConfigurations = configurations.filter((provider) =>
+        selected.has(provider.code),
+      );
+      const blankDimensionsSupported =
+        selectedConfigurations.length === selected.size &&
+        selectedConfigurations.every(
+          (provider) =>
+            provider.code === 'unishippers' &&
+            provider.executionMode === 'request',
+        );
+      if (!blankDimensionsSupported)
+        throw new BadRequestException({
+          message: 'Invalid comparison inputs',
+          fields: input.packageGroups.flatMap((group, index) =>
+            group.length === ''
+              ? [
+                  {
+                    field: `packageGroups.${index}`,
+                    message:
+                      'Dimensions are required for the selected provider or execution mode',
+                  },
+                ]
+              : [],
+          ),
+        });
+    }
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/New_York',
       year: 'numeric',

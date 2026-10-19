@@ -29,8 +29,8 @@ One immutable comparison contains:
 - a US sender choice for each provider: refreshed account default or an explicit
   comparison-only sender;
 - a domestic or international destination, subject to provider capability;
-- one or more package groups, where every box in a group has identical dimensions,
-  weight, contents, and a positive quantity;
+- one or more package groups, where every box in a group has identical dimensions
+  when supplied, weight, contents, and a positive quantity;
 - input in imperial or metric units, preserving the original values and provider
   conversions; and
 - requested provider-specific signature or insurance options.
@@ -99,6 +99,10 @@ weight, contents/customs, and requested options where supported.
 
 myUnishippers supports native package quantities. Submit all groups in one shipment
 request and use the returned whole-shipment total. Do not multiply that total again.
+When myUnishippers request mode is the only selected provider, all three dimensions
+may be blank and `billedDimension` is omitted. Dimensions remain all-or-none, and
+Amazon, mixed-provider comparisons, and myUnishippers browser mode require them.
+Weight is always required.
 
 ## Async lifecycle and retry
 

@@ -197,14 +197,14 @@ export class QuotePackageGroupsEntity {
   @Column({ type: 'text', nullable: false })
   weight_original: string;
 
-  @Column({ type: 'numeric', nullable: false, precision: 15, scale: 6 })
-  length_value: string;
+  @Column({ type: 'numeric', nullable: true, precision: 15, scale: 6 })
+  length_value: string | null;
 
-  @Column({ type: 'numeric', nullable: false, precision: 15, scale: 6 })
-  width_value: string;
+  @Column({ type: 'numeric', nullable: true, precision: 15, scale: 6 })
+  width_value: string | null;
 
-  @Column({ type: 'numeric', nullable: false, precision: 15, scale: 6 })
-  height_value: string;
+  @Column({ type: 'numeric', nullable: true, precision: 15, scale: 6 })
+  height_value: string | null;
 
   @Column({ type: 'numeric', nullable: false, precision: 15, scale: 6 })
   weight_value: string;

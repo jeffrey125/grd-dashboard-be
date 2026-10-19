@@ -20,6 +20,7 @@ describe('Quote persistence contract', () => {
     await db?.close();
   });
   it('migrates down/up and maps all eight tables with only NO ACTION foreign keys', async () => {
+    await db.source.undoLastMigration(); // Optional package dimensions migration.
     await db.source.undoLastMigration(); // Amazon quote breakdown migration.
     await db.source.undoLastMigration(); // Quote execution migration.
     await db.source.undoLastMigration(); // Quote comparison migration.

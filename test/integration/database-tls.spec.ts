@@ -113,7 +113,7 @@ describe('verified PostgreSQL TLS', () => {
     try {
       expect(
         await source.query('SELECT count(*)::int AS count FROM migrations'),
-      ).toEqual([{ count: 11 }]);
+      ).toEqual([{ count: 12 }]);
 
       const ready = firstValueFrom(events.events.pipe(timeout(5000)));
 

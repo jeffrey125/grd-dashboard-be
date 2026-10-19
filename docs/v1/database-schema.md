@@ -521,11 +521,17 @@ All new foreign keys explicitly use `ON DELETE NO ACTION` in SQL and ORM mapping
 | `shipping_providers`      | Two stable codes, enabled state, maintenance message, request/browser mode, positive stale hours, creation/update timestamps.                                                                                               |
 | `shipping_accounts`       | Unique provider FK (one account per provider), creation/update timestamps, allowlisted `default_refresh` work/result metadata. No credentials or browser sessions.                                                          |
 | `quote_requests`          | Public UUID, actor FK, actor-scoped unique UUID idempotency key, strict original input JSON, resolved sender snapshots, saved status, created time, reserved soft-delete fields. History index excludes deleted rows.       |
-| `quote_package_groups`    | Request FK and unique position, positive quantities, original decimal strings and units, exact numeric(15,6) values, exact canonical cm/kg strings in `normalized`, created time.                                           |
+| `quote_package_groups`    | Request FK and unique position, positive quantities, original decimal strings and units, nullable dimension numeric(15,6) values, required weight value, available canonical cm/kg strings in `normalized`, created time.   |
 | `quote_customs_items`     | Group FK and unique position, per-box description/quantity, exact numeric(15,6) unit value and weight, currency, manufacture country, optional HS code, created time. Original formatting remains in request input.         |
 | `quote_provider_attempts` | Request/account FKs, UUID, immutable reviewed sender/identity, recorded mode, `saved` status, lease/recovery/outcome fields and timestamps. Partial unique index allows only one running attempt per account.               |
 | `shipping_quotes`         | Attempt FK, carrier/service, numeric(18,6) transportation total, currency, estimate method, transit/expiry/retrieval fields, option and duty/tax/clearance status, persisted package-group contribution JSON, created time. |
 | `shipping_quote_items`    | Quote/group FKs, scoped charge description and numeric(18,6) amount, created time.                                                                                                                                          |
+
+SQ-V1-005 adds optional `contactName` and `phone` to address JSON snapshots, preserving
+sender/receiver contacts without new columns or a migration. Existing snapshots
+without contacts remain valid; browser quotes require the applicable contacts.
+The ORM empty-array default for `shipping_quotes.group_contributions` is represented
+as a JSON array, matching the existing PostgreSQL default without schema changes.
 
 Database triggers reject mutations of comparison input/audit identity, package and
 customs snapshots, result snapshots, and attempt sender/identity. Lifecycle fields
@@ -543,6 +549,13 @@ positive values, 1–100 package groups, 1–10,000 boxes per group, and up to 1
 items per group are application validation limits, not provider capability claims.
 Canonical conversion uses PostgreSQL decimal arithmetic (1 in = 2.54 cm;
 1 lb = 0.45359237 kg), without overwriting original units or values.
+
+Migration `1792800000000-OptionalPackageDimensions` permits the three normalized
+dimension columns to be null when myUnishippers request mode accepts an undimensioned
+package. All three original dimension strings must be blank together; weight remains
+required. Missing dimensions are omitted from `normalized`. Other providers and
+browser mode still require all three dimensions. Rollback requires deleting or
+backfilling comparisons with null dimensions before restoring the non-null constraints.
 
 ### SQ-V1-003 durable execution
 

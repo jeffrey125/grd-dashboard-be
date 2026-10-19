@@ -3,7 +3,7 @@
 ## Status
 
 - Depends on: SQ-V1-001, SQ-V1-003
-- State: ready-for-agent
+- State: implemented; final hardened browser live re-verification pending
 - Repositories: `grd-dashboard-be`, `grd-dashboard-fe`
 
 ## What to build
@@ -29,6 +29,9 @@ and allow a comparison-only sender correction without changing the account addre
   automatic mode fallback.
 - All package groups and quantities are submitted as one native shipment request. The
   adapter uses each offer's whole-shipment total and never multiplies it again.
+- When request mode is the only selected provider, a package group may leave all
+  three dimensions blank and the adapter omits `billedDimension`. Partial dimensions,
+  browser mode, Amazon, and mixed-provider comparisons still require all dimensions.
 - The refreshed account default and retrieval time are visible before submission. The
   actual origin sent is preserved on the attempt.
 - The 35-character sender-company error maps to a specific actionable validation result.
@@ -44,6 +47,15 @@ and allow a comparison-only sender correction without changing the account addre
   purchase, label, booking, pickup, address-book Save, or **Use this rate** action.
 
 ## Verification
+
+Request and full-form browser modes both returned live native two-package quotes:
+seven UPS services, including Ground USD 24.16. Sender/receiver contact inputs are
+collected and saved with the comparison. Browser mode uses the selected ship date,
+native quantities, and entered addresses; it does not use the Quick Quote modal.
+Request mode also returned seven live UPS services for six 51 lb packages with all
+dimensions blank, including Ground USD 324.96.
+The final stricter response-correlation/write-guard revision passes browser fixtures;
+live re-verification stopped at provider sign-in before reaching the form.
 
 - Run adapter contract tests for request and browser fixtures, native quantities,
   whole-total handling, validation mapping, correction isolation, and relogin limits.

@@ -9,6 +9,7 @@ const decimal = z
   .string()
   .regex(/^(?:0|[1-9]\d{0,8})(?:\.\d{1,6})?$/)
   .refine((value) => Number(value) > 0);
+const dimension = z.union([z.literal(''), decimal]);
 const country = z.string().regex(/^[A-Z]{2}$/);
 export const providerCode = z.enum(['amazon', 'unishippers']);
 export const addressSchema = z.strictObject({
@@ -78,9 +79,9 @@ export const createQuoteSchema = z
         z.strictObject({
           quantity: z.number().int().positive().max(10000),
           units: z.enum(['imperial', 'metric']),
-          length: decimal,
-          width: decimal,
-          height: decimal,
+          length: dimension,
+          width: dimension,
+          height: dimension,
           weight: decimal,
           customsItems: z.array(itemSchema).max(100),
         }),
@@ -98,6 +99,16 @@ export const createQuoteSchema = z
         path: ['providers'],
         message: 'Select each provider once',
       });
+    value.packageGroups.forEach((group, index) => {
+      const dimensions = [group.length, group.width, group.height];
+      const populated = dimensions.filter((dimension) => dimension !== '');
+      if (populated.length !== 0 && populated.length !== dimensions.length)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['packageGroups', index],
+          message: 'Enter all dimensions or leave all three blank',
+        });
+    });
     if (value.destination.country !== 'US')
       value.packageGroups.forEach((group, index) => {
         if (!group.customsItems.length)
@@ -111,6 +122,12 @@ export const createQuoteSchema = z
 export type QuoteInput = z.infer<typeof createQuoteSchema>;
 export type Address = z.infer<typeof addressSchema>;
 export type ProviderCode = z.infer<typeof providerCode>;
+export type ProviderConfiguration = {
+  code: ProviderCode;
+  name: string;
+  enabled: boolean;
+  executionMode: 'request' | 'browser';
+};
 export type SenderSnapshot = {
   code: ProviderCode;
   address: Address;

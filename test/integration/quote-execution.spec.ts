@@ -154,6 +154,7 @@ describe('Durable quote execution', () => {
     );
     await db.source.query("UPDATE quote_requests SET status='saved'");
 
+    await db.source.undoLastMigration(); // Optional package dimensions migration.
     await db.source.undoLastMigration(); // Amazon quote breakdown migration.
     await db.source.undoLastMigration(); // Quote execution migration.
     await db.source.runMigrations();

@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const execute = promisify(execFile);
+const migrationCount = 12;
 
 // Opt-in release check. Its uniquely named project owns only disposable data.
 test(
@@ -112,7 +113,10 @@ test(
             '90',
             'api',
           );
-          assert.equal(await sql('SELECT count(*) FROM migrations'), '11');
+          assert.equal(
+            await sql('SELECT count(*) FROM migrations'),
+            String(migrationCount),
+          );
           assert.equal(await sql('SELECT count(*) FROM carriers'), '3');
 
           const address = (await compose('port', 'api', '3000')).stdout.trim();
@@ -205,12 +209,15 @@ test(
           await compose('stop', 'api');
           await waitForLog('api', 'application.stopped');
 
-          for (let index = 0; index < 11; index++)
+          for (let index = 0; index < migrationCount; index++)
             await migration('migration:revert');
 
           assert.equal(await sql('SELECT count(*) FROM migrations'), '0');
           await migration('migration:run');
-          assert.equal(await sql('SELECT count(*) FROM migrations'), '11');
+          assert.equal(
+            await sql('SELECT count(*) FROM migrations'),
+            String(migrationCount),
+          );
           await compose('up', '--wait', '--wait-timeout', '60', 'api');
         },
       );

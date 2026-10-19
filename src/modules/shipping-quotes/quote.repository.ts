@@ -1,12 +1,13 @@
 import type {
   Comparison,
+  ProviderConfiguration,
   QuoteInput,
   SenderSnapshot,
 } from './quote.schemas.js';
 
 export const QUOTE_REPOSITORY = Symbol('QUOTE_REPOSITORY');
 export interface QuoteRepository {
-  providers(): Promise<Array<{ code: string; name: string; enabled: boolean }>>;
+  providers(): Promise<ProviderConfiguration[]>;
   create(
     input: QuoteInput,
     actorId: number,

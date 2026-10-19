@@ -445,7 +445,7 @@ session, password-change, trusted-Origin and no-store policies apply.
 
 | Method/path (under `/api/v1`)                             | Contract                                                                                                                                                                                 |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET `/quote-comparisons/providers`                        | Array of `{code,name,enabled}`; codes are `amazon` and `unishippers`.                                                                                                                    |
+| GET `/quote-comparisons/providers`                        | Array of `{code,name,enabled,executionMode}`; mode is `request` or `browser`, and codes are `amazon` and `unishippers`.                                                                  |
 | POST `/quote-comparisons/providers/:code/default-refresh` | Empty body; waits up to 90 seconds for the worker. Returns `{refreshId,address,retrievedAt}`; failure is 503 and explicit sender entry remains available. Client timeout is 120 seconds. |
 | POST `/quote-comparisons`                                 | Strict input below; returns `{outcome: created/existing,comparison}`, HTTP 201/200. Reused key with changed input is 409.                                                                |
 | GET `/quote-comparisons?page=1`                           | `{items,total,page,pageSize:25}`, newest first with a stable ID tie-breaker.                                                                                                             |
@@ -463,6 +463,10 @@ Groups contain positive integer `quantity`, `units` (`imperial` or `metric`),
 `length,width,height,weight`, and `customsItems`. International groups require
 per-box items with `description,quantity,unitValue,currency,countryOfManufacture,
 weight` and optional/blank `hsCode`. Unknown support never implies included coverage.
+The three dimension strings may all be blank only when myUnishippers is the sole
+selected provider and its current `executionMode` is `request`. Partial dimensions,
+Amazon comparisons, mixed-provider comparisons, and browser mode require all three.
+Weight remains required in every mode.
 
 Comparison returns `externalId,createdAt,createdBy` (actor public UUID), `input`,
 `senders`, `warnings`, `status`, `ratesRun`, and `attempts`. Resolved senders contain
@@ -479,8 +483,24 @@ Mode is null until execution; timestamps are nullable ISO UTC strings. Outcome i
 null until terminal, then `success|validation_failed|unsupported|timeout|
 authentication_failed|failed`. Diagnostics and lease ownership remain private.
 Known reasons are `adapter_unavailable,provider_disabled,validation_failed,
+sender_company_too_long,contact_details_required,
 unsupported,timeout,authentication_failed,provider_failed,recovery_exhausted`.
 Unknown reasons must use generic safe UI copy.
+
+For myUnishippers, `platform` is `myUnishippers` and `carrier` is the delivering
+carrier (normally UPS). Request mode submits all package groups to the provider's
+native estimate contract, so the displayed total is the provider's whole-shipment
+total and the frontend must not multiply it again. When all dimensions are blank,
+request mode omits the native `billedDimension` field. Browser mode drives the provider's
+full small-package form, including native quantities, package groups, converted
+dimensions/weight, addresses, and ship date. It never substitutes Quick Quote.
+Addresses accept optional `contactName` (100 characters) and `phone` (30 characters;
+10–15 digits with conventional phone punctuation). Browser quotes require receiver
+contacts and contacts for an explicit sender; missing values return
+`contact_details_required`. Existing comparisons remain readable without these fields.
+`sender_company_too_long` failure is actionable: Copy to new comparison, choose
+Explicit sender, and correct the sender company name. That correction is comparison
+specific and does not update the provider address book.
 
 Each quote contains `platform,carrier,service,transportationTotal,currency,estimateMethod,
 transitDescription,retrievedAt,expiresAt,optionCoverage,dutyStatus,taxStatus,

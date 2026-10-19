@@ -63,7 +63,7 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
 
   providers() {
     return this.source.query(
-      'SELECT code,name,enabled FROM shipping_providers ORDER BY id',
+      'SELECT code,name,enabled,execution_mode AS "executionMode" FROM shipping_providers ORDER BY id',
     );
   }
 
@@ -105,17 +105,31 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
           comparison: comparison(existing),
         };
       }
-      const providers: Array<{ code: string; enabled: boolean }> =
-        await manager.query(
-          'SELECT code,enabled FROM shipping_providers WHERE code=ANY($1::text[]) ORDER BY id FOR SHARE',
-          [input.providers.map((p) => p.code)],
-        );
+      const providers: Array<{
+        code: string;
+        enabled: boolean;
+        executionMode: 'request' | 'browser';
+      }> = await manager.query(
+        'SELECT code,enabled,execution_mode AS "executionMode" FROM shipping_providers WHERE code=ANY($1::text[]) ORDER BY id FOR SHARE',
+        [input.providers.map((p) => p.code)],
+      );
       if (
         providers.length !== input.providers.length ||
         providers.some((p) => !p.enabled)
       )
         throw new BadRequestException(
           'Selected provider is disabled or unavailable',
+        );
+      if (
+        input.packageGroups.some((group) => group.length === '') &&
+        providers.some(
+          (provider) =>
+            provider.code !== 'unishippers' ||
+            provider.executionMode !== 'request',
+        )
+      )
+        throw new BadRequestException(
+          'Dimensions are required for the selected provider or execution mode',
         );
       const [row] = await manager.query(
         "INSERT INTO quote_requests(idempotency_key,created_by_id,input,senders,status) VALUES ($1,$2,$3,$4,'queued') RETURNING external_id",
@@ -132,7 +146,7 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
       );
       for (const [position, group] of input.packageGroups.entries()) {
         const [{ id: groupId }] = await manager.query(
-          `INSERT INTO quote_package_groups(normalized,request_id,position,quantity,units,length_original,width_original,height_original,weight_original,length_value,width_value,height_value,weight_value) VALUES (jsonb_build_object('lengthCm', ($5::text::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text,'widthCm', ($6::text::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text,'heightCm', ($7::text::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text,'weightKg', ($8::text::numeric * CASE WHEN $4='imperial' THEN 0.45359237 ELSE 1 END)::text),$1,$2,$3,$4,$5,$6,$7,$8,$5::text::numeric,$6::text::numeric,$7::text::numeric,$8::text::numeric) RETURNING id`,
+          `INSERT INTO quote_package_groups(normalized,request_id,position,quantity,units,length_original,width_original,height_original,weight_original,length_value,width_value,height_value,weight_value) VALUES (jsonb_strip_nulls(jsonb_build_object('lengthCm', CASE WHEN NULLIF($5::text,'') IS NULL THEN NULL ELSE (NULLIF($5::text,'')::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text END,'widthCm', CASE WHEN NULLIF($6::text,'') IS NULL THEN NULL ELSE (NULLIF($6::text,'')::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text END,'heightCm', CASE WHEN NULLIF($7::text,'') IS NULL THEN NULL ELSE (NULLIF($7::text,'')::numeric * CASE WHEN $4='imperial' THEN 2.54 ELSE 1 END)::text END,'weightKg', ($8::text::numeric * CASE WHEN $4='imperial' THEN 0.45359237 ELSE 1 END)::text)),$1,$2,$3,$4,$5,$6,$7,$8,NULLIF($5::text,'')::numeric,NULLIF($6::text,'')::numeric,NULLIF($7::text,'')::numeric,$8::text::numeric) RETURNING id`,
           [
             requestId,
             position,

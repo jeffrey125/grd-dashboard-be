@@ -203,18 +203,33 @@ worker scans every second, executes up to two different accounts concurrently,
 and limits each attempt to 90 seconds within a 120-second lease. One expired
 lease is recovered; the next expiry is terminal. Old `saved` comparisons remain
 unchanged; use Copy to new to execute them. Apply migrations
-`1792627200000-QuoteExecution` and `1792713600000-AmazonQuoteBreakdown` before
-starting the updated API/worker.
+`1792627200000-QuoteExecution`, `1792713600000-AmazonQuoteBreakdown`, and
+`1792800000000-OptionalPackageDimensions` before starting the updated API/worker.
 
-The Amazon rate adapter is available through the selected provider execution mode;
-myUnishippers remains `adapter_unavailable` until SQ-V1-005. For a local demonstration
-only, set `QUOTE_DEMO_MODE=true`:
+The Amazon and myUnishippers rate adapters are available through each provider's
+selected execution mode. myUnishippers request mode uses the authenticated in-page
+`/svc/shopFlow` estimate contract and supports native multi-package shipments. Browser
+mode drives the full small-package form with native package quantities, addresses,
+contact names/phone numbers, and the selected ship date. It does not use Quick Quote.
+When request mode is the only selected provider, all three dimensions may be left
+blank; the request omits `billedDimension`. Weight remains required, partial dimensions
+are rejected, and browser, Amazon, or mixed-provider comparisons require dimensions.
+Explicit sender and receiver contact details are required for browser mode; missing
+details produce `contact_details_required`. Both
+paths keep session material in worker memory, preserve the refreshed sender snapshot,
+and never perform purchase, label, pickup booking, or address-book writes. The native
+browser flow retrieves pickup offers but never orders one. For a local
+demonstration only, set `QUOTE_DEMO_MODE=true`:
 production configuration rejects it. Optional `QUOTE_DEMO_AMAZON` and
 `QUOTE_DEMO_UNISHIPPERS` select `success`, `validation_failed`, `unsupported`,
 `timeout`, `auth_replay`, `authentication_failed`, or `failed`. Defaults are
 Amazon success and myUnishippers validation failure. Simulated results remain
 labelled in saved history, even after demo mode is disabled. Demo mode replaces rate
 execution only; account-default refresh and tracking retain their live behavior.
+To opt in to a quote-only production-adapter smoke, configure the provider's two
+credentials in `.env` and run `pnpm test:shipping-quotes:adapter:live`. It tests two
+packages in each mode, reads the account origin in memory, and prints normalized
+rates only. It uses comparison-only test company/contact values and never books.
 The isolated harness below avoids provider I/O. Existing tracking-worker credential/enablement
 requirements still apply when starting the complete worker.
 

@@ -99,6 +99,97 @@ describe('Saved quote comparisons HTTP API', () => {
       .expect(200);
     expect(reopened.body).toEqual(saved.body.comparison);
   });
+
+  it('exposes provider execution modes needed for dimension validation', async () => {
+    const response = await request(app.getHttpServer() as Server)
+      .get('/api/v1/quote-comparisons/providers')
+      .set('Cookie', cookie)
+      .expect(200);
+
+    expect(response.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'unishippers',
+          executionMode: 'request',
+        }),
+      ]),
+    );
+  });
+
+  it('allows blank dimensions only for myUnishippers request mode', async () => {
+    const blankDimensions = {
+      ...input(),
+      providers: [
+        {
+          ...input().providers[0],
+          code: 'unishippers',
+        },
+      ],
+      packageGroups: [
+        {
+          ...input().packageGroups[0],
+          length: '',
+          width: '',
+          height: '',
+        },
+      ],
+    };
+    const saved = await request(app.getHttpServer() as Server)
+      .post('/api/v1/quote-comparisons')
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send(blankDimensions)
+      .expect(201);
+    const reopened = await request(app.getHttpServer() as Server)
+      .get(`/api/v1/quote-comparisons/${saved.body.comparison.externalId}`)
+      .set('Cookie', cookie)
+      .expect(200);
+
+    expect(reopened.body.input.packageGroups[0]).toMatchObject({
+      length: '',
+      width: '',
+      height: '',
+    });
+
+    await request(app.getHttpServer() as Server)
+      .post('/api/v1/quote-comparisons')
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({
+        ...blankDimensions,
+        idempotencyKey: randomUUID(),
+        packageGroups: [{ ...blankDimensions.packageGroups[0], length: '10' }],
+      })
+      .expect(400);
+
+    await request(app.getHttpServer() as Server)
+      .post('/api/v1/quote-comparisons')
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({
+        ...blankDimensions,
+        idempotencyKey: randomUUID(),
+        providers: input().providers,
+      })
+      .expect(400);
+
+    await db.source.query(
+      "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
+    );
+    try {
+      await request(app.getHttpServer() as Server)
+        .post('/api/v1/quote-comparisons')
+        .set('Cookie', cookie)
+        .set('Origin', 'http://dashboard.example.test')
+        .send({ ...blankDimensions, idempotencyKey: randomUUID() })
+        .expect(400);
+    } finally {
+      await db.source.query(
+        "UPDATE shipping_providers SET execution_mode='request' WHERE code='unishippers'",
+      );
+    }
+  });
+
   it('deduplicates concurrent saves, rejects changed payloads, and allows deliberate copies', async () => {
     const body = input();
     const save = (data: object) =>
