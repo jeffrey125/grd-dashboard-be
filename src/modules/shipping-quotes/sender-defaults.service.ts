@@ -88,7 +88,13 @@ export class SenderDefaultsService {
         if (oldest) this.snapshots.delete(oldest);
       }
       this.snapshots.set(refreshId, { actorId, code, ...result });
-      return { refreshId, ...result };
+      return {
+        refreshId,
+        ...result,
+        expiresAt: new Date(
+          Date.parse(result.retrievedAt) + 15 * 60 * 1000,
+        ).toISOString(),
+      };
     } catch {
       throw new ServiceUnavailableException(
         'Sender refresh unavailable; enter an explicit sender',
@@ -98,7 +104,12 @@ export class SenderDefaultsService {
 
   resolve(id: string, code: ProviderCode, actorId: number) {
     const snapshot = this.snapshots.get(id);
-    if (!snapshot || snapshot.code !== code || snapshot.actorId !== actorId)
+    if (
+      !snapshot ||
+      snapshot.code !== code ||
+      snapshot.actorId !== actorId ||
+      Date.now() >= Date.parse(snapshot.retrievedAt) + 15 * 60 * 1000
+    )
       throw new BadRequestException(
         'Refresh sender defaults again or enter an explicit sender',
       );
