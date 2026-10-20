@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   buildUnishippersEstimatePayload,
+  matchesUnishippersQuickQuoteRequest,
   normalizeUnishippersOffers,
   unishippersFailure,
 } from './unishippers-quote.contract.js';
@@ -73,6 +74,27 @@ describe('myUnishippers native whole-shipment offers', () => {
     });
   });
 
+  it('normalizes current Quick Quote chargeItemList lines', () => {
+    const body = response();
+    for (const offer of body.response.offerList)
+      offer.offeredProductList = offer.offeredProductList.slice(0, 1);
+    const product = body.response.offerList[0]!.offeredProductList[0]!;
+    product.chargeItemList = product.charges;
+    delete product.charges;
+
+    const charges = normalizeUnishippersOffers(body, 1)[0]?.charges;
+
+    expect(charges).toHaveLength(2);
+    expect(charges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          description: 'SMALL PACKAGE FREIGHT',
+          scope: 'package',
+        }),
+      ]),
+    );
+  });
+
   it('expands quantities into one native handling unit per box for request mode', () => {
     const address = {
       name: 'Short sender',
@@ -132,6 +154,19 @@ describe('myUnishippers native whole-shipment offers', () => {
       billedDimension: { length: { value: '10', unit: 'in' } },
       weight: { value: 5, unit: 'LB' },
     });
+
+    const captured = structuredClone(payload);
+    captured.request.shipment.handlingUnitList = [
+      captured.request.shipment.handlingUnitList[0]!,
+    ];
+    expect(matchesUnishippersQuickQuoteRequest(captured, job, 0)).toBe(true);
+    captured.request.shipment.handlingUnitList[0]!.billedDimension!.length.unit =
+      'cm';
+    expect(matchesUnishippersQuickQuoteRequest(captured, job, 0)).toBe(false);
+    captured.request.shipment.handlingUnitList[0]!.billedDimension!.length.unit =
+      'in';
+    captured.request.shipment.handlingUnitList[0]!.weight.unit = 'kg';
+    expect(matchesUnishippersQuickQuoteRequest(captured, job, 0)).toBe(false);
   });
 
   it('omits billed dimensions when all three dimensions are blank', () => {

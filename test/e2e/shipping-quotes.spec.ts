@@ -28,6 +28,10 @@ const address = {
   postalCode: '53125',
   country: 'US',
 };
+const businessToday = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+  }).format(new Date());
 const input = () => ({
   idempotencyKey: randomUUID(),
   shipDate: '2099-10-19',
@@ -251,7 +255,60 @@ describe('Saved quote comparisons HTTP API', () => {
     expect(restored.body.attempts).toEqual(before.body.attempts);
   });
 
-  it('rejects Amazon before queueing while an eligible international provider continues', async () => {
+  it('retries a Quick Quote browser attempt without obsolete contact fields', async () => {
+    const server = app.getHttpServer() as Server;
+    const jobs = new TypeOrmQuoteExecutionRepository(db.source);
+    for (;;) {
+      const queued = await jobs.claim(120000);
+      if (!queued) break;
+      await jobs.finish(queued, quoteFailure('timeout'));
+    }
+    await db.source.query(
+      "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
+    );
+    try {
+      const body = {
+        ...input(),
+        shipDate: businessToday(),
+        providers: [
+          {
+            code: 'unishippers',
+            sender: { mode: 'explicit', address },
+            options: { signature: 'none', insurance: null },
+          },
+        ],
+      };
+      const saved = await request(server)
+        .post('/api/v1/quote-comparisons')
+        .set('Cookie', cookie)
+        .set('Origin', 'http://dashboard.example.test')
+        .send(body)
+        .expect(201);
+      const first = (await jobs.claim(120000))!;
+      expect(first.code).toBe('unishippers');
+      await jobs.finish(first, quoteFailure('timeout'));
+
+      const retried = await request(server)
+        .post(
+          `/api/v1/quote-comparisons/${saved.body.comparison.externalId}/attempts/${saved.body.comparison.attempts[0].externalId}/retry`,
+        )
+        .set('Cookie', cookie)
+        .set('Origin', 'http://dashboard.example.test')
+        .send({})
+        .expect(201);
+
+      expect(retried.body.attempts).toHaveLength(2);
+      const retry = (await jobs.claim(120000))!;
+      expect(retry.code).toBe('unishippers');
+      await jobs.finish(retry, quoteFailure('timeout'));
+    } finally {
+      await db.source.query(
+        "UPDATE shipping_providers SET execution_mode='request' WHERE code='unishippers'",
+      );
+    }
+  });
+
+  it('fails closed for international Quick Quote providers before queueing', async () => {
     await db.source.query(
       "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
     );
@@ -314,7 +371,7 @@ describe('Saved quote comparisons HTTP API', () => {
         .send(body)
         .expect(201);
 
-      expect(saved.body.comparison.status).toBe('queued');
+      expect(saved.body.comparison.status).toBe('failed');
       expect(saved.body.comparison.attempts).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -325,16 +382,9 @@ describe('Saved quote comparisons HTTP API', () => {
           }),
           expect.objectContaining({
             provider: 'unishippers',
-            status: 'queued',
-            conversionSnapshot: expect.objectContaining({
-              policy: expect.objectContaining({ rounding: 'half_up' }),
-              packageGroups: [
-                expect.objectContaining({
-                  original: expect.objectContaining({ length: '10.00' }),
-                  provider: expect.objectContaining({ length: '3.937008' }),
-                }),
-              ],
-            }),
+            status: 'failed',
+            outcome: 'unsupported',
+            reasonCode: 'unsupported',
           }),
         ]),
       );
@@ -345,7 +395,7 @@ describe('Saved quote comparisons HTTP API', () => {
     }
   });
 
-  it('allows blank dimensions only for myUnishippers request mode', async () => {
+  it('requires dimensions for myUnishippers Quick Quote in every mode', async () => {
     const blankDimensions = {
       ...input(),
       providers: [
@@ -363,22 +413,12 @@ describe('Saved quote comparisons HTTP API', () => {
         },
       ],
     };
-    const saved = await request(app.getHttpServer() as Server)
+    await request(app.getHttpServer() as Server)
       .post('/api/v1/quote-comparisons')
       .set('Cookie', cookie)
       .set('Origin', 'http://dashboard.example.test')
       .send(blankDimensions)
-      .expect(201);
-    const reopened = await request(app.getHttpServer() as Server)
-      .get(`/api/v1/quote-comparisons/${saved.body.comparison.externalId}`)
-      .set('Cookie', cookie)
-      .expect(200);
-
-    expect(reopened.body.input.packageGroups[0]).toMatchObject({
-      length: '',
-      width: '',
-      height: '',
-    });
+      .expect(400);
 
     await request(app.getHttpServer() as Server)
       .post('/api/v1/quote-comparisons')
@@ -537,7 +577,7 @@ describe('Saved quote comparisons HTTP API', () => {
     expect(counts.shipments).toBe(0);
     expect(counts.active).toBeGreaterThan(0);
   });
-  it('preserves the reviewed default even after another refresh and fails closed on refresh errors', async () => {
+  it('keeps provider-default diagnostics available but requires explicit senders for comparisons', async () => {
     let current = { ...address };
     let failed = false;
     const worker = new SenderDefaultsWorker(
@@ -572,16 +612,15 @@ describe('Saved quote comparisons HTTP API', () => {
           },
         ],
       };
-      const saved = await request(app.getHttpServer() as Server)
+      const rejected = await request(app.getHttpServer() as Server)
         .post('/api/v1/quote-comparisons')
         .set('Cookie', cookie)
         .set('Origin', 'http://dashboard.example.test')
         .send(body)
-        .expect(201);
-      expect(saved.body.comparison.senders[0]).toMatchObject({
-        address,
-        retrievedAt: first.body.retrievedAt,
-        mode: 'account_default',
+        .expect(400);
+      expect(rejected.body.fields).toContainEqual({
+        field: 'providers.0.sender',
+        message: 'Enter an explicit sender for every provider',
       });
       failed = true;
       await refresh().expect(503);

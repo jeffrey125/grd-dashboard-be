@@ -1,4 +1,17 @@
-import type { Page } from 'playwright';
+import type { Page, Request } from 'playwright';
+import { z } from 'zod';
+
+const alertFetch = z
+  .object({ request: z.object({ mode: z.literal('FETCH') }).passthrough() })
+  .passthrough();
+
+function isAlertFetch(request: Request): boolean {
+  try {
+    return alertFetch.safeParse(request.postDataJSON()).success;
+  } catch {
+    return false;
+  }
+}
 
 /** Installed before navigation: readiness may authenticate/read, never request rates or mutate provider data. */
 export async function guardReadinessPage(page: Page, origin: string) {
@@ -36,7 +49,9 @@ export async function guardReadinessPage(page: Page, origin: string) {
     const read = ['GET', 'HEAD', 'OPTIONS'].includes(request.method());
     const allowedPost =
       request.method() === 'POST' &&
-      ((url.origin === origin && readOnlyPosts.has(url.pathname)) ||
+      ((url.origin === origin &&
+        (readOnlyPosts.has(url.pathname) ||
+          (url.pathname === '/svc/setAlertFlow' && isAlertFetch(request)))) ||
         (authOrigins.has(url.origin) &&
           /^(?:\/ap\/signin|\/u\/login(?:\/(?:identifier|password))?|\/usernamepassword\/login|\/oauth\/token)$/.test(
             url.pathname,

@@ -4,9 +4,10 @@
 
 Offline verification results are recorded in the
 [implementation summary](implementation-summary/SQ-V1-009-implementation-summary.md).
-Live sample rates remain a release blocker: the current run obtained no successful
-rate response from either provider. A readiness/login check is not rate evidence.
-Production deployment and hosting approval are separate.
+A sanitized live myUnishippers browser smoke returned seven USD services for a
+quantity-two shipment with calculated totals. Amazon and the configured request
+mode were not rerun against live providers after this change. Production deployment
+and hosting approval are separate.
 
 ## Acceptance evidence
 
@@ -20,8 +21,8 @@ Production deployment and hosting approval are separate.
 | Both provider modes, multiple groups, correlation and mutation guards           | `amazon-quote.adapter.spec.ts`, `unishippers-quote.adapter.integration.spec.ts`, `test/integration/shipping-quotes-contracts.spec.ts`                                                                             |
 | Real worker crash and restart; account exclusion; cross-provider parallelism    | `test/integration/quote-readiness.spec.ts`: two providers running together, later same-account work queued, SIGKILL, new worker, natural 120-second lease expiry, exactly one recovery, subsequent work completes |
 | Repeated recovery exhaustion, stale owner fencing, bounded relogin              | `quote-execution.spec.ts`, `quote-executor.spec.ts`                                                                                                                                                               |
-| Calculated Amazon versus native myUnishippers totals                            | Adapter fixtures and frontend `e2e-backend/quote-readiness.spec.ts` with two groups                                                                                                                               |
-| International, original units, native currency, options and unknown duty/tax    | API shipping-quotes e2e, adapter/schema tests, frontend readiness browser test                                                                                                                                    |
+| Calculated Amazon and calculated myUnishippers Quick Quote totals               | Adapter fixtures and frontend `e2e-backend/quote-readiness.spec.ts` with two groups                                                                                                                               |
+| International/options fail closed while original units remain visible           | API shipping-quotes e2e, adapter/schema tests, frontend readiness browser test                                                                                                                                    |
 | Privacy                                                                         | Raw-error canary through executor/persistence/API, allowlisted SSE keys, worker log exclusions, logging e2e, manual review of changed fixtures and live output                                                    |
 | No purchase/label/booking/pickup/address-save/shipment action                   | Frontend readiness browser assertions, provider write guards, manual quote UI review                                                                                                                              |
 
@@ -96,10 +97,10 @@ deadline and a 120-second lease; recovery is allowed once. Authentication expiry
 allows one relogin/replay. There is no automatic mode fallback. Defaults/readiness
 expire after 15 minutes; stale-rate policy is 1–168 hours, default 1 hour.
 
-Amazon international/options remain unsupported. myUnishippers international and
-options require the verified browser mapping and USD customs/insurance input.
-Rate output retains native currency; no currency or landed-cost conversion occurs.
-Unknown duty/tax/clearance remains unknown. Readiness CAD fixtures test display only.
+Amazon international/options remain unsupported. myUnishippers Quick Quote supports
+domestic US shipments dated today in America/New_York, with complete dimensions and
+without signature or insurance options. Rate output retains native currency; no
+currency or landed-cost conversion occurs. Unknown duty/tax/clearance remains unknown.
 
 ## Privacy decision
 
@@ -128,20 +129,19 @@ arguments or store raw errors to investigate a failed run.
 
 Current observed outcomes:
 
-| Provider      | Mode    | Outcome                                                        |
-| ------------- | ------- | -------------------------------------------------------------- |
-| Amazon        | request | Blocked during sender/login resolution; no rate reached        |
-| Amazon        | browser | Blocked during sender/login resolution; no rate reached        |
-| myUnishippers | request | Blocked during sender/login resolution; no rate reached        |
-| myUnishippers | browser | Authentication failed after exactly one relogin; zero services |
+| Provider      | Mode    | Outcome                                                               |
+| ------------- | ------- | --------------------------------------------------------------------- |
+| Amazon        | request | Not rerun after the Quick Quote change                                |
+| Amazon        | browser | Not rerun after the Quick Quote change                                |
+| myUnishippers | request | Not rerun after both configured modes adopted Quick Quote             |
+| myUnishippers | browser | Success: seven USD services; quantity two; calculated estimate totals |
 
-`credentials_missing` means the selected credential pair is absent.
-`sender_or_login_unavailable` does not distinguish authentication, account-default
-contract or browser/network failure; do not infer the cause from this safe summary.
-Resolve the provider session/default access before repeating an affected mode.
-`authentication_failed` after one relogin is terminal; do not add automatic retries.
-Docker permission failures and occupied test ports are environment failures, not
-proof of product defects. Never disable database TLS verification to bypass a failure.
+`credentials_missing` means the selected credential pair is absent. Safe failure
+summaries do not distinguish every provider, browser or network cause; do not infer
+more than the reported outcome. Authentication failure after one relogin is terminal;
+do not add automatic retries. Docker permission failures and occupied test ports are
+environment failures, not proof of product defects. Never disable database TLS
+verification to bypass a failure.
 
 ## Deferred scope
 

@@ -8,7 +8,11 @@ import {
   toProviderWeight,
 } from './quote-conversions.js';
 import { QuoteDecimal } from './quote-decimal.js';
-import { createQuoteSchema, type QuoteInput } from './quote.schemas.js';
+import {
+  createQuoteSchema,
+  submitQuoteSchema,
+  type QuoteInput,
+} from './quote.schemas.js';
 
 const address = {
   name: 'Fixture',
@@ -63,6 +67,27 @@ function input(): QuoteInput {
 }
 
 describe('international quote input', () => {
+  it('keeps historical account defaults readable but rejects them for new submissions', () => {
+    const historical = input();
+    historical.providers[0]!.sender = {
+      mode: 'account_default',
+      refreshId: '11111111-1111-4111-8111-111111111112',
+    };
+
+    expect(createQuoteSchema.safeParse(historical).success).toBe(true);
+    expect(submitQuoteSchema.safeParse(historical).success).toBe(false);
+  });
+
+  it('keeps historical dimensionless inputs readable but rejects new submissions', () => {
+    const historical = input();
+    historical.packageGroups[0]!.length = '';
+    historical.packageGroups[0]!.width = '';
+    historical.packageGroups[0]!.height = '';
+
+    expect(createQuoteSchema.safeParse(historical).success).toBe(true);
+    expect(submitQuoteSchema.safeParse(historical).success).toBe(false);
+  });
+
   it('treats customs items as per-box and multiplies item and box quantities', () => {
     expect(createQuoteSchema.safeParse(input()).success).toBe(true);
     expect(

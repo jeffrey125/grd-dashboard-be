@@ -46,7 +46,11 @@ for (const code of ['amazon', 'unishippers'] as const) {
       };
       const shipDate = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/New_York',
-      }).format(new Date(Date.now() + 24 * 60 * 60 * 1000));
+      }).format(
+        new Date(
+          Date.now() + (code === 'unishippers' ? 0 : 24 * 60 * 60 * 1000),
+        ),
+      );
 
       const quantity = 2;
       const job: LeasedQuote = {

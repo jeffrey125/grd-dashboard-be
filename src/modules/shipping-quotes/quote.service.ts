@@ -8,12 +8,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { QUOTE_REPOSITORY, type QuoteRepository } from './quote.repository.js';
-import { createQuoteSchema, type SenderSnapshot } from './quote.schemas.js';
-import { canQueueProvider } from './quote-provider-eligibility.js';
-
-function hasBlankDimensions(input: z.infer<typeof createQuoteSchema>) {
-  return input.packageGroups.some((group) => group.length === '');
-}
+import { submitQuoteSchema, type SenderSnapshot } from './quote.schemas.js';
 
 @Injectable()
 export class QuoteService {
@@ -26,7 +21,7 @@ export class QuoteService {
     return this.repository.providers();
   }
   async create(raw: unknown, actorId: number) {
-    const parsed = createQuoteSchema.safeParse(raw);
+    const parsed = submitQuoteSchema.safeParse(raw);
     if (!parsed.success)
       throw new BadRequestException({
         message: 'Invalid comparison inputs',
@@ -38,38 +33,6 @@ export class QuoteService {
     const input = parsed.data;
     const existing = await this.repository.existing(input, actorId);
     if (existing) return { outcome: 'existing' as const, comparison: existing };
-    if (hasBlankDimensions(input)) {
-      const configurations = await this.repository.providers();
-      const selected = new Set(
-        input.providers.map((provider) => provider.code),
-      );
-      const selectedConfigurations = configurations.filter((provider) =>
-        selected.has(provider.code),
-      );
-      const queueableConfigurations = selectedConfigurations.filter(
-        (configuration) => canQueueProvider(input, configuration),
-      );
-      const blankDimensionsSupported = queueableConfigurations.every(
-        (provider) =>
-          provider.code === 'unishippers' &&
-          provider.executionMode === 'request',
-      );
-      if (!blankDimensionsSupported)
-        throw new BadRequestException({
-          message: 'Invalid comparison inputs',
-          fields: input.packageGroups.flatMap((group, index) =>
-            group.length === ''
-              ? [
-                  {
-                    field: `packageGroups.${index}`,
-                    message:
-                      'Dimensions are required for the selected provider or execution mode',
-                  },
-                ]
-              : [],
-          ),
-        });
-    }
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/New_York',
       year: 'numeric',

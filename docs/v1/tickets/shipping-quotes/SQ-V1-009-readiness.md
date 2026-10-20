@@ -35,8 +35,8 @@ the gate within this feature; do not expand into purchase or shipment creation.
   and cross-provider parallelism pass under concurrency.
 - Duplicate submissions prove idempotency. SSE reconnect proves snapshot refetch. Provider
   auth expiry proves one relogin/replay and no unbounded retry.
-- Amazon calculated estimates and myUnishippers native whole-shipment totals remain
-  visibly distinct across multiple package groups.
+- Amazon and myUnishippers calculated estimates remain visibly identified across
+  multiple package groups; myUnishippers uses captured Quick Quote requests.
 - International capability, units, native currency, requested options, and duty/tax
   status never imply unsupported coverage or automatic conversion/landed cost.
 - Automated and manual privacy review finds no credentials, cookies, tokens, external

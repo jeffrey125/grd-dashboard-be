@@ -1,24 +1,17 @@
-import type {
-  ProviderConfiguration,
-  QuoteInput,
-  SenderSnapshot,
-} from './quote.schemas.js';
+import type { ProviderConfiguration, QuoteInput } from './quote.schemas.js';
 
-export function unishippersBrowserInputFailure(
+const businessDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function unishippersQuickQuoteDateSupported(
   input: QuoteInput,
-  sender: SenderSnapshot,
-): 'sender_company_too_long' | 'contact_details_required' | null {
-  if (sender.address.name.length > 35) return 'sender_company_too_long';
-
-  const needsContact = (address: SenderSnapshot['address']) =>
-    !address.contactName?.trim() || !address.phone?.trim();
-  if (
-    needsContact(input.destination) ||
-    (sender.mode === 'explicit' && needsContact(sender.address))
-  )
-    return 'contact_details_required';
-
-  return null;
+  now = new Date(),
+): boolean {
+  return input.shipDate === businessDate.format(now);
 }
 
 type QueueConfiguration = Pick<
@@ -47,14 +40,10 @@ export function canQueueProvider(
   const requestedOptions =
     selected.options.signature !== 'none' ||
     selected.options.insurance !== null;
-  const insuranceSupported =
-    selected.options.insurance === null ||
-    selected.options.insurance.currency === 'USD';
-
   return (
-    !requestedOptions ||
-    (configuration.code === 'unishippers' &&
-      configuration.executionMode === 'browser' &&
-      insuranceSupported)
+    !international &&
+    !requestedOptions &&
+    (configuration.code !== 'unishippers' ||
+      unishippersQuickQuoteDateSupported(input))
   );
 }

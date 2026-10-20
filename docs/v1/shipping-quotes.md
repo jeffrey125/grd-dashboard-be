@@ -26,8 +26,7 @@ or delete and restore quote history.
 One immutable comparison contains:
 
 - a ship date;
-- a US sender choice for each provider: refreshed account default or an explicit
-  comparison-only sender;
+- an explicit US sender entered for each selected provider;
 - a domestic or international destination, subject to provider capability;
 - one or more package groups, where every box in a group has identical dimensions
   when supplied, weight, contents, and a positive quantity;
@@ -48,21 +47,13 @@ Provider-specific fields are visible only while their provider is selected and m
 say which platform uses them. The result records whether every requested option was
 included, unsupported, or unverified.
 
-## Account defaults
+## Senders
 
-Opening the form refreshes each selected provider's default sender. The UI displays
-the full available default details and retrieval time before submission: name/company,
-street, city, state/division, postal code, and country. A cached last successful value
-may be displayed with a stale marker, but submission using the default requires a
-current successful refresh or an explicit sender.
-
-The actual resolved sender is snapshotted on each provider attempt. Provider defaults
-may differ. When they do, results display each origin and a different-origin warning;
-the UI does not name an overall cheapest result across those origins.
-
-If a provider rejects its default sender, the user may enter a correction for this
-comparison. The application must not silently truncate data or save the correction to
-the provider account.
+Every new comparison requires an explicit US sender for each selected provider. The
+application snapshots the entered sender and never saves it to the provider account.
+Historical comparisons that used an account default remain readable and copy their
+resolved sender into editable explicit fields. Admin default refresh remains available
+only as provider-account diagnostics.
 
 ## Provider execution
 
@@ -100,12 +91,14 @@ multiply shipment-level or pickup-level fees. Package signatures must include ev
 input that can change a rate, including origin, destination, ship date, dimensions,
 weight, contents/customs, and requested options where supported.
 
-myUnishippers supports native package quantities. Submit all groups in one shipment
-request and use the returned whole-shipment total. Do not multiply that total again.
-When myUnishippers request mode is the only selected provider, all three dimensions
-may be blank and `billedDimension` is omitted. Dimensions remain all-or-none, and
-Amazon, mixed-provider comparisons, and myUnishippers browser mode require them.
-Weight is always required.
+myUnishippers Quick Quote accepts one box. Drive Quick Quote once to capture its
+current authenticated `/svc/shopFlow` request, then replay that captured request for
+each additional distinct box signature. Multiply compatible per-package charges by
+each group quantity and sum the groups with Decimal.js. Mark multi-box or multi-group
+totals as calculated estimates and fail closed when charge lines do not reconcile to
+the returned one-box total. All dimensions and weight are required. Quick Quote does
+not carry a selectable shipment date, so myUnishippers is eligible only when the
+comparison ship date is today in `America/New_York`.
 
 ## Async lifecycle and retry
 

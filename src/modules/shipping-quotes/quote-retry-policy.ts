@@ -1,7 +1,4 @@
-import {
-  canQueueProvider,
-  unishippersBrowserInputFailure,
-} from './quote-provider-eligibility.js';
+import { canQueueProvider } from './quote-provider-eligibility.js';
 import {
   addressSchema,
   createQuoteSchema,
@@ -36,16 +33,7 @@ export function retryInputBlock(
   )
     return 'input_invalid';
   if (!canQueueProvider(input, provider)) return 'input_invalid';
-  if (
-    input.packageGroups.some((group) => group.length === '') &&
-    (provider.code !== 'unishippers' || provider.executionMode !== 'request')
-  )
-    return 'input_invalid';
-  if (
-    provider.code === 'unishippers' &&
-    provider.executionMode === 'browser' &&
-    unishippersBrowserInputFailure(input, sender)
-  )
+  if (input.packageGroups.some((group) => group.length === ''))
     return 'input_invalid';
 
   return null;

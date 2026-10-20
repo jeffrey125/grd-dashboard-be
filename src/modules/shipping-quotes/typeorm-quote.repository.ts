@@ -109,9 +109,9 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
       `SELECT code,name,enabled,execution_mode AS "executionMode",maintenance_message AS "maintenanceMessage",stale_hours AS "staleHours",
       (SELECT last_default FROM shipping_accounts WHERE provider_id=shipping_providers.id) AS "cachedDefault",
       used_internationally AS "usedInternationally",
-      (used_internationally AND execution_mode='browser') AS "internationalAvailable",
-      (code='unishippers' AND execution_mode='browser') AS "supportsSignature",
-      (code='unishippers' AND execution_mode='browser') AS "supportsInsurance"
+      false AS "internationalAvailable",
+      false AS "supportsSignature",
+      false AS "supportsInsurance"
       FROM shipping_providers ORDER BY id`,
     );
   }
@@ -182,16 +182,14 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
         return provider ? canQueueProvider(input, provider) : false;
       };
       if (
-        input.packageGroups.some((group) => group.length === '') &&
-        providers.some(
-          (provider) =>
-            queueable(provider.code) &&
-            (provider.code !== 'unishippers' ||
-              provider.executionMode !== 'request'),
+        input.packageGroups.some((group) =>
+          [group.length, group.width, group.height].some(
+            (dimension) => dimension === '',
+          ),
         )
       )
         throw new BadRequestException(
-          'Dimensions are required for the selected provider or execution mode',
+          'Dimensions are required for every package group',
         );
       const hasQueuedAttempt = input.providers.some((provider) =>
         queueable(provider.code),

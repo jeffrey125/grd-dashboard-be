@@ -2,9 +2,10 @@
 
 ## Summary
 
-Added executable quote readiness evidence across backend and frontend. Release
-readiness remains incomplete: current live sample-rate checks returned no successful
-rates. Offline acceptance and final review results are recorded below.
+Added executable quote readiness evidence across backend and frontend. The 2026-10-21
+follow-up replaces the myUnishippers full-form path with authenticated Quick Quote
+capture/replay, requires explicit senders and dimensions for new comparisons, and
+verified a live browser-mode quantity-two quote with seven calculated services.
 
 ## Changes Made
 
@@ -21,22 +22,41 @@ rates. Offline acceptance and final review results are recorded below.
 - Recorded the approved privacy exception for required business contact snapshots.
   Reused installed Vitest, Supertest, Testcontainers, PostgreSQL and Playwright;
   Node built-ins handle CLI/process control. No dependency or production schema change.
+- Replaced both myUnishippers execution modes with one guarded Quick Quote flow:
+  capture the current one-box `/svc/shopFlow` request, replay distinct package
+  signatures, and multiply reconciled package charges with Decimal.js.
+- Installed write protection before provider navigation. Reviewed read-style POSTs,
+  validated `setAlertFlow` FETCH initialization, authentication and `/svc/shopFlow`
+  are allowed; pickup scheduling and unknown writes are aborted.
+- New submissions require explicit sender addresses and complete dimensions.
+  Historical snapshots remain readable; browser retries no longer apply obsolete
+  full-form contact/company-name rules.
+- Quick Quote accepts only today's `America/New_York` ship date because its request
+  has no selectable shipment-date field. International lanes and requested options
+  continue to fail closed.
 
 ## Files Changed
 
-| Backend file                                             | Purpose                                                                                  |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `test/integration/quote-readiness.spec.ts`               | Actual worker crash, concurrency, natural lease recovery and safe log evidence.          |
-| `test/integration/quote-live-smoke.spec.ts`              | Missing-credential and selected-provider/mode CLI behavior.                              |
-| `test/e2e/shipping-quotes.spec.ts`                       | Raw failure privacy, authorized contact retention, synthetic receiver and SSE allowlist. |
-| `test/support/shipping-quotes/live-adapter-smoke.mts`    | Both live providers/modes and sanitized outcome reporting.                               |
-| `README.md`                                              | Smoke usage and readiness documentation link.                                            |
-| `docs/v1/shipping-quotes-readiness.md`                   | Acceptance map, commands, operations, privacy and live blockers.                         |
-| `docs/v1/tickets/shipping-quotes/SQ-V1-009-readiness.md` | Approved privacy clarification.                                                          |
-| This summary                                             | Review and verification evidence.                                                        |
+| Backend file                                                | Purpose                                                                                  |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `test/integration/quote-readiness.spec.ts`                  | Actual worker crash, concurrency, natural lease recovery and safe log evidence.          |
+| `test/integration/quote-live-smoke.spec.ts`                 | Missing-credential and selected-provider/mode CLI behavior.                              |
+| `test/e2e/shipping-quotes.spec.ts`                          | Raw failure privacy, authorized contact retention, synthetic receiver and SSE allowlist. |
+| `test/support/shipping-quotes/live-adapter-smoke.mts`       | Both live providers/modes and sanitized outcome reporting.                               |
+| `README.md`                                                 | Smoke usage and readiness documentation link.                                            |
+| `docs/v1/shipping-quotes-readiness.md`                      | Acceptance map, commands, operations, privacy and live blockers.                         |
+| `docs/v1/tickets/shipping-quotes/SQ-V1-009-readiness.md`    | Approved privacy clarification.                                                          |
+| `src/modules/shipping-quotes/unishippers-quote.adapter.ts`  | Guarded Quick Quote capture, replay and distinct-package execution.                      |
+| `src/modules/shipping-quotes/unishippers-quote.contract.ts` | Request correlation, response normalization and exact quantity aggregation.              |
+| `src/modules/shipping-quotes/quote.schemas.ts`              | Explicit-sender and complete-dimension submission contract.                              |
+| `src/modules/shipping-quotes/quote-provider-eligibility.ts` | Domestic, option-free, today-only Quick Quote eligibility.                               |
+| `src/modules/shipping-quotes/quote-retry-policy.ts`         | Retry rules aligned with Quick Quote inputs.                                             |
+| `src/modules/shipping-quotes/typeorm-quote.repository.ts`   | Queue/provider capability enforcement and provider discovery flags.                      |
+| Related unit/integration/e2e specs                          | Request units, write guard, quantities, submission and retry regressions.                |
+| This summary                                                | Review and verification evidence.                                                        |
 
-Frontend changes are listed in its matching summary: readiness browser test,
-fixture adapter/harness, migration count assertion and verification documentation.
+Frontend changes are listed in its matching summary: explicit Quick Quote inputs,
+calculated readiness fixtures, shipment review navigation, and dark-theme branding.
 
 ## Verification
 
@@ -83,6 +103,16 @@ playwright.backend.config.ts e2e-backend/quote-readiness.spec.ts`: final explici
   synthetic data and no live provider I/O.
 - Both repository `git diff --check` checks passed. Independent standards and
   specification review reported no residual findings after fixture corrections.
+- Follow-up backend quality gate passed with `work/**` excluded: Prettier, oxlint,
+  typecheck, 34 files / 315 unit tests, and build. Repository-wide formatting remains
+  blocked only by the unrelated untracked preview under `work/`.
+- Focused myUnishippers adapter integration passed: 1 file / 7 tests, covering both
+  configured modes, distinct and duplicate package groups, readiness, unsupported
+  inputs, and writes attempted during initial page load.
+- Shipping quote HTTP e2e passed: 1 file / 14 tests, including explicit sender,
+  mandatory dimensions and browser-mode retry without contact fields.
+- Sanitized live browser smoke passed: quantity 2, 7 USD services, all labelled
+  `estimateMethod: calculated`; no raw provider request/response was retained.
 
 ## Review Notes
 
@@ -112,11 +142,10 @@ needed. Tests/documentation remain uncommitted pending final approval.
 
 ## Remaining Issues
 
-- Live rates unverified for all four provider/mode combinations; safe summaries do
-  not identify the root cause of sender/login resolution failures.
+- Amazon live checks and the separately named myUnishippers request mode were not
+  rerun in this follow-up. Both myUnishippers modes share the verified Quick Quote
+  implementation and pass the synthetic browser contract.
 - Repository-wide formatting includes an unrelated pre-existing unformatted preview.
-- Subsequently requested deployment to `debian-vm` is blocked: SSH to
-  `192.168.100.83:22` returns `No route to host`; no remote mutation occurred.
 
 ## Suggested Review Order
 
@@ -127,18 +156,10 @@ needed. Tests/documentation remain uncommitted pending final approval.
 
 ## Proposed commits — final approval required
 
-1. `test(shipping-quotes): SQ-V1-009 cover both live provider modes`
-   - Files: `test/support/shipping-quotes/live-adapter-smoke.mts`,
-     `test/integration/quote-live-smoke.spec.ts`.
-   - Purpose: independently selectable live checks, bounded relogin, sanitized
-     output and explicit missing-credential behavior.
-2. `test(shipping-quotes): SQ-V1-009 verify recovery and privacy readiness`
-   - Files: `test/integration/quote-readiness.spec.ts`,
-     `test/e2e/shipping-quotes.spec.ts`, `README.md`,
-     `docs/v1/shipping-quotes-readiness.md`,
-     `docs/v1/tickets/shipping-quotes/SQ-V1-009-readiness.md`, this summary.
-   - Purpose: executable offline acceptance, privacy clarification, operational
-     evidence and honest live release blockers.
+1. `feat(shipping-quotes): SQ-V1-009 adopt guarded Quick Quote aggregation`
+   - Files: changed shipping-quote source, tests, ticket/spec/handoff and this summary.
+   - Purpose: capture/replay Quick Quote safely, calculate grouped quantities, require
+     explicit valid inputs, and preserve retry behavior.
 
 Frontend commits and exact files are listed in its matching summary. Nothing is
 staged or committed. The requested deployment does not imply commit approval.

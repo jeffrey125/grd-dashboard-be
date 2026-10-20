@@ -456,18 +456,16 @@ America/New_York), `destination`, `providers[]`, and `packageGroups[]`.
 Addresses contain `name,street,city,division,postalCode,country` plus optional
 `street2`; sender country is US. Country and currency values must be assigned ISO 3166-1
 alpha-2 and ISO 4217 codes.
-Provider entries contain `code`, `sender`, and `options`. Sender is
-`{mode:explicit,address}` or `{mode:account_default,refreshId}`. Options contain
+Provider entries contain `code`, `sender`, and `options`. New submissions require
+`{mode:explicit,address}`; historical responses may still contain
+`{mode:account_default,refreshId}`. Options contain
 `signature` (`none`, `signature`, `adult_signature`) and nullable
 `insurance:{amount,currency}`. Amounts and measurements are decimal strings.
 Groups contain positive integer `quantity`, `units` (`imperial` or `metric`),
 `length,width,height,weight`, and `customsItems`. International groups require
 per-box items with `description,quantity,unitValue,currency,countryOfManufacture,
 weight` and optional/blank `hsCode`. Unknown support never implies included coverage.
-The three dimension strings may all be blank only when myUnishippers is the sole
-selected provider and its current `executionMode` is `request`. Partial dimensions,
-Amazon comparisons, mixed-provider comparisons, and browser mode require all three.
-Weight remains required in every mode.
+All providers and execution modes require all three dimension strings and weight.
 
 Comparison returns `externalId,createdAt,createdBy` (actor public UUID), `input`,
 `senders`, `warnings`, `status`, `ratesRun`, and `attempts`. Resolved senders contain
@@ -490,19 +488,10 @@ unsupported,timeout,authentication_failed,provider_failed,recovery_exhausted`.
 Unknown reasons must use generic safe UI copy.
 
 For myUnishippers, `platform` is `myUnishippers` and `carrier` is the delivering
-carrier (normally UPS). Request mode submits all package groups to the provider's
-native estimate contract, so the displayed total is the provider's whole-shipment
-total and the frontend must not multiply it again. When all dimensions are blank,
-request mode omits the native `billedDimension` field. Browser mode drives the provider's
-full small-package form, including native quantities, package groups, converted
-dimensions/weight, addresses, and ship date. It never substitutes Quick Quote.
-Addresses accept optional `contactName` (100 characters) and `phone` (30 characters;
-validated against the address country with libphonenumber metadata). Browser quotes require receiver
-contacts and contacts for an explicit sender; missing values return
-`contact_details_required`. Existing comparisons remain readable without these fields.
-`sender_company_too_long` failure is actionable: Copy to new comparison, choose
-Explicit sender, and correct the sender company name. That correction is comparison
-specific and does not update the provider address book.
+carrier (normally UPS). Both configured modes drive Quick Quote once to capture a
+current authenticated one-box request and replay distinct box signatures. Quantity
+and group totals are calculated from reconciled package charges. International lanes,
+future ship dates, signature, and insurance fail closed in this flow.
 
 Each quote contains `platform,carrier,service,transportationTotal,currency,estimateMethod,
 transitDescription,retrievedAt,expiresAt,optionCoverage,dutyStatus,taxStatus,
@@ -526,8 +515,9 @@ visible comparisons every 15 seconds to recover missed signals, closes streams o
 session loss/unmount/deletion, and retries failed connections after session recheck.
 
 The UI lives at `/quotes`, `/quotes/new`, and `/quotes/:comparisonId`. Saved details
-are read-only. Copy uses `/quotes/new?copy=<uuid>`, creates a fresh save key, refreshes
-account defaults, omits now-disabled providers, and retains other original inputs.
+are read-only. Copy uses `/quotes/new?copy=<uuid>`, creates a fresh save key, converts
+historical account-default snapshots into editable explicit senders, omits now-disabled
+providers, and retains other original inputs.
 An old ship date must be corrected before saving the copy. Failed save retries keep
 the same key while input is unchanged; edited input receives a new key.
 

@@ -186,6 +186,25 @@ export const createQuoteSchema = z
           'Total customs value must equal item quantity × unit value × box quantity',
       });
   });
+
+export const submitQuoteSchema = createQuoteSchema.superRefine((value, ctx) => {
+  value.providers.forEach((provider, index) => {
+    if (provider.sender.mode === 'account_default')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['providers', index, 'sender'],
+        message: 'Enter an explicit sender for every provider',
+      });
+  });
+  value.packageGroups.forEach((group, index) => {
+    if ([group.length, group.width, group.height].some((entry) => entry === ''))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['packageGroups', index],
+        message: 'Enter length, width, and height for every package group',
+      });
+  });
+});
 export type QuoteInput = z.infer<typeof createQuoteSchema>;
 export type Address = z.infer<typeof addressSchema>;
 export type ProviderCode = z.infer<typeof providerCode>;

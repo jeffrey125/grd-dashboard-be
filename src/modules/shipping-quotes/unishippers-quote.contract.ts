@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { QuoteDecimal } from './quote-decimal.js';
+import { QuoteDecimal, type Decimal } from './quote-decimal.js';
 import { toProviderLength, toProviderWeight } from './quote-conversions.js';
 import { currencyCodeSchema, phoneNumbersMatch } from './quote-standards.js';
 import { randomUUID } from 'node:crypto';
@@ -7,6 +7,7 @@ import type {
   ExecutionResult,
   LeasedQuote,
 } from './quote-execution.repository.js';
+import type { QuoteCharge, QuoteGroupContribution } from './quote.schemas.js';
 import { quoteFailure } from './quote-executor.js';
 
 const money = z.object({
@@ -51,6 +52,7 @@ const offers = z.object({
                   charges: z.array(charge).optional(),
                 }),
                 charges: z.array(charge).optional(),
+                chargeItemList: z.array(charge).optional(),
               }),
             )
             .min(1),
@@ -148,6 +150,157 @@ function packageUnit(group: LeasedQuote['input']['packageGroups'][number]) {
       unit: 'LB',
     },
   };
+}
+
+function quickQuoteUnit(group: LeasedQuote['input']['packageGroups'][number]) {
+  assertPackageQuantity(group);
+  if ([group.length, group.width, group.height].some((value) => value === ''))
+    throw new UnishippersContractError();
+
+  return packageUnit(group) as ReturnType<typeof packageUnit> & {
+    billedDimension: ReturnType<typeof packageDimensions>;
+  };
+}
+
+const quickQuotePayload = z
+  .object({
+    request: z
+      .object({
+        productType: z.literal('SMALLPACK'),
+        mode: z.literal('ESTIMATE'),
+        shipment: z
+          .object({
+            originAddress: z.object({
+              address: z.object({
+                postalCode: z.union([z.string(), z.number()]),
+                countryCode: z.literal('US'),
+              }),
+            }),
+            destinationAddress: z.object({
+              address: z.object({
+                postalCode: z.union([z.string(), z.number()]),
+                countryCode: z.literal('US'),
+              }),
+            }),
+            handlingUnitList: z
+              .array(
+                z.object({
+                  billedDimension: z.object({
+                    length: z.object({
+                      value: z.union([z.string(), z.number()]),
+                      unit: z.string(),
+                    }),
+                    width: z.object({
+                      value: z.union([z.string(), z.number()]),
+                      unit: z.string(),
+                    }),
+                    height: z.object({
+                      value: z.union([z.string(), z.number()]),
+                      unit: z.string(),
+                    }),
+                  }),
+                  weight: z.object({
+                    value: z.union([z.string(), z.number()]),
+                    unit: z.string(),
+                  }),
+                }),
+              )
+              .length(1),
+          })
+          .passthrough(),
+      })
+      .passthrough(),
+    orgInfo: z.object({ namespace: z.string().min(1) }).passthrough(),
+  })
+  .passthrough();
+
+function sameNumber(left: string | number, right: string | number): boolean {
+  try {
+    return new QuoteDecimal(left).equals(new QuoteDecimal(right));
+  } catch {
+    return false;
+  }
+}
+
+export function matchesUnishippersQuickQuoteRequest(
+  body: unknown,
+  job: LeasedQuote,
+  packageGroupPosition: number,
+): boolean {
+  const parsed = quickQuotePayload.safeParse(body);
+  const group = job.input.packageGroups[packageGroupPosition];
+  if (!parsed.success || !group) return false;
+
+  let expected: ReturnType<typeof quickQuoteUnit>;
+  try {
+    expected = quickQuoteUnit(group);
+  } catch {
+    return false;
+  }
+  const shipment = parsed.data.request.shipment;
+  const unit = shipment.handlingUnitList[0]!;
+
+  return (
+    String(shipment.originAddress.address.postalCode).trim().toUpperCase() ===
+      job.sender.address.postalCode.trim().toUpperCase() &&
+    String(shipment.destinationAddress.address.postalCode)
+      .trim()
+      .toUpperCase() ===
+      job.input.destination.postalCode.trim().toUpperCase() &&
+    sameNumber(
+      unit.billedDimension.length.value,
+      expected.billedDimension.length.value,
+    ) &&
+    sameNumber(
+      unit.billedDimension.width.value,
+      expected.billedDimension.width.value,
+    ) &&
+    sameNumber(
+      unit.billedDimension.height.value,
+      expected.billedDimension.height.value,
+    ) &&
+    sameNumber(unit.weight.value, expected.weight.value) &&
+    unit.billedDimension.length.unit.toLowerCase() === 'in' &&
+    unit.billedDimension.width.unit.toLowerCase() === 'in' &&
+    unit.billedDimension.height.unit.toLowerCase() === 'in' &&
+    unit.weight.unit.toUpperCase() === 'LB'
+  );
+}
+
+export function buildUnishippersQuickQuoteReplay(
+  captured: unknown,
+  job: LeasedQuote,
+  packageGroupPosition: number,
+): unknown {
+  const parsed = quickQuotePayload.safeParse(captured);
+  const group = job.input.packageGroups[packageGroupPosition];
+  if (!parsed.success || !group) throw new UnishippersContractError();
+  const payload = structuredClone(parsed.data);
+
+  payload.correlationId = randomUUID();
+  payload.request.shipment.originAddress.address.postalCode =
+    job.sender.address.postalCode;
+  payload.request.shipment.destinationAddress.address.postalCode =
+    job.input.destination.postalCode;
+  payload.request.shipment.handlingUnitList = [quickQuoteUnit(group)];
+
+  return payload;
+}
+
+export function unishippersQuickQuoteSignature(
+  job: LeasedQuote,
+  packageGroupPosition: number,
+): string {
+  const group = job.input.packageGroups[packageGroupPosition];
+  if (!group) throw new UnishippersContractError();
+  const unit = quickQuoteUnit(group);
+
+  return JSON.stringify({
+    origin: job.sender.address.postalCode.trim().toUpperCase(),
+    destination: job.input.destination.postalCode.trim().toUpperCase(),
+    dimensions: unit.billedDimension,
+    weight: unit.weight,
+  });
 }
 
 /**
@@ -401,7 +554,11 @@ export function normalizeUnishippersOffers(
       // the product representation when both are present so one provider line
       // is not double-counted, while preserving repeated lines for repeated
       // packages.
-      const source = product.charges ?? product.shopRQShipment.charges ?? [];
+      const source =
+        product.charges ??
+        product.chargeItemList ??
+        product.shopRQShipment.charges ??
+        [];
       return source.map((charge) => {
         const amount = decimal(charge.customerPrice.value);
         const description =
@@ -435,6 +592,110 @@ export function normalizeUnishippersOffers(
       clearanceStatus: 'unknown',
       charges,
       groupContributions: [],
+    };
+  });
+}
+
+type QuickQuoteRateBatch = {
+  quotes: ExecutionResult['quotes'];
+  groups: Array<{ packageGroupPosition: number; quantity: number }>;
+};
+
+function rateKey(rate: ExecutionResult['quotes'][number]): string {
+  return JSON.stringify([rate.carrier, rate.service, rate.currency]);
+}
+
+function parsedMoney(value: string): Decimal {
+  try {
+    const result = new QuoteDecimal(value);
+    if (!result.isFinite() || result.isNegative())
+      throw new UnishippersContractError();
+    return result;
+  } catch {
+    throw new UnishippersContractError();
+  }
+}
+
+export function aggregateUnishippersQuickQuoteRates(
+  batches: QuickQuoteRateBatch[],
+): ExecutionResult['quotes'] {
+  if (!batches.length) throw new UnishippersContractError();
+  const byBatch = batches.map(
+    (batch) => new Map(batch.quotes.map((quote) => [rateKey(quote), quote])),
+  );
+  const first = batches[0]!;
+  const calculated =
+    batches.length > 1 ||
+    batches.some(
+      (batch) =>
+        batch.groups.length > 1 ||
+        batch.groups.some((group) => group.quantity > 1),
+    );
+
+  return first.quotes.map((initial) => {
+    const key = rateKey(initial);
+    const rates = byBatch.map((batch) => batch.get(key));
+    if (rates.some((rate) => !rate)) throw new UnishippersContractError();
+    const matched = rates as ExecutionResult['quotes'];
+    const charges: QuoteCharge[] = [];
+    const contributions: QuoteGroupContribution[] = [];
+    let total = new QuoteDecimal(0);
+
+    matched.forEach((rate, batchIndex) => {
+      const batch = batches[batchIndex]!;
+      const rateTotal = parsedMoney(rate.total);
+      if (calculated) {
+        const lineTotal = (rate.charges ?? []).reduce(
+          (sum, charge) => sum.plus(parsedMoney(charge.amount)),
+          new QuoteDecimal(0),
+        );
+        if (
+          !rate.charges?.length ||
+          rate.charges.some((charge) => charge.scope !== 'package') ||
+          !lineTotal.equals(rateTotal)
+        )
+          throw new UnishippersContractError();
+      }
+
+      for (const group of batch.groups) {
+        const subtotal = rateTotal.times(group.quantity);
+        total = total.plus(subtotal);
+        contributions.push({
+          packageGroupPosition: group.packageGroupPosition,
+          quantity: group.quantity,
+          subtotal: subtotal.toFixed(6),
+        });
+        for (const charge of rate.charges ?? [])
+          charges.push({
+            ...charge,
+            amount: parsedMoney(charge.amount).times(group.quantity).toFixed(6),
+            packageGroupPosition: group.packageGroupPosition,
+          });
+      }
+    });
+
+    const transitDescription = matched.every(
+      (rate) => rate.transitDescription === initial.transitDescription,
+    )
+      ? initial.transitDescription
+      : null;
+    const expiresAt = matched.every(
+      (rate) => rate.expiresAt === initial.expiresAt,
+    )
+      ? initial.expiresAt
+      : null;
+
+    return {
+      ...initial,
+      total: total.toFixed(6),
+      estimateMethod: calculated ? 'calculated' : 'native',
+      transitDescription,
+      expiresAt,
+      optionCoverage: 'included',
+      charges,
+      groupContributions: contributions.sort(
+        (left, right) => left.packageGroupPosition - right.packageGroupPosition,
+      ),
     };
   });
 }
