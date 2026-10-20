@@ -180,7 +180,7 @@ describe('initial application schema', () => {
     );
   });
 
-  it('maps all eighteen production entities without schema drift', async () => {
+  it('maps all nineteen production entities without schema drift', async () => {
     expect(
       source.entityMetadatas.map((metadata) => metadata.tableName).sort(),
     ).toEqual([
@@ -197,6 +197,7 @@ describe('initial application schema', () => {
       'shipment_tracking_snapshots',
       'shipments',
       'shipping_accounts',
+      'shipping_provider_tests',
       'shipping_providers',
       'shipping_quote_items',
       'shipping_quotes',
@@ -705,6 +706,9 @@ describe('initial application schema', () => {
         'quote_requests_deleted_by_id_fkey',
         'quote_requests_restored_by_id_fkey',
         'shipping_accounts_provider_id_fkey',
+        'shipping_provider_tests_actor_id_fkey',
+        'shipping_provider_tests_provider_id_fkey',
+        'shipping_providers_updated_by_id_fkey',
         'shipping_quote_items_package_group_id_fkey',
         'shipping_quote_items_quote_id_fkey',
         'shipping_quotes_attempt_id_fkey',
@@ -818,8 +822,11 @@ describe('initial application schema', () => {
       'id external_id created_at updated_at deleted_at created_by_id updated_by_id deleted_by_id';
     const expected = {
       shipping_providers:
-        'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at used_internationally',
-      shipping_accounts: 'default_refresh id provider_id created_at updated_at',
+        'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at used_internationally revision updated_by_id',
+      shipping_accounts:
+        'default_refresh id provider_id created_at updated_at last_default',
+      shipping_provider_tests:
+        'id provider_id actor_id mode revision state failure_summary created_at deadline completed_at consumed_at',
       quote_requests:
         'id external_id idempotency_key created_by_id input senders status created_at deleted_at deleted_by_id restored_at last_deleted_at restored_by_id',
       quote_package_groups:
@@ -887,6 +894,7 @@ describe('initial application schema', () => {
         ['shipment_tracking_snapshots', 'bigint'],
         ['shipments', 'integer'],
         ['shipping_accounts', 'integer'],
+        ['shipping_provider_tests', 'uuid'],
         ['shipping_providers', 'integer'],
         ['shipping_quote_items', 'bigint'],
         ['shipping_quotes', 'bigint'],
@@ -895,7 +903,7 @@ describe('initial application schema', () => {
       ].map(([table_name, data_type]) => ({
         table_name,
         data_type,
-        identity_generation: 'ALWAYS',
+        identity_generation: data_type === 'uuid' ? null : 'ALWAYS',
       })),
     );
   });

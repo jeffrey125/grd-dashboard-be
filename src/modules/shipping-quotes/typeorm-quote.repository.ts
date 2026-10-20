@@ -106,7 +106,8 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
 
   providers() {
     return this.source.query(
-      `SELECT code,name,enabled,execution_mode AS "executionMode",
+      `SELECT code,name,enabled,execution_mode AS "executionMode",maintenance_message AS "maintenanceMessage",stale_hours AS "staleHours",
+      (SELECT last_default FROM shipping_accounts WHERE provider_id=shipping_providers.id) AS "cachedDefault",
       used_internationally AS "usedInternationally",
       (used_internationally AND execution_mode='browser') AS "internationalAvailable",
       (code='unishippers' AND execution_mode='browser') AS "supportsSignature",

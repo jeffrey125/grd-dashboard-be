@@ -14,19 +14,34 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
 
   async claim(leaseMs: number): Promise<LeasedQuote | null> {
     return this.source.transaction(async (manager) => {
-      // Account locks serialize claims and completion, including expired-lease recovery.
-      const [account] = await manager.query(`
-        SELECT s.id FROM shipping_accounts s
+      // Consistent lock order: provider, account, comparison. Recheck eligibility
+      // after the account lock so readiness/default refresh cannot race a claim.
+      // Exclusive provider selection lets concurrent claims skip to another account.
+      const candidates = `
+        SELECT s.id FROM shipping_accounts s JOIN shipping_providers p ON p.id=s.provider_id
         WHERE EXISTS (SELECT 1 FROM quote_provider_attempts a WHERE a.account_id=s.id
           AND (a.status='queued' OR (a.status='running' AND a.lease_until <= clock_timestamp())))
         AND NOT EXISTS (SELECT 1 FROM quote_provider_attempts a WHERE a.account_id=s.id
           AND a.status='running' AND a.lease_until > clock_timestamp())
-        ORDER BY s.id FOR UPDATE OF s SKIP LOCKED LIMIT 1`);
-
+        AND NOT EXISTS (SELECT 1 FROM shipping_provider_tests t WHERE t.provider_id=s.provider_id AND t.state='running' AND t.deadline>clock_timestamp())
+        AND NOT (COALESCE(s.default_refresh->>'state','')='running' AND (s.default_refresh->>'deadline')::timestamptz>clock_timestamp())
+`;
+      const [candidate] = await manager.query(
+        `${candidates} ORDER BY s.id FOR UPDATE OF p SKIP LOCKED LIMIT 1`,
+      );
+      if (!candidate) return null;
+      const [locked] = await manager.query(
+        'SELECT id FROM shipping_accounts WHERE id=$1 FOR UPDATE SKIP LOCKED',
+        [candidate.id],
+      );
+      if (!locked) return null;
+      const [account] = await manager.query(`${candidates} AND s.id=$1`, [
+        candidate.id,
+      ]);
       if (!account) return null;
 
       const [attempt] = await manager.query(
-        `SELECT a.*,a.lease_until > clock_timestamp() AS leased,p.code,p.execution_mode AS mode,p.enabled,p.used_internationally,q.input
+        `SELECT a.*,a.lease_until > clock_timestamp() AS leased,p.code,CASE WHEN a.started_at IS NOT NULL THEN a.execution_mode ELSE p.execution_mode END AS mode,p.enabled,p.used_internationally,q.input
         FROM quote_provider_attempts a JOIN quote_requests q ON q.id=a.request_id
         JOIN shipping_accounts s ON s.id=a.account_id JOIN shipping_providers p ON p.id=s.provider_id
         WHERE a.account_id=$1 AND a.status IN ('queued','running')
@@ -44,8 +59,9 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
       );
 
       // Revalidate retries at execution time as configuration/date can change while queued.
-      const blocked =
-        attempt.attempt_number > 1
+      const blocked = !attempt.enabled
+        ? 'provider_disabled'
+        : attempt.attempt_number > 1
           ? retryInputBlock(attempt.input, attempt.sender, {
               code: attempt.code,
               enabled: attempt.enabled,

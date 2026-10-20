@@ -255,3 +255,15 @@ from the frontend, build with `VITE_API_ORIGIN=http://localhost:3014 pnpm build`
 run `FE_TEST_API_PORT=3014 FE_TEST_QUOTE_DEMO=true FE_TEST_QUOTE_RETRY=true pnpm exec
 playwright test --config playwright.backend.config.ts e2e-backend/quote-history.spec.ts`.
 No production worker, provider login, or credentials are used.
+
+### Quote provider administration (SQ-V1-008)
+
+Apply migration `1793059200000-ProviderAdministration` before starting the updated
+API/worker. Admins use `/admin/shipping-providers` in the frontend for mode, availability,
+maintenance, stale policy, readiness checks and default refresh. The existing worker
+runs readiness jobs; the API never launches provider browsers. No new environment
+variables or production dependencies are required. Demo mode fails readiness safely
+rather than contacting providers. Live sample-rate tests belong to SQ-V1-009.
+
+Stale policy now defaults to one hour (1–168 configurable), including existing quotes
+without provider expiry. Default refresh and mode-test validity are 15 minutes.

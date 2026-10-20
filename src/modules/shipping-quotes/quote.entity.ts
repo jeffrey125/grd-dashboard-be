@@ -16,8 +16,19 @@ import {
   'shipping_providers_execution_mode_check',
   "execution_mode IN ('request','browser')",
 )
-@Check('shipping_providers_stale_hours_check', 'stale_hours > 0')
+@Check('shipping_providers_stale_hours_check', 'stale_hours BETWEEN 1 AND 168')
+@Index('ix_shipping_providers_updated_by', ['updated_by_id'])
+@ForeignKey('AuthUserEntity', ['updated_by_id'], ['id'], {
+  name: 'shipping_providers_updated_by_id_fkey',
+  onDelete: 'NO ACTION',
+})
 export class ShippingProvidersEntity {
+  @Column({ type: 'integer', default: 0 })
+  revision: number;
+
+  @Column({ type: 'integer', nullable: true })
+  updated_by_id: number | null;
+
   @PrimaryGeneratedColumn('identity', {
     type: 'integer',
     generatedIdentity: 'ALWAYS',
@@ -48,7 +59,7 @@ export class ShippingProvidersEntity {
   })
   execution_mode: string;
 
-  @Column({ type: 'integer', nullable: false, default: 24 })
+  @Column({ type: 'integer', nullable: false, default: 1 })
   stale_hours: number;
 
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
@@ -65,6 +76,9 @@ export class ShippingProvidersEntity {
   onDelete: 'NO ACTION',
 })
 export class ShippingAccountsEntity {
+  @Column({ type: 'jsonb', nullable: true })
+  last_default: Record<string, unknown> | null;
+
   @Column({ type: 'jsonb', nullable: true })
   default_refresh: Record<string, unknown> | null;
 
@@ -519,4 +533,65 @@ export class ShippingQuoteItemsEntity {
 
   @Column({ type: 'timestamptz', nullable: false, default: () => 'now()' })
   created_at: Date;
+}
+
+@Entity('shipping_provider_tests')
+@Index('ix_shipping_provider_tests_provider', ['provider_id'])
+@Index('ix_shipping_provider_tests_actor', ['actor_id'])
+@Index('uq_shipping_provider_tests_pending', ['provider_id'], {
+  unique: true,
+  where: "state IN ('queued','running')",
+})
+@ForeignKey('ShippingProvidersEntity', ['provider_id'], ['id'], {
+  name: 'shipping_provider_tests_provider_id_fkey',
+  onDelete: 'NO ACTION',
+})
+@ForeignKey('AuthUserEntity', ['actor_id'], ['id'], {
+  name: 'shipping_provider_tests_actor_id_fkey',
+  onDelete: 'NO ACTION',
+})
+@Check('shipping_provider_tests_mode_check', "mode IN ('request','browser')")
+@Check(
+  'shipping_provider_tests_state_check',
+  "state IN ('queued','running','succeeded','failed')",
+)
+@Check(
+  'shipping_provider_tests_failure_check',
+  "failure_summary IN ('readiness_failed','readiness_timeout')",
+)
+export class ShippingProviderTestsEntity {
+  @PrimaryGeneratedColumn('uuid', {
+    primaryKeyConstraintName: 'shipping_provider_tests_pkey',
+  })
+  id: string;
+
+  @Column({ type: 'integer' })
+  provider_id: number;
+
+  @Column({ type: 'integer' })
+  actor_id: number;
+
+  @Column({ type: 'varchar', length: 10 })
+  mode: string;
+
+  @Column({ type: 'integer' })
+  revision: number;
+
+  @Column({ type: 'varchar', length: 10, default: () => "'queued'" })
+  state: string;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  failure_summary: string | null;
+
+  @Column({ type: 'timestamptz', default: () => 'now()' })
+  created_at: Date;
+
+  @Column({ type: 'timestamptz' })
+  deadline: Date;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  completed_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  consumed_at: Date | null;
 }

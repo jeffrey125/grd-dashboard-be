@@ -1,3 +1,9 @@
+import {
+  ProviderReadinessWorker,
+  READINESS_ADAPTERS,
+} from './provider-readiness.worker.js';
+import { ProviderAdminRepository } from './provider-admin.repository.js';
+import { TypeOrmProviderAdminRepository } from './typeorm-provider-admin.repository.js';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
@@ -18,6 +24,31 @@ import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
 @Module({
   imports: [DatabaseModule, RuntimeConfigModule],
   providers: [
+    {
+      provide: ProviderAdminRepository,
+      inject: [DataSource],
+      useFactory: (source: DataSource) =>
+        new TypeOrmProviderAdminRepository(source),
+    },
+    {
+      provide: READINESS_ADAPTERS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const runtime = config.getOrThrow<RuntimeConfiguration>('runtime');
+        return (code: string) =>
+          runtime.quoteDemo
+            ? {
+                readiness: async () => {
+                  throw new Error('Live readiness unavailable in demo mode');
+                },
+                close: async () => {},
+              }
+            : code === 'amazon'
+              ? new AmazonShippingAdapter()
+              : new UnishippersShippingAdapter();
+      },
+    },
+    ProviderReadinessWorker,
     {
       provide: QuoteExecutionRepository,
       inject: [DataSource],

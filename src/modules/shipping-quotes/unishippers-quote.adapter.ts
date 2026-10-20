@@ -1,3 +1,5 @@
+import { guardReadinessPage } from './provider-readiness-guard.js';
+import { addressSchema } from './quote.schemas.js';
 import {
   chromium,
   type Browser,
@@ -723,6 +725,27 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
       .fill(address.phone!);
   }
 
+  async readiness(mode: 'request' | 'browser'): Promise<void> {
+    const page = await this.getPage();
+    await guardReadinessPage(page, this.origin);
+    await this.login();
+    addressSchema.parse(this.currentSession().defaultOrigin);
+    await this.ensureBillMyAccount(page);
+    if (mode === 'browser') {
+      await page
+        .getByRole('combobox', { name: 'Select Company Name', exact: true })
+        .first()
+        .waitFor({ state: 'visible' });
+      await page
+        .locator('[formcontrolname="weight"]')
+        .first()
+        .waitFor({ state: 'visible' });
+      await page
+        .getByRole('button', { name: /^GET RATES$/i })
+        .waitFor({ state: 'visible' });
+    }
+  }
+
   async quote(job: LeasedQuote, signal: AbortSignal): Promise<ExecutionResult> {
     try {
       signal.throwIfAborted();
@@ -753,7 +776,7 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
     await this.login(true);
   }
 
-  async close(_job: LeasedQuote): Promise<void> {
+  async close(_job?: LeasedQuote): Promise<void> {
     this.session = undefined;
     this.page = undefined;
     this.context = undefined;

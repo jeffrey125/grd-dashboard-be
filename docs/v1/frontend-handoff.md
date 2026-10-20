@@ -587,3 +587,38 @@ fallback. Completed comparisons persist their resolved sender permanently.
 Provider disablement is rechecked in the save transaction. Credentials are read only
 from `AMAZON_SHIPPING_EMAIL/PASSWORD` and `MYUNISHIPPERS_EMAIL/PASSWORD` environment
 variables; raw provider responses, tokens, and cookies are never persisted.
+
+## SQ-V1-008 provider administration API
+
+All paths below use `/api/v1`. Admin-only routes:
+
+| Method/path                                                | Body / result                                                                                                                   |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| GET `/admin/shipping-providers`                            | Settings array: code/name/enabled/executionMode/maintenanceMessage/staleHours/revision/updatedAt/updatedBy/savedConnectionTest. |
+| PATCH `/admin/shipping-providers/:code`                    | Full editable settings plus revision; optional connectionTestId and acknowledgeFailure. Returns updated settings array.         |
+| POST `/admin/shipping-providers/:code/connection-tests`    | `{ executionMode: "request" or "browser" }`; returns durable test, HTTP 201.                                                    |
+| GET `/admin/shipping-providers/:code/connection-tests/:id` | Testing admin's test; poll queued/running until succeeded/failed.                                                               |
+
+Test fields: `id`, `executionMode`, `state`, `failureSummary`, `createdAt`,
+`completedAt`, `expiresAt`, `testedBy` (public employee UUID), `savedAt`.
+Failure summaries are allowlisted codes, never raw exceptions. Saved failed tests
+remain visible on the settings card. Results expire after 15 minutes and cannot be
+reused across provider, mode, admin, settings revision or a prior successful save.
+A mode change requires a completed test; a failed result additionally requires
+`acknowledgeFailure: true`. Invalid input is 400; missing test is 404; revision/test
+conflicts are 409; staff administration is 403. Enabled/message/stale changes alone
+require no readiness test. Readiness performs no sample-rate request.
+
+Staff/Admin discovery GET `/quote-comparisons/providers` additionally returns
+`maintenanceMessage`, `staleHours`, and `cachedDefault` (null or `{address,retrievedAt}`).
+These are effective read-only settings; no test/audit/session secrets are exposed.
+POST `/quote-comparisons/providers/:code/default-refresh` remains available to staff
+for enabled providers and now returns `expiresAt` alongside refreshId/address/retrievedAt.
+Backend submission rejects expired refresh IDs after 15 minutes. Cached defaults
+never provide a refresh ID. Show full cached details as stale if a current refresh
+fails, and offer refresh or a comparison-only explicit sender.
+
+Stale policy defaults to 1 hour, accepts 1–168 whole hours and applies on read to
+all history without provider expiry. Provider expiry remains authoritative. Disable
+blocks new work and queued execution; running quotes may finish. Historical actual
+mode/origin remain unchanged. Frontend settings route: `/admin/shipping-providers`.

@@ -1,3 +1,7 @@
+import { DataSource } from 'typeorm';
+import { ProviderAdminController } from './provider-admin.controller.js';
+import { ProviderAdminRepository } from './provider-admin.repository.js';
+import { TypeOrmProviderAdminRepository } from './typeorm-provider-admin.repository.js';
 import { SenderDefaultsService } from './sender-defaults.service.js';
 import { senderDefaultsRepositoryProvider } from './typeorm-sender-defaults.repository.js';
 import { Module } from '@nestjs/common';
@@ -11,8 +15,18 @@ import { quoteRepositoryProvider } from './typeorm-quote.repository.js';
 
 @Module({
   imports: [DatabaseModule, EventsModule, AuthModule],
-  controllers: [QuoteController, QuoteEventsController],
+  controllers: [
+    ProviderAdminController,
+    QuoteController,
+    QuoteEventsController,
+  ],
   providers: [
+    {
+      provide: ProviderAdminRepository,
+      inject: [DataSource],
+      useFactory: (source: DataSource) =>
+        new TypeOrmProviderAdminRepository(source),
+    },
     QuoteService,
     quoteRepositoryProvider,
     SenderDefaultsService,

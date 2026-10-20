@@ -3,7 +3,7 @@
 ## Status
 
 - Depends on: SQ-V1-004, SQ-V1-005
-- State: ready-for-agent
+- State: implemented and fixture-verified; commit approval pending
 - Repositories: `grd-dashboard-be`, `grd-dashboard-fe`
 
 ## What to build
@@ -30,7 +30,7 @@ the effective settings but cannot change or override them.
   readiness without purchasing, booking, saving an address, or changing provider data.
 - Admins can enable/disable a provider and set a maintenance message. Disabled providers
   are omitted from new comparisons, cannot be retried, and remain visible in history.
-- Admins can configure the no-provider-expiry stale period; the default is 24 hours and
+- Admins can configure the no-provider-expiry stale period; the default is 1 hour (approved SQ-V1-008 decision) and
   validation prevents non-positive or unreasonable values.
 - The quote form refreshes selected providers' defaults on open and displays full details
   plus retrieval time. A last successful cached value is visibly stale and cannot be
@@ -48,5 +48,15 @@ the effective settings but cannot change or override them.
   failed-test override, disable/retry race, and snapshot stability.
 - Run adapter fixture tests proving connection tests are non-purchasing and sanitized.
 - Run frontend tests for role visibility, warnings, maintenance state, default freshness,
-  and 24-hour initial stale policy.
+  and 1-hour initial stale policy.
 - Run both repositories' format, lint, typecheck, test, and build commands.
+
+## Approved refinements
+
+- Readiness only; sample-rate tests belong to SQ-V1-009.
+- Test validity: 15 minutes, provider/mode/admin bound, explicit failed-test override.
+- Stale hours: 1–168, default 1, current policy applies to historical quotes without expiry.
+- Sender-default validity: 15 minutes; show stale cache and require refresh or explicit sender.
+- Disable blocks queued/new work; already-running quotes may finish.
+
+Implementation evidence: [SQ-V1-008 summary](../../implementation-summary/SQ-V1-008-implementation-summary.md).

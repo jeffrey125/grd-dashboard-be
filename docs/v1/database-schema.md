@@ -628,3 +628,28 @@ only when `expires_at` is null. Provider expiry wins. No quote row is rewritten.
 Rollback removes the new indexes, trigger, and lifecycle metadata, preserving quote
 children and restoring the earlier immutability trigger. Run rollback only with
 the updated API/worker stopped; it discards restoration audit metadata.
+
+## SQ-V1-008 provider administration
+
+Migration `1793059200000-ProviderAdministration` adds durable readiness-test records,
+settings concurrency/audit fields and the last successful sender-default cache.
+
+- `shipping_providers`: `revision integer NOT NULL DEFAULT 0`, nullable
+  `updated_by_id` FK to `auth_users` with an index and `ON DELETE NO ACTION`.
+  `stale_hours` defaults to 1 and is constrained to 1–168. The old seeded 24-hour
+  value becomes 1; larger legacy values are capped at 168.
+- `shipping_accounts.last_default jsonb`: only normalized address and retrieval
+  timestamp; preserves successful defaults across later refresh failures.
+- `shipping_provider_tests`: UUID primary `id`; indexed `provider_id` and `actor_id`
+  FKs with `ON DELETE NO ACTION`; proposed `mode`, settings `revision`, `state`,
+  allowlisted `failure_summary`, `created_at`, `deadline`, `completed_at`, and
+  `consumed_at`. A partial unique index permits one queued/running test per provider.
+  Queue and execution deadlines are 90 seconds; claim renews the deadline, while
+  browser work has a 75-second limit. Interrupted/expired jobs are failed safely.
+  A completed test is valid for 15 minutes and consumed when saving a mode change.
+
+No credential, cookie, token, account identifier or raw provider response is stored.
+Failure summaries are `readiness_failed` or `readiness_timeout`; a failed consumed
+result records the explicitly acknowledged save. Settings changes never rewrite
+quote prices, senders or already-started attempt modes. Rollback removes the new
+metadata/tables and restores the 24-hour schema default, without rewriting values.

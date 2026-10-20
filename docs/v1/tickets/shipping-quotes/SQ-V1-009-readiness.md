@@ -57,3 +57,9 @@ the gate within this feature; do not expand into purchase or shipment creation.
   failure, restart, SSE reconnect, retry, international, options, history, and admin.
 - Review the final diffs for unrelated changes and complete each repository's structured
   implementation and commit handoff without committing until the user approves.
+
+## SQ-V1-008 handoff
+
+Connection tests in provider administration check readiness only. Run the opt-in
+sample-rate tests in this ticket, including each provider's selected request/browser
+mode; a readiness pass alone is not evidence of a successful rate response.

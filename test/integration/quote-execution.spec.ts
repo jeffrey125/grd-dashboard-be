@@ -400,6 +400,7 @@ describe('Durable quote execution', () => {
     );
     await db.source.query("UPDATE quote_requests SET status='saved'");
 
+    await db.source.undoLastMigration(); // Provider administration migration.
     await db.source.undoLastMigration(); // History and retry migration.
     await db.source.undoLastMigration(); // International options migration.
     await db.source.undoLastMigration(); // Optional package dimensions migration.

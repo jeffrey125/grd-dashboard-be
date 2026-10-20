@@ -1,3 +1,4 @@
+import { ProviderReadinessWorker } from '@modules/shipping-quotes/provider-readiness.worker.js';
 import { SenderDefaultsWorker } from '@modules/shipping-quotes/sender-defaults.worker.js';
 import { QuoteWorker } from '@modules/shipping-quotes/quote.worker.js';
 import { AUTH_ENGINE } from '@modules/auth/auth.engine.js';
@@ -75,6 +76,7 @@ describe('composition roots', () => {
       expect(() => module.get(TrackingSchedulerService)).toThrow();
       expect(() => module.get(SenderDefaultsWorker)).toThrow();
       expect(() => module.get(QuoteWorker)).toThrow();
+      expect(() => module.get(ProviderReadinessWorker)).toThrow();
     } finally {
       await module.close();
     }
@@ -102,7 +104,8 @@ describe('composition roots', () => {
 
       expect(module.get(SenderDefaultsWorker)).toBeDefined();
       expect(module.get(QuoteWorker)).toBeDefined();
-      expect(vi.getTimerCount()).toBe(3);
+      expect(module.get(ProviderReadinessWorker)).toBeDefined();
+      expect(vi.getTimerCount()).toBe(4);
 
       await expect(module.get(ReadinessService).check()).resolves.toMatchObject(
         { status: 'ok' },

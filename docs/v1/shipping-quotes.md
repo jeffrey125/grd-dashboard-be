@@ -150,7 +150,7 @@ Equivalent results may sort by transportation total and show **Lowest price** on
 when origin, currency, packages, destination, ship date, and requested options match.
 
 Provider expiry is authoritative. If no expiry is returned, an admin-configurable
-stale period applies, defaulting to 24 hours. Expired or stale quotes remain in history.
+stale period applies, defaulting to 1 hour. Expired or stale quotes remain in history.
 They do not qualify for Lowest price. Equivalent fresh ties share the badge; when
 every rate is stale or expired there is no winner. Requested options must have
 confirmed coverage before ranking; mixed simulated and real quotes are not ranked.
@@ -215,3 +215,31 @@ international routes, positive signature/insurance mappings, account-default con
 and precise expiry behavior remain research gates in SQ-V1-001. Unsupported provider
 capabilities must produce an explicit provider result; the unified input model does not
 imply that every provider supports every lane.
+
+## SQ-V1-008 administration decisions
+
+Admins manage provider settings and refresh account defaults on `/admin/shipping-providers`.
+Readiness tests authenticate, resolve account/default context and inspect the proposed
+mode without requesting a sample rate. Sample-rate testing is part of SQ-V1-009.
+A test result is valid for 15 minutes and bound to the provider, proposed mode,
+settings revision and testing admin. Failed tests require explicit acknowledgment;
+only allowlisted failure summaries are stored. Settings saves use revision checks
+so concurrent edits cannot silently overwrite each other.
+
+Stale periods accept 1–168 whole hours, defaulting to 1 hour. Changes apply immediately
+to existing quotes without provider expiry; increasing the period can make a quote
+fresh again. Provider expiry remains authoritative. The migration changes the old
+24-hour seeded value to 1 hour and caps out-of-range legacy values at 168 hours.
+
+Sender-default refreshes are usable for 15 minutes, enforced by the API. The last
+successful address and retrieval time remain available as visibly cached/stale data
+after a refresh fails. A new form always refreshes selected defaults; cached defaults
+alone never authorize submission. Staff may refresh enabled providers' defaults.
+
+Disabling a provider prevents new comparisons/retries and prevents queued work from
+calling that provider. Already-running requests may finish. Lease recovery retains
+the original execution mode; a genuinely new attempt uses current mode at start.
+Readiness and default refresh share account exclusion with quote execution. Readiness
+can test a disabled provider before an admin enables it; default refresh requires an
+enabled provider. Readiness results persist across API restarts; interrupted tests
+expire with a safe timeout and require an explicit new test.

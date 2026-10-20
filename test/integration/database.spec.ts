@@ -1,3 +1,4 @@
+import { ProviderAdministration1793059200000 } from '@infrastructure/database/migrations/1793059200000-ProviderAdministration.js';
 import { QuoteComparisons1792540800000 } from '@infrastructure/database/migrations/1792540800000-QuoteComparisons.js';
 import { QuoteExecution1792627200000 } from '@infrastructure/database/migrations/1792627200000-QuoteExecution.js';
 import { AmazonQuoteBreakdown1792713600000 } from '@infrastructure/database/migrations/1792713600000-AmazonQuoteBreakdown.js';
@@ -102,6 +103,7 @@ describe('production migrations and repository foundation', () => {
         OptionalPackageDimensions1792800000000,
         InternationalQuoteOptions1792886400000,
         QuoteHistoryRetry1792972800000,
+        ProviderAdministration1793059200000,
       ],
     });
     await source.initialize();
@@ -377,6 +379,7 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Provider administration migration.
     await source.undoLastMigration(); // History and retry migration.
     await source.undoLastMigration(); // International quote options migration.
     await source.undoLastMigration(); // Optional package dimensions migration.

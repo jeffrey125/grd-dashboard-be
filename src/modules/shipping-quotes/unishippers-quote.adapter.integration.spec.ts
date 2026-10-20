@@ -384,6 +384,25 @@ describe('myUnishippers production adapter contract', () => {
     return { context, state };
   }
 
+  it.each(['request', 'browser'] as const)(
+    'checks %s readiness without rates or mutations',
+    async (mode) => {
+      const testFixture = await fixture();
+      const adapter = new UnishippersShippingAdapter({
+        origin,
+        context: testFixture.context,
+      });
+      try {
+        await adapter.readiness(mode);
+        expect(testFixture.state.shopRequests).toEqual([]);
+        expect(testFixture.state.mutations).toEqual([]);
+      } finally {
+        await adapter.close();
+        await testFixture.context.close();
+      }
+    },
+  );
+
   it('runs authenticated request mode with native per-box units and bootstrap namespace', async () => {
     const testFixture = await fixture();
     const adapter = new UnishippersShippingAdapter({

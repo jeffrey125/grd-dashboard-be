@@ -49,7 +49,7 @@ const unishippersPayload = z.object({
   }),
 });
 
-function mapAddress(provider: ProviderCode, body: unknown): Address {
+export function mapAddress(provider: ProviderCode, body: unknown): Address {
   let address: Address;
   if (provider === 'amazon') {
     const a =

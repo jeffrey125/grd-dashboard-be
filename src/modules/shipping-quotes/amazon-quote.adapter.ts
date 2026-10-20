@@ -1,3 +1,5 @@
+import { guardReadinessPage } from './provider-readiness-guard.js';
+import { mapAddress } from './browser-sender-defaults.js';
 import {
   chromium,
   type Browser,
@@ -494,6 +496,7 @@ export class AmazonShippingAdapter implements QuoteAdapter {
     // browser session, but a cached session object is never trusted on its own.
     if (force) this.session = undefined;
     const bootstrap = this.captureBootstrap(page);
+    void bootstrap.catch(() => undefined);
     const navigation = await page.goto(
       `${this.origin}/getstarted/progress?show=rates`,
       {
@@ -665,6 +668,42 @@ export class AmazonShippingAdapter implements QuoteAdapter {
     }
   }
 
+  async readiness(mode: 'request' | 'browser'): Promise<void> {
+    const page = await this.getPage();
+    await guardReadinessPage(page, this.origin);
+    const defaults = page
+      .waitForResponse(
+        (response) => {
+          const url = new URL(response.url());
+          return (
+            url.origin === this.origin &&
+            /^\/shippers\/drafts\/[^/]+$/.test(url.pathname) &&
+            response.ok()
+          );
+        },
+        { timeout: LOGIN_TIMEOUT_MS },
+      )
+      .then(async (response) => mapAddress('amazon', await response.json()));
+    void defaults.catch(() => undefined);
+    await this.login();
+    await defaults;
+    if (!this.session) throw new AmazonAuthenticationFailed();
+    if (mode === 'browser') {
+      for (const label of [
+        /origin.*postal/i,
+        /destination.*postal/i,
+        /^length/i,
+        /^width/i,
+        /^height/i,
+        /^weight/i,
+      ])
+        await page
+          .getByLabel(label)
+          .first()
+          .waitFor({ state: 'visible', timeout: LOGIN_TIMEOUT_MS });
+    }
+  }
+
   async quote(job: LeasedQuote, signal: AbortSignal): Promise<ExecutionResult> {
     try {
       signal.throwIfAborted();
@@ -741,7 +780,7 @@ export class AmazonShippingAdapter implements QuoteAdapter {
     await this.login(true);
   }
 
-  async close(_job: LeasedQuote): Promise<void> {
+  async close(_job?: LeasedQuote): Promise<void> {
     this.session = undefined;
     this.page = undefined;
     this.context = undefined;
