@@ -98,9 +98,11 @@ allows one relogin/replay. There is no automatic mode fallback. Defaults/readine
 expire after 15 minutes; stale-rate policy is 1–168 hours, default 1 hour.
 
 Amazon international/options remain unsupported. myUnishippers Quick Quote supports
-domestic US shipments dated today in America/New_York, with complete dimensions and
-without signature or insurance options. Rate output retains native currency; no
-currency or landed-cost conversion occurs. Unknown duty/tax/clearance remains unknown.
+domestic US shipments dated today in America/New_York without signature or insurance
+options. A myUnishippers-only comparison may omit all dimensions; partial dimensions
+and Amazon-inclusive comparisons remain invalid. Weight is always required. Rate
+output retains native currency; no currency or landed-cost conversion occurs. Unknown
+duty/tax/clearance remains unknown.
 
 ## Privacy decision
 

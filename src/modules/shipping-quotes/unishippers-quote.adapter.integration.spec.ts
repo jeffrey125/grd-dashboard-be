@@ -313,7 +313,33 @@ describe('myUnishippers Quick Quote adapter', () => {
     }
   });
 
-  it('fails closed for defaults, international lanes, options, and missing dimensions', async () => {
+  it.each(['request', 'browser'] as const)(
+    'quotes dimensionless packages by weight in %s mode',
+    async (mode) => {
+      const testFixture = await fixture();
+      const adapter = new UnishippersShippingAdapter({
+        origin,
+        context: testFixture.context,
+      });
+      const job = makeJob(mode, [
+        group(6, { length: '', width: '', height: '', weight: '51' }),
+      ]);
+      try {
+        const result = await adapter.quote(job, new AbortController().signal);
+        expect(result).toMatchObject({ outcome: 'success' });
+        expect(result.quotes[0]?.total).toBe('72.480000');
+        expect(result.quotes[0]?.groupContributions).toEqual([
+          { packageGroupPosition: 0, quantity: 6, subtotal: '72.480000' },
+        ]);
+        expect(testFixture.state.shopRequests).toHaveLength(1);
+      } finally {
+        await adapter.close(job);
+        await testFixture.context.close();
+      }
+    },
+  );
+
+  it('fails closed for defaults, international lanes, options, partial dimensions, and future dates', async () => {
     const testFixture = await fixture();
     const adapter = new UnishippersShippingAdapter({
       origin,

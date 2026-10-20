@@ -2,6 +2,7 @@ import { canQueueProvider } from './quote-provider-eligibility.js';
 import {
   addressSchema,
   createQuoteSchema,
+  packageDimensionsSupportedForProvider,
   type ProviderConfiguration,
   type QuoteInput,
   type SenderSnapshot,
@@ -33,7 +34,7 @@ export function retryInputBlock(
   )
     return 'input_invalid';
   if (!canQueueProvider(input, provider)) return 'input_invalid';
-  if (input.packageGroups.some((group) => group.length === ''))
+  if (!packageDimensionsSupportedForProvider(input, provider.code))
     return 'input_invalid';
 
   return null;

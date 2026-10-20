@@ -563,9 +563,11 @@ snapshot.
 Migration `1792800000000-OptionalPackageDimensions` permits the three normalized
 dimension columns to be null when myUnishippers request mode accepts an undimensioned
 package. All three original dimension strings must be blank together; weight remains
-required. Missing dimensions are omitted from `normalized`. Other providers and
-browser mode still require all three dimensions. Rollback requires deleting or
-backfilling comparisons with null dimensions before restoring the non-null constraints.
+required. Missing dimensions are omitted from `normalized`. The later Quick Quote
+flow permits this only when myUnishippers is the sole selected provider, in either
+configured execution mode. Amazon-inclusive comparisons still require all three
+dimensions. Rollback requires deleting or backfilling comparisons with null dimensions
+before restoring the non-null constraints.
 
 ### SQ-V1-003 durable execution
 

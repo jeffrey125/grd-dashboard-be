@@ -154,12 +154,8 @@ function packageUnit(group: LeasedQuote['input']['packageGroups'][number]) {
 
 function quickQuoteUnit(group: LeasedQuote['input']['packageGroups'][number]) {
   assertPackageQuantity(group);
-  if ([group.length, group.width, group.height].some((value) => value === ''))
-    throw new UnishippersContractError();
 
-  return packageUnit(group) as ReturnType<typeof packageUnit> & {
-    billedDimension: ReturnType<typeof packageDimensions>;
-  };
+  return packageUnit(group);
 }
 
 const quickQuotePayload = z
@@ -185,20 +181,22 @@ const quickQuotePayload = z
             handlingUnitList: z
               .array(
                 z.object({
-                  billedDimension: z.object({
-                    length: z.object({
-                      value: z.union([z.string(), z.number()]),
-                      unit: z.string(),
-                    }),
-                    width: z.object({
-                      value: z.union([z.string(), z.number()]),
-                      unit: z.string(),
-                    }),
-                    height: z.object({
-                      value: z.union([z.string(), z.number()]),
-                      unit: z.string(),
-                    }),
-                  }),
+                  billedDimension: z
+                    .object({
+                      length: z.object({
+                        value: z.union([z.string(), z.number()]),
+                        unit: z.string(),
+                      }),
+                      width: z.object({
+                        value: z.union([z.string(), z.number()]),
+                        unit: z.string(),
+                      }),
+                      height: z.object({
+                        value: z.union([z.string(), z.number()]),
+                        unit: z.string(),
+                      }),
+                    })
+                    .optional(),
                   weight: z.object({
                     value: z.union([z.string(), z.number()]),
                     unit: z.string(),
@@ -220,6 +218,31 @@ function sameNumber(left: string | number, right: string | number): boolean {
   } catch {
     return false;
   }
+}
+
+function quickQuoteDimensionsMatch(
+  actual: z.infer<
+    typeof quickQuotePayload
+  >['request']['shipment']['handlingUnitList'][number]['billedDimension'],
+  expected: ReturnType<typeof quickQuoteUnit>['billedDimension'],
+): boolean {
+  if (!expected)
+    return (
+      !actual ||
+      [actual.length, actual.width, actual.height].every(
+        (dimension) => String(dimension.value).trim() === '',
+      )
+    );
+  if (!actual) return false;
+
+  return (
+    sameNumber(actual.length.value, expected.length.value) &&
+    sameNumber(actual.width.value, expected.width.value) &&
+    sameNumber(actual.height.value, expected.height.value) &&
+    actual.length.unit.toLowerCase() === 'in' &&
+    actual.width.unit.toLowerCase() === 'in' &&
+    actual.height.unit.toLowerCase() === 'in'
+  );
 }
 
 export function matchesUnishippersQuickQuoteRequest(
@@ -247,22 +270,8 @@ export function matchesUnishippersQuickQuoteRequest(
       .trim()
       .toUpperCase() ===
       job.input.destination.postalCode.trim().toUpperCase() &&
-    sameNumber(
-      unit.billedDimension.length.value,
-      expected.billedDimension.length.value,
-    ) &&
-    sameNumber(
-      unit.billedDimension.width.value,
-      expected.billedDimension.width.value,
-    ) &&
-    sameNumber(
-      unit.billedDimension.height.value,
-      expected.billedDimension.height.value,
-    ) &&
+    quickQuoteDimensionsMatch(unit.billedDimension, expected.billedDimension) &&
     sameNumber(unit.weight.value, expected.weight.value) &&
-    unit.billedDimension.length.unit.toLowerCase() === 'in' &&
-    unit.billedDimension.width.unit.toLowerCase() === 'in' &&
-    unit.billedDimension.height.unit.toLowerCase() === 'in' &&
     unit.weight.unit.toUpperCase() === 'LB'
   );
 }
@@ -298,7 +307,7 @@ export function unishippersQuickQuoteSignature(
   return JSON.stringify({
     origin: job.sender.address.postalCode.trim().toUpperCase(),
     destination: job.input.destination.postalCode.trim().toUpperCase(),
-    dimensions: unit.billedDimension,
+    dimensions: unit.billedDimension ?? null,
     weight: unit.weight,
   });
 }

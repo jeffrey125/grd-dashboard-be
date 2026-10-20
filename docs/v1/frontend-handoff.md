@@ -465,7 +465,9 @@ Groups contain positive integer `quantity`, `units` (`imperial` or `metric`),
 `length,width,height,weight`, and `customsItems`. International groups require
 per-box items with `description,quantity,unitValue,currency,countryOfManufacture,
 weight` and optional/blank `hsCode`. Unknown support never implies included coverage.
-All providers and execution modes require all three dimension strings and weight.
+A myUnishippers-only comparison may leave all three dimension strings blank. Partial
+dimensions and every Amazon-inclusive comparison require all three positive values.
+Weight is always required.
 
 Comparison returns `externalId,createdAt,createdBy` (actor public UUID), `input`,
 `senders`, `warnings`, `status`, `ratesRun`, and `attempts`. Resolved senders contain

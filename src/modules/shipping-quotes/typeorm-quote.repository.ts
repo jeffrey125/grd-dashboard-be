@@ -4,11 +4,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import type {
-  Comparison,
-  ProviderCode,
-  QuoteInput,
-  SenderSnapshot,
+import {
+  packageDimensionsSupportedForProvider,
+  type Comparison,
+  type ProviderCode,
+  type QuoteInput,
+  type SenderSnapshot,
 } from './quote.schemas.js';
 import { QUOTE_REPOSITORY, type QuoteRepository } from './quote.repository.js';
 import {
@@ -182,14 +183,13 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
         return provider ? canQueueProvider(input, provider) : false;
       };
       if (
-        input.packageGroups.some((group) =>
-          [group.length, group.width, group.height].some(
-            (dimension) => dimension === '',
-          ),
+        input.providers.some(
+          (provider) =>
+            !packageDimensionsSupportedForProvider(input, provider.code),
         )
       )
         throw new BadRequestException(
-          'Dimensions are required for every package group',
+          'Dimensions may be blank only for a myUnishippers-only comparison',
         );
       const hasQueuedAttempt = input.providers.some((provider) =>
         queueable(provider.code),

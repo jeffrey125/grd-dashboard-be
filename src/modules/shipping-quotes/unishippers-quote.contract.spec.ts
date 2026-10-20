@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   buildUnishippersEstimatePayload,
+  buildUnishippersQuickQuoteReplay,
   matchesUnishippersQuickQuoteRequest,
   normalizeUnishippersOffers,
+  unishippersQuickQuoteSignature,
   unishippersFailure,
 } from './unishippers-quote.contract.js';
 import type { LeasedQuote } from './quote-execution.repository.js';
@@ -243,6 +245,24 @@ describe('myUnishippers native whole-shipment offers', () => {
         (unit) => !('billedDimension' in unit),
       ),
     ).toBe(true);
+
+    const captured = structuredClone(payload);
+    captured.request.shipment.handlingUnitList = [
+      captured.request.shipment.handlingUnitList[0]!,
+    ];
+    expect(matchesUnishippersQuickQuoteRequest(captured, job, 0)).toBe(true);
+    const replay = buildUnishippersQuickQuoteReplay(
+      captured,
+      job,
+      0,
+    ) as typeof captured;
+    expect(
+      'billedDimension' in replay.request.shipment.handlingUnitList[0]!,
+    ).toBe(false);
+    expect(JSON.parse(unishippersQuickQuoteSignature(job, 0))).toMatchObject({
+      dimensions: null,
+      weight: { value: 51, unit: 'LB' },
+    });
   });
 
   it('does not apply the full-form sender-company limit to the estimate contract', () => {

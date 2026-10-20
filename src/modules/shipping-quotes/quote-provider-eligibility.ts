@@ -1,4 +1,8 @@
-import type { ProviderConfiguration, QuoteInput } from './quote.schemas.js';
+import {
+  packageDimensionsSupportedForProvider,
+  type ProviderConfiguration,
+  type QuoteInput,
+} from './quote.schemas.js';
 
 const businessDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/New_York',
@@ -43,6 +47,7 @@ export function canQueueProvider(
   return (
     !international &&
     !requestedOptions &&
+    packageDimensionsSupportedForProvider(input, configuration.code) &&
     (configuration.code !== 'unishippers' ||
       unishippersQuickQuoteDateSupported(input))
   );

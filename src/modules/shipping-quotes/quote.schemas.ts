@@ -17,6 +17,37 @@ const decimal = z
   .refine((value) => Number(value) > 0);
 const dimension = z.union([z.literal(''), decimal]);
 export const providerCode = z.enum(['amazon', 'unishippers']);
+
+type DimensionInput = {
+  length: string;
+  width: string;
+  height: string;
+};
+
+type ProviderSelection = {
+  providers: Array<{ code: z.infer<typeof providerCode> }>;
+  packageGroups: DimensionInput[];
+};
+
+export function hasCompletePackageDimensions(group: DimensionInput): boolean {
+  return [group.length, group.width, group.height].every(
+    (dimension) => dimension !== '',
+  );
+}
+
+export function packageDimensionsSupportedForProvider(
+  input: ProviderSelection,
+  code: z.infer<typeof providerCode>,
+): boolean {
+  if (input.packageGroups.every(hasCompletePackageDimensions)) return true;
+
+  return (
+    code === 'unishippers' &&
+    input.providers.length === 1 &&
+    input.providers[0]?.code === 'unishippers'
+  );
+}
+
 export const addressSchema = z
   .strictObject({
     name: text,
@@ -197,11 +228,15 @@ export const submitQuoteSchema = createQuoteSchema.superRefine((value, ctx) => {
       });
   });
   value.packageGroups.forEach((group, index) => {
-    if ([group.length, group.width, group.height].some((entry) => entry === ''))
+    if (
+      !hasCompletePackageDimensions(group) &&
+      !packageDimensionsSupportedForProvider(value, 'unishippers')
+    )
       ctx.addIssue({
         code: 'custom',
         path: ['packageGroups', index],
-        message: 'Enter length, width, and height for every package group',
+        message:
+          'Dimensions may be blank only for a myUnishippers-only comparison',
       });
   });
 });

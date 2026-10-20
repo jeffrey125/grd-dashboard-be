@@ -96,9 +96,11 @@ current authenticated `/svc/shopFlow` request, then replay that captured request
 each additional distinct box signature. Multiply compatible per-package charges by
 each group quantity and sum the groups with Decimal.js. Mark multi-box or multi-group
 totals as calculated estimates and fail closed when charge lines do not reconcile to
-the returned one-box total. All dimensions and weight are required. Quick Quote does
-not carry a selectable shipment date, so myUnishippers is eligible only when the
-comparison ship date is today in `America/New_York`.
+the returned one-box total. A myUnishippers-only comparison may omit all three
+dimensions; its Quick Quote request omits `billedDimension`. Partial dimensions and
+every Amazon-inclusive comparison remain invalid. Weight is always required. Quick
+Quote does not carry a selectable shipment date, so myUnishippers is eligible only
+when the comparison ship date is today in `America/New_York`.
 
 ## Async lifecycle and retry
 

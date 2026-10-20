@@ -395,9 +395,10 @@ describe('Saved quote comparisons HTTP API', () => {
     }
   });
 
-  it('requires dimensions for myUnishippers Quick Quote in every mode', async () => {
+  it('allows blank dimensions only for myUnishippers-only comparisons', async () => {
     const blankDimensions = {
       ...input(),
+      shipDate: businessToday(),
       providers: [
         {
           ...input().providers[0],
@@ -418,7 +419,7 @@ describe('Saved quote comparisons HTTP API', () => {
       .set('Cookie', cookie)
       .set('Origin', 'http://dashboard.example.test')
       .send(blankDimensions)
-      .expect(400);
+      .expect(201);
 
     await request(app.getHttpServer() as Server)
       .post('/api/v1/quote-comparisons')
@@ -451,7 +452,7 @@ describe('Saved quote comparisons HTTP API', () => {
         .set('Cookie', cookie)
         .set('Origin', 'http://dashboard.example.test')
         .send({ ...blankDimensions, idempotencyKey: randomUUID() })
-        .expect(400);
+        .expect(201);
     } finally {
       await db.source.query(
         "UPDATE shipping_providers SET execution_mode='request' WHERE code='unishippers'",

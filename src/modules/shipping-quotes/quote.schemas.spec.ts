@@ -78,14 +78,25 @@ describe('international quote input', () => {
     expect(submitQuoteSchema.safeParse(historical).success).toBe(false);
   });
 
-  it('keeps historical dimensionless inputs readable but rejects new submissions', () => {
-    const historical = input();
-    historical.packageGroups[0]!.length = '';
-    historical.packageGroups[0]!.width = '';
-    historical.packageGroups[0]!.height = '';
+  it('allows blank dimensions only for myUnishippers-only submissions', () => {
+    const unishippersOnly = input();
+    unishippersOnly.packageGroups[0]!.length = '';
+    unishippersOnly.packageGroups[0]!.width = '';
+    unishippersOnly.packageGroups[0]!.height = '';
 
-    expect(createQuoteSchema.safeParse(historical).success).toBe(true);
-    expect(submitQuoteSchema.safeParse(historical).success).toBe(false);
+    expect(createQuoteSchema.safeParse(unishippersOnly).success).toBe(true);
+    expect(submitQuoteSchema.safeParse(unishippersOnly).success).toBe(true);
+
+    const amazonOnly = structuredClone(unishippersOnly);
+    amazonOnly.providers[0]!.code = 'amazon';
+    expect(submitQuoteSchema.safeParse(amazonOnly).success).toBe(false);
+
+    const mixed = structuredClone(unishippersOnly);
+    mixed.providers.push({
+      ...mixed.providers[0]!,
+      code: 'amazon',
+    });
+    expect(submitQuoteSchema.safeParse(mixed).success).toBe(false);
   });
 
   it('treats customs items as per-box and multiplies item and box quantities', () => {

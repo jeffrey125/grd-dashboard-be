@@ -25,6 +25,7 @@ import {
 import { toProviderLength, toProviderWeight } from './quote-conversions.js';
 import { QuoteDecimal } from './quote-decimal.js';
 import { unishippersQuickQuoteDateSupported } from './quote-provider-eligibility.js';
+import { packageDimensionsSupportedForProvider } from './quote.schemas.js';
 import { z } from 'zod';
 
 const LOGIN_TIMEOUT_MS = 30_000;
@@ -276,9 +277,7 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
       provider.options.insurance !== null ||
       job.input.international ||
       !unishippersQuickQuoteDateSupported(job.input) ||
-      job.input.packageGroups.some((group) =>
-        [group.length, group.width, group.height].some((value) => value === ''),
-      )
+      !packageDimensionsSupportedForProvider(job.input, 'unishippers')
     )
       throw new UnishippersContractError();
   }
@@ -290,18 +289,21 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
   ): Promise<void> {
     const group = job.input.packageGroups[packageGroupPosition];
     if (!group) throw new UnishippersContractError();
+    const dimensionsBlank = [group.length, group.width, group.height].every(
+      (value) => value === '',
+    );
     const values = {
       senderZip: job.sender.address.postalCode,
       deliveryZip: job.input.destination.postalCode,
-      'quick-quote-length-input': toProviderLength(group.length, group.units),
-      'ups-package-type-width-input': toProviderLength(
-        group.width,
-        group.units,
-      ),
-      'ups-package-type-height-input': toProviderLength(
-        group.height,
-        group.units,
-      ),
+      'quick-quote-length-input': dimensionsBlank
+        ? ''
+        : toProviderLength(group.length, group.units),
+      'ups-package-type-width-input': dimensionsBlank
+        ? ''
+        : toProviderLength(group.width, group.units),
+      'ups-package-type-height-input': dimensionsBlank
+        ? ''
+        : toProviderLength(group.height, group.units),
       'ups-package-type-weight-input': toProviderWeight(
         group.weight,
         group.units,
@@ -311,10 +313,15 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
     for (const [id, value] of Object.entries(values)) {
       const field = this.quickQuoteField(page, id);
       await field.fill(
-        id.endsWith('Zip') ? value : new QuoteDecimal(value).toString(),
+        id.endsWith('Zip') || value === ''
+          ? value
+          : new QuoteDecimal(value).toString(),
       );
       if (id.endsWith('Zip')) {
         if ((await field.inputValue()).trim() !== value.trim())
+          throw new UnishippersContractError();
+      } else if (value === '') {
+        if ((await field.inputValue()).trim() !== '')
           throw new UnishippersContractError();
       } else if (!new QuoteDecimal(await field.inputValue()).equals(value))
         throw new UnishippersContractError();
