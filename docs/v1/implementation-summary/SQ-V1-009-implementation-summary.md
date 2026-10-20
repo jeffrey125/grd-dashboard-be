@@ -4,8 +4,9 @@
 
 Added executable quote readiness evidence across backend and frontend. The 2026-10-21
 follow-up replaces the myUnishippers full-form path with authenticated Quick Quote
-capture/replay, requires explicit senders and dimensions for new comparisons, and
-verified a live browser-mode quantity-two quote with seven calculated services.
+capture/replay, requires explicit senders, permits dimensionless myUnishippers-only
+comparisons, and verified a live browser-mode quantity-two quote with seven calculated
+services.
 
 ## Changes Made
 
@@ -28,12 +29,17 @@ verified a live browser-mode quantity-two quote with seven calculated services.
 - Installed write protection before provider navigation. Reviewed read-style POSTs,
   validated `setAlertFlow` FETCH initialization, authentication and `/svc/shopFlow`
   are allowed; pickup scheduling and unknown writes are aborted.
-- New submissions require explicit sender addresses and complete dimensions.
-  Historical snapshots remain readable; browser retries no longer apply obsolete
-  full-form contact/company-name rules.
+- New submissions require explicit sender addresses. A myUnishippers-only comparison
+  may leave all dimensions blank; partial dimensions and Amazon-inclusive comparisons
+  remain invalid. Weight remains required. Historical snapshots remain readable;
+  browser retries no longer apply obsolete full-form contact/company-name rules.
 - Quick Quote accepts only today's `America/New_York` ship date because its request
   has no selectable shipment-date field. International lanes and requested options
   continue to fail closed.
+- Corrected Amazon sign-in handling for verification URLs on `www.amazon.com`,
+  allowlisted the observed verification POST in readiness, and detect incomplete
+  Shipping pickup/contact onboarding before any rate request. Quote history now uses
+  the safe `provider_setup_required` reason for that account state.
 
 ## Files Changed
 
@@ -48,10 +54,12 @@ verified a live browser-mode quantity-two quote with seven calculated services.
 | `docs/v1/tickets/shipping-quotes/SQ-V1-009-readiness.md`    | Approved privacy clarification.                                                          |
 | `src/modules/shipping-quotes/unishippers-quote.adapter.ts`  | Guarded Quick Quote capture, replay and distinct-package execution.                      |
 | `src/modules/shipping-quotes/unishippers-quote.contract.ts` | Request correlation, response normalization and exact quantity aggregation.              |
-| `src/modules/shipping-quotes/quote.schemas.ts`              | Explicit-sender and complete-dimension submission contract.                              |
+| `src/modules/shipping-quotes/quote.schemas.ts`              | Explicit-sender and provider-aware dimension submission contract.                        |
 | `src/modules/shipping-quotes/quote-provider-eligibility.ts` | Domestic, option-free, today-only Quick Quote eligibility.                               |
 | `src/modules/shipping-quotes/quote-retry-policy.ts`         | Retry rules aligned with Quick Quote inputs.                                             |
 | `src/modules/shipping-quotes/typeorm-quote.repository.ts`   | Queue/provider capability enforcement and provider discovery flags.                      |
+| `src/modules/shipping-quotes/amazon-quote.adapter.ts`       | Immediate verification handling and incomplete-account setup detection.                  |
+| `src/modules/shipping-quotes/provider-readiness-guard.ts`   | Allows the observed Amazon verification POST while preserving rate/write blocking.       |
 | Related unit/integration/e2e specs                          | Request units, write guard, quantities, submission and retry regressions.                |
 | This summary                                                | Review and verification evidence.                                                        |
 
@@ -104,15 +112,23 @@ playwright.backend.config.ts e2e-backend/quote-readiness.spec.ts`: final explici
 - Both repository `git diff --check` checks passed. Independent standards and
   specification review reported no residual findings after fixture corrections.
 - Follow-up backend quality gate passed with `work/**` excluded: Prettier, oxlint,
-  typecheck, 34 files / 315 unit tests, and build. Repository-wide formatting remains
+  typecheck, 34 files / 317 unit tests, and build. Repository-wide formatting remains
   blocked only by the unrelated untracked preview under `work/`.
 - Focused myUnishippers adapter integration passed: 1 file / 7 tests, covering both
   configured modes, distinct and duplicate package groups, readiness, unsupported
   inputs, and writes attempted during initial page load.
 - Shipping quote HTTP e2e passed: 1 file / 14 tests, including explicit sender,
-  mandatory dimensions and browser-mode retry without contact fields.
+  provider-aware dimensions and browser-mode retry without contact fields.
+- Optional-dimension unit/contract regressions passed: 2 files / 21 tests. The
+  browser-backed adapter fixture passed 1 file / 9 tests in both configured modes.
+- Follow-up backend quality gate passed with `work/**` excluded: Prettier, oxlint,
+  typecheck, 34 files / 317 unit tests, and the Nest production build.
 - Sanitized live browser smoke passed: quantity 2, 7 USD services, all labelled
   `estimateMethod: calculated`; no raw provider request/response was retained.
+- Amazon adapter unit regression passed: 1 file / 8 tests, including immediate
+  verification failure and `provider_setup_required` without a rate request.
+- Amazon readiness boundary passed outside the restricted sandbox: 1 file / 2 tests;
+  the verification POST was allowed while rate and unknown write requests stayed blocked.
 
 ## Review Notes
 
@@ -137,29 +153,35 @@ review used disposable rows and synthetic contacts; production data and ignored
 historical captures were not inspected. Gitleaks was not installed; the existing
 fixture sanitization and logging/privacy tests supplied automated checks.
 
-No new foreign key, production dependency or production application change was
-needed. Tests/documentation remain uncommitted pending final approval.
+No new foreign key, migration or production dependency was needed. The Amazon account
+setup reason uses the existing free-form reason column and terminal `failed` outcome,
+so it remains eligible for an explicit retry after account setup. Independent
+specification and standards reviews found no remaining issue in the optional-dimension follow-up.
+The approved follow-up is committed locally in two focused commits. Deployment remains
+pending.
 
 ## Remaining Issues
 
-- Amazon live checks and the separately named myUnishippers request mode were not
-  rerun in this follow-up. Both myUnishippers modes share the verified Quick Quote
-  implementation and pass the synthetic browser contract.
+- Amazon rates remain blocked until the account owner completes Amazon Shipping's
+  pickup/contact onboarding and resolves the worker sign-in verification challenge.
 - Repository-wide formatting includes an unrelated pre-existing unformatted preview.
+- Current commits are not deployed.
 
 ## Suggested Review Order
 
-1. Worker recovery and API/SSE privacy tests.
-2. Live smoke command and CLI regression tests.
-3. Frontend readiness fixture and real-backend browser tests.
-4. Readiness matrix, ticket privacy decision and both summaries.
+1. Submission schema and provider eligibility/retry policy.
+2. myUnishippers adapter and request-contract handling.
+3. Amazon adapter and readiness guard.
+4. Unit, browser-fixture and HTTP regressions, then updated quote documentation.
 
-## Proposed commits — final approval required
+## Commits
 
-1. `feat(shipping-quotes): SQ-V1-009 adopt guarded Quick Quote aggregation`
-   - Files: changed shipping-quote source, tests, ticket/spec/handoff and this summary.
-   - Purpose: capture/replay Quick Quote safely, calculate grouped quantities, require
-     explicit valid inputs, and preserve retry behavior.
+1. `feat(shipping-quotes): SQ-V1-009 allow dimensionless Quick Quotes`
+   - Purpose: allow all dimensions blank for myUnishippers-only comparisons while
+     retaining partial-dimension and Amazon-inclusive rejection.
+2. `fix(shipping-quotes): SQ-V1-009 handle Amazon setup requirements`
+   - Purpose: recognize Amazon verification immediately, expose incomplete onboarding
+     safely, and preserve the readiness write guard.
 
-Frontend commits and exact files are listed in its matching summary. Nothing is
-staged or committed. The requested deployment does not imply commit approval.
+The matching frontend commit and exact files are listed in its summary. Deployment
+remains a separate task.

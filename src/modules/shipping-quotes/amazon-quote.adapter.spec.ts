@@ -71,7 +71,7 @@ function job(mode: 'request' | 'browser'): LeasedQuote {
 function fakeLocator(visible: boolean) {
   const value = {
     first: () => value,
-    or: () => value,
+    or: (other: Locator) => (visible ? value : other),
     isVisible: async () => visible,
     waitFor: vi.fn(async () => undefined),
     fill: vi.fn(async () => undefined),
@@ -122,6 +122,7 @@ function fakePage(mode: 'request' | 'browser') {
   let responseCalls = 0;
   const page = {
     setDefaultTimeout: vi.fn(),
+    url: vi.fn(() => `${origin}/getstarted/progress?show=rates`),
     goto: vi.fn(async () => undefined),
     waitForResponse: vi.fn(
       async (predicate: (response: unknown) => boolean) => {
@@ -150,6 +151,47 @@ function fakePage(mode: 'request' | 'browser') {
     newPage: vi.fn(async () => page),
   } as unknown as BrowserContext;
   return { origin, context, page, mode };
+}
+
+function blockedPage(kind: 'verification' | 'setup') {
+  const origin = 'https://ship.amazon.com';
+  let currentUrl = `${origin}/getstarted/progress?show=rates`;
+  const visible = fakeLocator(true);
+  const hidden = fakeLocator(false);
+  const email = fakeLocator(kind === 'verification');
+  const body = {
+    ...fakeLocator(true),
+    innerText: async () =>
+      kind === 'setup'
+        ? 'Welcome! Pickup information In progress Save and Continue'
+        : '',
+  } as unknown as Locator;
+  const pendingResponse = new Promise<never>(() => undefined);
+  const page = {
+    setDefaultTimeout: vi.fn(),
+    url: vi.fn(() => currentUrl),
+    goto: vi.fn(async () => undefined),
+    waitForResponse: vi.fn(() => pendingResponse),
+    waitForURL: vi.fn(async (predicate: (url: URL) => boolean) => {
+      currentUrl = 'https://www.amazon.com/ap/cvf/request';
+      expect(predicate(new URL(currentUrl))).toBe(true);
+    }),
+    getByLabel: vi.fn(() => hidden),
+    getByRole: vi.fn((_role: string, options?: { name?: RegExp }) => {
+      if (kind === 'setup')
+        return options?.name?.test('Save and Continue') ? visible : hidden;
+      return visible;
+    }),
+    locator: vi.fn((selector: string) => {
+      if (selector === 'body') return body;
+      if (selector.includes('ap_email')) return email;
+      return visible;
+    }),
+  } as unknown as Page;
+  const context = {
+    newPage: vi.fn(async () => page),
+  } as unknown as BrowserContext;
+  return { context, page };
 }
 
 describe('Amazon quote normalization and aggregation', () => {
@@ -295,5 +337,43 @@ describe('Amazon quote normalization and aggregation', () => {
     expect(result.outcome).toBe('success');
     expect(fixture.page.evaluate).not.toHaveBeenCalled();
     expect(fixture.page.waitForResponse).toHaveBeenCalledTimes(2);
+  });
+
+  it('classifies Amazon account verification as an authentication failure without timing out', async () => {
+    const fixture = blockedPage('verification');
+    const adapter = new AmazonShippingAdapter({
+      context: fixture.context,
+      credentials: () => ({
+        email: 'fixture@example.test',
+        password: 'fixture-password',
+      }),
+    });
+
+    const result = await adapter.quote(
+      job('request'),
+      new AbortController().signal,
+    );
+
+    expect(result).toMatchObject({
+      outcome: 'authentication_failed',
+      reason: 'authentication_failed',
+    });
+    expect(fixture.page.waitForURL).toHaveBeenCalledOnce();
+  });
+
+  it('reports incomplete Amazon Shipping onboarding without requesting a rate', async () => {
+    const fixture = blockedPage('setup');
+    const adapter = new AmazonShippingAdapter({ context: fixture.context });
+
+    const result = await adapter.quote(
+      job('request'),
+      new AbortController().signal,
+    );
+
+    expect(result).toMatchObject({
+      outcome: 'failed',
+      reason: 'provider_setup_required',
+    });
+    expect(fixture.page.waitForURL).not.toHaveBeenCalled();
   });
 });

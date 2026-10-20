@@ -486,7 +486,9 @@ null until terminal, then `success|validation_failed|unsupported|timeout|
 authentication_failed|failed`. Diagnostics and lease ownership remain private.
 Known reasons are `adapter_unavailable,provider_disabled,validation_failed,
 sender_company_too_long,contact_details_required,
-unsupported,timeout,authentication_failed,provider_failed,recovery_exhausted`.
+unsupported,timeout,authentication_failed,provider_setup_required,provider_failed,
+recovery_exhausted`. `provider_setup_required` means the Amazon Shipping account
+must finish its pickup/contact onboarding before the attempt can be retried.
 Unknown reasons must use generic safe UI copy.
 
 For myUnishippers, `platform` is `myUnishippers` and `carrier` is the delivering

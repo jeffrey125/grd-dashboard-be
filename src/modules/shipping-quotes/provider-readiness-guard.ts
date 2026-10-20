@@ -53,7 +53,7 @@ export async function guardReadinessPage(page: Page, origin: string) {
         (readOnlyPosts.has(url.pathname) ||
           (url.pathname === '/svc/setAlertFlow' && isAlertFetch(request)))) ||
         (authOrigins.has(url.origin) &&
-          /^(?:\/ap\/signin|\/u\/login(?:\/(?:identifier|password))?|\/usernamepassword\/login|\/oauth\/token)$/.test(
+          /^(?:\/ap\/signin|\/aaut\/verify\/cvf\/?|\/u\/login(?:\/(?:identifier|password))?|\/usernamepassword\/login|\/oauth\/token)$/.test(
             url.pathname,
           )));
     if (read || allowedPost) await route.fallback();

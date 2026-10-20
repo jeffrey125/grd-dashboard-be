@@ -25,6 +25,7 @@ import type {
 
 const LOGIN_TIMEOUT_MS = 30_000;
 const RATE_TIMEOUT_MS = 30_000;
+const AMAZON_ACCOUNT_ORIGIN = 'https://www.amazon.com';
 const PACKAGE_CHARGE_CODES = new Set([
   'BASE_CHARGE',
   'DELIVERY_AREA_SURCHARGE',
@@ -111,6 +112,13 @@ export class AmazonAuthenticationFailed extends Error {
   }
 }
 
+export class AmazonProviderSetupRequired extends Error {
+  constructor() {
+    super('amazon shipping account setup is incomplete');
+    this.name = 'AmazonProviderSetupRequired';
+  }
+}
+
 export class AmazonUnsupported extends Error {
   constructor() {
     super('amazon quote capability is unsupported or unverified');
@@ -137,6 +145,12 @@ function chargeScope(code: string): QuoteCharge['scope'] | undefined {
   if (SHIPMENT_CHARGE_CODES.has(normalized)) return 'shipment';
   if (PACKAGE_CHARGE_CODES.has(normalized)) return 'package';
   return undefined;
+}
+
+function isAmazonVerificationUrl(url: URL): boolean {
+  return (
+    url.origin === AMAZON_ACCOUNT_ORIGIN && url.pathname.startsWith('/ap/cvf/')
+  );
 }
 
 function responseText(body: unknown): string | null {
@@ -418,11 +432,17 @@ export class AmazonShippingAdapter implements QuoteAdapter {
   }
 
   private async waitForEntry(page: Page): Promise<void> {
+    if (isAmazonVerificationUrl(new URL(page.url())))
+      throw new AmazonAuthenticationFailed();
+    const setup = page
+      .getByRole('button', { name: /^save and continue$/i })
+      .first();
     const entry = page
       .getByLabel(/origin.*postal/i)
       .or(page.getByRole('button', { name: /^view$/i }))
       .or(page.getByRole('button', { name: /^calculate rates$/i }))
       .or(this.loginEmail(page))
+      .or(setup)
       .first();
     await entry.waitFor({ state: 'visible', timeout: LOGIN_TIMEOUT_MS });
     const body = (await page.locator('body').innerText()).toLowerCase();
@@ -432,6 +452,12 @@ export class AmazonShippingAdapter implements QuoteAdapter {
       )
     )
       throw new AmazonAuthenticationFailed();
+    if (
+      (await setup.isVisible()) &&
+      /pickup information/.test(body) &&
+      /save and continue/.test(body)
+    )
+      throw new AmazonProviderSetupRequired();
   }
 
   private captureBootstrap(page: Page): Promise<AmazonSession> {
@@ -530,9 +556,9 @@ export class AmazonShippingAdapter implements QuoteAdapter {
         .click();
       await page.waitForURL(
         (url) =>
-          url.origin === this.origin &&
-          (url.pathname === '/getstarted/progress' ||
-            url.pathname.startsWith('/ap/cvf/')),
+          (url.origin === this.origin &&
+            url.pathname === '/getstarted/progress') ||
+          isAmazonVerificationUrl(url),
         { timeout: LOGIN_TIMEOUT_MS },
       );
       await this.waitForEntry(page);
@@ -763,6 +789,8 @@ export class AmazonShippingAdapter implements QuoteAdapter {
         error instanceof AmazonAuthenticationFailed
       )
         return quoteFailure('authentication_failed');
+      if (error instanceof AmazonProviderSetupRequired)
+        return quoteFailure('provider_setup_required');
       if (
         error instanceof AmazonUnsupported ||
         error instanceof AmazonChargeScopeUnknown

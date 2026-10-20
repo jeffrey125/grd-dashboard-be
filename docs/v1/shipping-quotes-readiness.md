@@ -97,6 +97,11 @@ deadline and a 120-second lease; recovery is allowed once. Authentication expiry
 allows one relogin/replay. There is no automatic mode fallback. Defaults/readiness
 expire after 15 minutes; stale-rate policy is 1–168 hours, default 1 hour.
 
+Amazon readiness accepts the observed Amazon authentication verification request but
+does not complete a challenge. Verification is reported as an authentication failure.
+Incomplete Shipping pickup/contact onboarding is reported as provider setup required,
+and no onboarding data or sample-rate payload is submitted.
+
 Amazon international/options remain unsupported. myUnishippers Quick Quote supports
 domestic US shipments dated today in America/New_York without signature or insurance
 options. A myUnishippers-only comparison may omit all dimensions; partial dimensions

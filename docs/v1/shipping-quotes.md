@@ -128,6 +128,12 @@ other is running, but at most one attempt per provider/comparison may be active.
 Eligibility is rechecked at execution time, and no current sender-default refresh
 replaces the original resolved sender.
 
+Amazon account verification pages return `authentication_failed` immediately instead
+of waiting for the calculator timeout. An authenticated account that still shows the
+Shipping pickup/contact onboarding returns `provider_setup_required`; it does not
+request a rate or submit onboarding data. The failed attempt becomes retryable after
+an administrator completes that setup directly with Amazon.
+
 ## Results and ranking
 
 Each service result displays:

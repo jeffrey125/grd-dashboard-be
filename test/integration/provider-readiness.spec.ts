@@ -9,6 +9,7 @@ describe('Amazon readiness boundary', () => {
       const browser = await chromium.launch({ headless: true });
       const context = await browser.newContext({ serviceWorkers: 'block' });
       const origin = 'https://amazon.fixture';
+      const authentication: string[] = [];
       const unsafe: string[] = [];
       await context.route('**/*', async (route) => {
         const url = new URL(route.request().url());
@@ -21,6 +22,7 @@ describe('Amazon readiness boundary', () => {
         <script>
           fetch('/hz/getLatestProposalSharedWithShipper',{headers:{'x-xsrf-token':'secret'}});
           fetch('/shippers/drafts/fixture');
+          fetch('https://www.amazon.com/aaut/verify/cvf',{method:'POST'}).catch(()=>{});
           fetch('/shipping-rates/getRates',{method:'POST'}).catch(()=>{});
           fetch('/account/save',{method:'POST',body:'secret'}).catch(()=>{});
         </script>`,
@@ -58,12 +60,23 @@ describe('Amazon readiness boundary', () => {
               },
             },
           });
+        if (
+          url.origin === 'https://www.amazon.com' &&
+          url.pathname === '/aaut/verify/cvf'
+        ) {
+          authentication.push(url.pathname);
+          return route.fulfill({
+            headers: { 'access-control-allow-origin': origin },
+            json: {},
+          });
+        }
         unsafe.push(url.pathname);
         await route.abort();
       });
       const adapter = new AmazonShippingAdapter({ origin, context });
       try {
         await adapter.readiness(mode);
+        expect(authentication).toEqual(['/aaut/verify/cvf']);
         expect(unsafe).toEqual([]);
       } finally {
         await adapter.close();
