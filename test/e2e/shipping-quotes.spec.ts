@@ -1,6 +1,9 @@
 import { SenderDefaultsWorker } from '@modules/shipping-quotes/sender-defaults.worker.js';
 import { TypeOrmQuoteExecutionRepository } from '@modules/shipping-quotes/typeorm-quote-execution.repository.js';
-import { quoteFailure } from '@modules/shipping-quotes/quote-executor.js';
+import {
+  executeQuote,
+  quoteFailure,
+} from '@modules/shipping-quotes/quote-executor.js';
 import { TypeOrmSenderDefaultsRepository } from '@modules/shipping-quotes/typeorm-sender-defaults.repository.js';
 import { AuthService } from '@modules/auth/auth.service.js';
 import type { INestApplication } from '@nestjs/common';
@@ -80,6 +83,55 @@ describe('Saved quote comparisons HTTP API', () => {
     await app?.close();
     await db?.close();
     vi.unstubAllEnvs();
+  });
+
+  it('retains authorized contacts but excludes raw provider failures from history and stored diagnostics', async () => {
+    const rawProviderSecret = 'SQ009_PRIVATE_PROVIDER_COOKIE_AND_ACCOUNT';
+    const body = input();
+    const saved = await request(app.getHttpServer() as Server)
+      .post('/api/v1/quote-comparisons')
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({
+        ...body,
+        destination: {
+          ...body.destination,
+          contactName: 'Fixture Receiver',
+          phone: '2025550147',
+        },
+      })
+      .expect(201);
+    const jobs = new TypeOrmQuoteExecutionRepository(db.source);
+    const job = (await jobs.claim(120000))!;
+    expect(job.input.idempotencyKey).toBe(body.idempotencyKey);
+    const result = await executeQuote(
+      job,
+      {
+        simulated: true,
+        quote: async () => {
+          throw new Error(rawProviderSecret);
+        },
+        relogin: async () => {},
+        close: async () => {},
+      },
+      new AbortController().signal,
+    );
+    await jobs.finish(job, result);
+    const response = await request(app.getHttpServer() as Server)
+      .get(`/api/v1/quote-comparisons/${saved.body.comparison.externalId}`)
+      .set('Cookie', cookie)
+      .expect(200);
+
+    expect(response.body.input.destination.contactName).toBe(
+      'Fixture Receiver',
+    );
+    expect(response.body.attempts[0].reasonCode).toBe('provider_failed');
+    expect(JSON.stringify(response.body)).not.toContain(rawProviderSecret);
+    const stored = await db.source.query(
+      'SELECT row_to_json(attempt) AS record FROM quote_provider_attempts attempt WHERE id=$1',
+      [job.id],
+    );
+    expect(JSON.stringify(stored)).not.toContain(rawProviderSecret);
   });
 
   it('saves and reopens exact inputs without requesting rates', async () => {
@@ -211,8 +263,8 @@ describe('Saved quote comparisons HTTP API', () => {
           country: 'CA',
           division: 'British Columbia',
           postalCode: 'V2T 0J8',
-          contactName: 'Nichol Hood',
-          phone: '2077627747',
+          contactName: 'Fixture Receiver',
+          phone: '2025550147',
         },
         international: {
           contentsDescription: 'Flour',
@@ -731,6 +783,17 @@ describe('Saved quote comparisons HTTP API', () => {
       );
       expect(first.frames.join('')).not.toContain(otherId);
       expect(first.frames.join('')).not.toContain('sender');
+      expect(first.frames.join('')).not.toContain('Fixture');
+      expect(first.frames.join('')).not.toContain(cookie);
+      for (const frame of first.frames.filter((f) =>
+        f.startsWith('event: quote.changed'),
+      )) {
+        const data = frame.split('\n').find((line) => line.startsWith('data:'));
+        expect(data).toBeDefined();
+        expect(Object.keys(JSON.parse(data!.slice(5))).sort()).toEqual([
+          'externalId',
+        ]);
+      }
     } finally {
       await first.close();
     }

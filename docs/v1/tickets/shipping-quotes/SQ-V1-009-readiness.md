@@ -3,7 +3,7 @@
 ## Status
 
 - Depends on: SQ-V1-006, SQ-V1-007, SQ-V1-008
-- State: ready-for-agent
+- State: offline verification implemented; live sample-rate release gate blocked
 - Repositories: `grd-dashboard-be`, `grd-dashboard-fe`
 
 ## What to build
@@ -39,9 +39,13 @@ the gate within this feature; do not expand into purchase or shipment creation.
   visibly distinct across multiple package groups.
 - International capability, units, native currency, requested options, and duty/tax
   status never imply unsupported coverage or automatic conversion/landed cost.
-- Automated and manual privacy review finds no credentials, cookies, tokens, account
-  identifiers, personal contact data, or raw provider payloads in logs, database rows,
-  tracked fixtures, SSE events, or frontend error output.
+- Automated and manual privacy review finds no credentials, cookies, tokens, external
+  provider-account identifiers, or raw provider payloads in logs, database rows, tracked
+  fixtures, SSE events, or frontend error output. Required sender/recipient addresses and
+  contacts remain in authenticated business snapshots for history and retry. Personal
+  contact data is excluded from logs, SSE, diagnostics, error output, and live captures;
+  tracked fixtures use synthetic contacts. This SQ-V1-009 decision preserves the
+  previously approved SQ-V1-005 contact snapshots.
 - Documentation lists environment variable names, startup/migration commands, test
   commands, provider operational limits, troubleshooting, and all deferred scope.
 - The UI contains no purchase, label, booking, pickup, provider-address Save, shipment
@@ -63,3 +67,5 @@ the gate within this feature; do not expand into purchase or shipment creation.
 Connection tests in provider administration check readiness only. Run the opt-in
 sample-rate tests in this ticket, including each provider's selected request/browser
 mode; a readiness pass alone is not evidence of a successful rate response.
+
+Implementation evidence: [SQ-V1-009 summary](../../implementation-summary/SQ-V1-009-implementation-summary.md) and [readiness matrix](../../shipping-quotes-readiness.md).

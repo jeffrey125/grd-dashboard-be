@@ -228,8 +228,11 @@ labelled in saved history, even after demo mode is disabled. Demo mode replaces 
 execution only; account-default refresh and tracking retain their live behavior.
 To opt in to a quote-only production-adapter smoke, configure the provider's two
 credentials in `.env` and run `pnpm test:shipping-quotes:adapter:live`. It tests two
-packages in each mode, reads the account origin in memory, and prints normalized
-rates only. It uses comparison-only test company/contact values and never books.
+packages for both providers in each mode, reads the account origin in memory, and
+prints only outcomes, relogin counts, totals, currencies, and estimate methods.
+Use `-- --provider amazon --mode browser` to select one check. Missing credentials,
+failed sender/login resolution, and unsuccessful rates exit nonzero; each mode is
+reported independently. It uses comparison-only test company/contact values and never books.
 The isolated harness below avoids provider I/O. Existing tracking-worker credential/enablement
 requirements still apply when starting the complete worker.
 
@@ -239,6 +242,11 @@ available through the frontend harness after `pnpm build` here:
 from `../grd-dashboard-fe`. Start its UI with
 `VITE_API_ORIGIN=http://localhost:3013 pnpm exec vite --host localhost --port 5173 --strictPort`.
 The fixture account is `frontend-staff@example.test` / `staff fixture password`.
+
+The [SQ-V1-009 readiness matrix](docs/v1/shipping-quotes-readiness.md) records
+offline acceptance, real worker crash recovery, privacy scope, live-provider
+blockers, and reproducible commands. Live checks are opt-in and never part of
+ordinary offline CI.
 
 ### Quote history and retry (SQ-V1-007)
 
