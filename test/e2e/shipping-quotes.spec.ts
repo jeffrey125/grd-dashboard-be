@@ -1,4 +1,6 @@
 import { SenderDefaultsWorker } from '@modules/shipping-quotes/sender-defaults.worker.js';
+import { TypeOrmQuoteExecutionRepository } from '@modules/shipping-quotes/typeorm-quote-execution.repository.js';
+import { quoteFailure } from '@modules/shipping-quotes/quote-executor.js';
 import { TypeOrmSenderDefaultsRepository } from '@modules/shipping-quotes/typeorm-sender-defaults.repository.js';
 import { AuthService } from '@modules/auth/auth.service.js';
 import type { INestApplication } from '@nestjs/common';
@@ -122,6 +124,79 @@ describe('Saved quote comparisons HTTP API', () => {
         }),
       ]),
     );
+  });
+
+  it('retries through HTTP, prevents active deletion, and restores the entire failed history', async () => {
+    const server = app.getHttpServer() as Server;
+    const saved = await request(server)
+      .post('/api/v1/quote-comparisons')
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send(input())
+      .expect(201);
+    const id = saved.body.comparison.externalId;
+    const path = `/api/v1/quote-comparisons/${id}`;
+    await request(server)
+      .delete(path)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .expect(409);
+    const jobs = new TypeOrmQuoteExecutionRepository(db.source);
+    // Earlier test fixtures may still be queued; finish them through the worker boundary.
+    for (;;) {
+      const job = await jobs.claim(120000);
+      if (!job) break;
+      await jobs.finish(job, quoteFailure('timeout'));
+    }
+    const retried = await request(server)
+      .post(
+        `${path}/attempts/${saved.body.comparison.attempts[0].externalId}/retry`,
+      )
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({})
+      .expect(201);
+    expect(retried.body.attempts).toHaveLength(2);
+    const retry = (await jobs.claim(120000))!;
+    await jobs.finish(retry, quoteFailure('timeout'));
+    const before = await request(server)
+      .get(path)
+      .set('Cookie', cookie)
+      .expect(200);
+    const deleted = await request(server)
+      .delete(path)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .expect(200);
+    expect(deleted.body.deletedAt).toEqual(expect.any(String));
+    const history = await request(server)
+      .get('/api/v1/quote-comparisons?deleted=true')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(
+      history.body.items.some(
+        (item: { externalId: string }) => item.externalId === id,
+      ),
+    ).toBe(true);
+    await request(server)
+      .post(`${path}/attempts/${retry.id}/retry`)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({})
+      .expect(400);
+    const restored = await request(server)
+      .post(`${path}/restore`)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({})
+      .expect(201);
+    expect(restored.body).toMatchObject({
+      deletedAt: null,
+      restoredAt: expect.any(String),
+      lastDeletedAt: deleted.body.deletedAt,
+      input: before.body.input,
+    });
+    expect(restored.body.attempts).toEqual(before.body.attempts);
   });
 
   it('rejects Amazon before queueing while an eligible international provider continues', async () => {
@@ -509,6 +584,53 @@ describe('Saved quote comparisons HTTP API', () => {
       .set('Cookie', staff)
       .expect(200);
     expect(list.body.items.length).toBeGreaterThan(0);
+    const target = list.body.items.find((item: { status: string }) =>
+      ['completed', 'failed'].includes(item.status),
+    );
+    expect(target).toBeDefined();
+    const path = `/api/v1/quote-comparisons/${target.externalId}`;
+    await request(app.getHttpServer() as Server)
+      .delete(path)
+      .set('Cookie', staff)
+      .set('Origin', 'http://dashboard.example.test')
+      .expect(403);
+    await request(app.getHttpServer() as Server)
+      .post(`${path}/restore`)
+      .set('Cookie', staff)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({})
+      .expect(403);
+    await request(app.getHttpServer() as Server)
+      .get('/api/v1/quote-comparisons?deleted=true')
+      .set('Cookie', staff)
+      .expect(403);
+    await request(app.getHttpServer() as Server)
+      .delete(path)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .expect(200);
+    await request(app.getHttpServer() as Server)
+      .get(path)
+      .set('Cookie', staff)
+      .expect(404);
+    await request(app.getHttpServer() as Server)
+      .get(`${path}/events`)
+      .set('Cookie', staff)
+      .expect(404);
+    await request(app.getHttpServer() as Server)
+      .get(path)
+      .set('Cookie', cookie)
+      .expect(200);
+    await request(app.getHttpServer() as Server)
+      .post(`${path}/restore`)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({})
+      .expect(201);
+    await request(app.getHttpServer() as Server)
+      .get(path)
+      .set('Cookie', staff)
+      .expect(200);
     await request(app.getHttpServer() as Server)
       .get(`/api/v1/quote-comparisons/${list.body.items[0].externalId}`)
       .set('Cookie', staff)

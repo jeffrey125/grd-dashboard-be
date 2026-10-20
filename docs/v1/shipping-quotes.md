@@ -126,6 +126,13 @@ immutable input. Retry is rejected when the provider is disabled, the ship date 
 the past, or current validation no longer accepts the input; the user must create a new
 comparison instead.
 
+SQ-V1-007 decisions: only the latest failed technical outcome (`timeout`,
+`authentication_failed`, or `failed`) is retryable. Validation and unsupported
+outcomes require Copy to new comparison. Staff can retry one provider while the
+other is running, but at most one attempt per provider/comparison may be active.
+Eligibility is rechecked at execution time, and no current sender-default refresh
+replaces the original resolved sender.
+
 ## Results and ranking
 
 Each service result displays:
@@ -144,6 +151,9 @@ when origin, currency, packages, destination, ship date, and requested options m
 
 Provider expiry is authoritative. If no expiry is returned, an admin-configurable
 stale period applies, defaulting to 24 hours. Expired or stale quotes remain in history.
+They do not qualify for Lowest price. Equivalent fresh ties share the badge; when
+every rate is stale or expired there is no winner. Requested options must have
+confirmed coverage before ranking; mixed simulated and real quotes are not ranked.
 
 ## Persistence model
 
@@ -168,6 +178,9 @@ database or tracked artifacts.
 
 Admin deletion is soft deletion and supports restore. Active queued or running
 comparisons cannot be deleted. Permanent purge and attempt cancellation are deferred.
+Deleted lists and direct detail links are admin-only; Staff receives 404 for deleted
+detail. Restoration restores visibility without enqueuing work. The latest deletion
+and restoration timestamps remain readable after restoration.
 
 ## Authorization and interfaces
 

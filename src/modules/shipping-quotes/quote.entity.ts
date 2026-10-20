@@ -95,6 +95,11 @@ export class ShippingAccountsEntity {
   where: 'deleted_at IS NULL',
 })
 @Index('ix_quote_requests_deleted_by', ['deleted_by_id'], {})
+@Index('ix_quote_requests_restored_by', ['restored_by_id'], {})
+@ForeignKey('AuthUserEntity', ['restored_by_id'], ['id'], {
+  name: 'quote_requests_restored_by_id_fkey',
+  onDelete: 'NO ACTION',
+})
 @Check(
   'quote_requests_status_check',
   "status IN ('saved','queued','running','completed','failed')",
@@ -147,6 +152,15 @@ export class QuoteRequestsEntity {
 
   @Column({ type: 'integer', nullable: true })
   deleted_by_id: number | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  last_deleted_at: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  restored_at: Date | null;
+
+  @Column({ type: 'integer', nullable: true })
+  restored_by_id: number | null;
 }
 
 @Entity('quote_package_groups')
@@ -274,6 +288,15 @@ export class QuoteCustomsItemsEntity {
 @Index('ix_quote_attempts_request', ['request_id', 'id'], {})
 @Index('ix_quote_attempts_account', ['account_id'], {})
 @Index('ix_quote_attempts_queue', ['status', 'created_at'], {})
+@Index(
+  'uq_quote_attempts_number',
+  ['request_id', 'account_id', 'attempt_number'],
+  { unique: true },
+)
+@Index('uq_quote_attempts_active', ['request_id', 'account_id'], {
+  unique: true,
+  where: "status IN ('queued','running')",
+})
 @Index('uq_quote_attempts_running', ['account_id'], {
   unique: true,
   where: "status='running'",

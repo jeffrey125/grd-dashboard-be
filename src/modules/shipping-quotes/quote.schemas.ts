@@ -228,6 +228,9 @@ export type Comparison = {
   ratesRun: boolean;
   createdAt: string;
   createdBy: string;
+  deletedAt: string | null;
+  restoredAt: string | null;
+  lastDeletedAt: string | null;
   input: QuoteInput;
   senders: SenderSnapshot[];
   warnings: string[];
@@ -239,6 +242,9 @@ export type QuoteAttempt = {
   provider: ProviderCode;
   status: Comparison['status'];
   attemptNumber: number;
+  createdAt: string;
+  sender: SenderSnapshot;
+  retryBlockedReason: string | null;
   executionMode: 'request' | 'browser' | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -257,6 +263,7 @@ export type QuoteAttempt = {
     transitDescription: string | null;
     retrievedAt: string;
     expiresAt: string | null;
+    staleAt: string | null;
     optionCoverage: string;
     dutyStatus: string;
     taxStatus: string;

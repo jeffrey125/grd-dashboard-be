@@ -19,6 +19,7 @@ import {
 } from './unishippers-quote.contract.js';
 import type { Address } from './quote.schemas.js';
 import { QuoteDecimal } from './quote-decimal.js';
+import { unishippersBrowserInputFailure } from './quote-provider-eligibility.js';
 import { z } from 'zod';
 
 const LOGIN_TIMEOUT_MS = 30_000;
@@ -383,15 +384,8 @@ export class UnishippersShippingAdapter implements QuoteAdapter {
       job,
       this.currentSession().namespace,
     );
-    if (job.sender.address.name.length > 35)
-      return quoteFailure('sender_company_too_long');
-    const needsContact = (address: Address) =>
-      !address.contactName?.trim() || !address.phone?.trim();
-    if (
-      needsContact(job.input.destination) ||
-      (job.sender.mode === 'explicit' && needsContact(job.sender.address))
-    )
-      return quoteFailure('contact_details_required');
+    const inputFailure = unishippersBrowserInputFailure(job.input, job.sender);
+    if (inputFailure) return quoteFailure(inputFailure);
 
     let mutationBlocked = false;
     const pattern = '**/*';

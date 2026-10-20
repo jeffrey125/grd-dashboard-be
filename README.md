@@ -239,3 +239,19 @@ available through the frontend harness after `pnpm build` here:
 from `../grd-dashboard-fe`. Start its UI with
 `VITE_API_ORIGIN=http://localhost:3013 pnpm exec vite --host localhost --port 5173 --strictPort`.
 The fixture account is `frontend-staff@example.test` / `staff fixture password`.
+
+### Quote history and retry (SQ-V1-007)
+
+Apply `1792972800000-QuoteHistoryRetry` before starting the updated API/worker.
+Staff can retry eligible technical failures with immutable original input; validation
+and unsupported outcomes use Copy to new comparison. Admins can soft delete completed
+or failed history and restore it from the Deleted history view. All attempts and
+rates remain stored. No external provider call occurs during deletion/restoration.
+Provider expiry or current configured stale hours determines freshness, and only
+fresh equivalent rates receive Lowest price.
+
+The isolated browser lifecycle check uses an immediate simulated technical failure:
+from the frontend, build with `VITE_API_ORIGIN=http://localhost:3014 pnpm build`, then
+run `FE_TEST_API_PORT=3014 FE_TEST_QUOTE_DEMO=true FE_TEST_QUOTE_RETRY=true pnpm exec
+playwright test --config playwright.backend.config.ts e2e-backend/quote-history.spec.ts`.
+No production worker, provider login, or credentials are used.

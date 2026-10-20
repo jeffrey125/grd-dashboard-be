@@ -703,6 +703,7 @@ describe('initial application schema', () => {
         'quote_provider_attempts_request_id_fkey',
         'quote_requests_created_by_id_fkey',
         'quote_requests_deleted_by_id_fkey',
+        'quote_requests_restored_by_id_fkey',
         'shipping_accounts_provider_id_fkey',
         'shipping_quote_items_package_group_id_fkey',
         'shipping_quote_items_quote_id_fkey',
@@ -820,7 +821,7 @@ describe('initial application schema', () => {
         'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at used_internationally',
       shipping_accounts: 'default_refresh id provider_id created_at updated_at',
       quote_requests:
-        'id external_id idempotency_key created_by_id input senders status created_at deleted_at deleted_by_id',
+        'id external_id idempotency_key created_by_id input senders status created_at deleted_at deleted_by_id restored_at last_deleted_at restored_by_id',
       quote_package_groups:
         'normalized id request_id position quantity units length_original width_original height_original weight_original length_value width_value height_value weight_value created_at',
       quote_customs_items:

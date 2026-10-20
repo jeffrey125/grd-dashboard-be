@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const execute = promisify(execFile);
-const migrationCount = 12;
+const migrationCount = 14;
 
 // Opt-in release check. Its uniquely named project owns only disposable data.
 test(

@@ -83,7 +83,7 @@ function mapAddress(provider: ProviderCode, body: unknown): Address {
       country: a.countryCode,
     };
   }
-  return addressSchema.extend({ country: z.literal('US') }).parse(address);
+  return addressSchema.safeExtend({ country: z.literal('US') }).parse(address);
 }
 export class BrowserSenderDefaults {
   async read(provider: ProviderCode): Promise<Address> {

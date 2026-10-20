@@ -1,4 +1,5 @@
 import { QUOTE_ENTITIES } from '@modules/shipping-quotes/quote.entities.js';
+import { QuoteHistoryRetry1792972800000 } from '@infrastructure/database/migrations/1792972800000-QuoteHistoryRetry.js';
 import { QuoteExecution1792627200000 } from '@infrastructure/database/migrations/1792627200000-QuoteExecution.js';
 import { AmazonQuoteBreakdown1792713600000 } from '@infrastructure/database/migrations/1792713600000-AmazonQuoteBreakdown.js';
 import { OptionalPackageDimensions1792800000000 } from '@infrastructure/database/migrations/1792800000000-OptionalPackageDimensions.js';
@@ -56,6 +57,7 @@ export async function shipmentDatabase() {
       AmazonQuoteBreakdown1792713600000,
       OptionalPackageDimensions1792800000000,
       InternationalQuoteOptions1792886400000,
+      QuoteHistoryRetry1792972800000,
     ],
   });
 

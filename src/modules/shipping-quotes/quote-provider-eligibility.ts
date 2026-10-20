@@ -1,4 +1,25 @@
-import type { ProviderConfiguration, QuoteInput } from './quote.schemas.js';
+import type {
+  ProviderConfiguration,
+  QuoteInput,
+  SenderSnapshot,
+} from './quote.schemas.js';
+
+export function unishippersBrowserInputFailure(
+  input: QuoteInput,
+  sender: SenderSnapshot,
+): 'sender_company_too_long' | 'contact_details_required' | null {
+  if (sender.address.name.length > 35) return 'sender_company_too_long';
+
+  const needsContact = (address: SenderSnapshot['address']) =>
+    !address.contactName?.trim() || !address.phone?.trim();
+  if (
+    needsContact(input.destination) ||
+    (sender.mode === 'explicit' && needsContact(sender.address))
+  )
+    return 'contact_details_required';
+
+  return null;
+}
 
 type QueueConfiguration = Pick<
   ProviderConfiguration,

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DataSource, type EntityManager } from 'typeorm';
+import { retryInputBlock } from './quote-retry-policy.js';
 import {
   QuoteExecutionRepository,
   type LeasedQuote,
@@ -25,7 +26,7 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
       if (!account) return null;
 
       const [attempt] = await manager.query(
-        `SELECT a.*,a.lease_until > clock_timestamp() AS leased,p.code,p.execution_mode AS mode,p.enabled,q.input
+        `SELECT a.*,a.lease_until > clock_timestamp() AS leased,p.code,p.execution_mode AS mode,p.enabled,p.used_internationally,q.input
         FROM quote_provider_attempts a JOIN quote_requests q ON q.id=a.request_id
         JOIN shipping_accounts s ON s.id=a.account_id JOIN shipping_providers p ON p.id=s.provider_id
         WHERE a.account_id=$1 AND a.status IN ('queued','running')
@@ -41,6 +42,33 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
         'SELECT id FROM quote_requests WHERE id=$1 FOR UPDATE',
         [attempt.request_id],
       );
+
+      // Revalidate retries at execution time as configuration/date can change while queued.
+      const blocked =
+        attempt.attempt_number > 1
+          ? retryInputBlock(attempt.input, attempt.sender, {
+              code: attempt.code,
+              enabled: attempt.enabled,
+              executionMode: attempt.mode,
+              usedInternationally: attempt.used_internationally,
+            })
+          : null;
+      if (blocked) {
+        await manager.query(
+          `UPDATE quote_provider_attempts SET status='failed',outcome=$2,reason_code=$3,
+          execution_mode=$4,completed_at=clock_timestamp(),lease_until=NULL,lease_owner=NULL WHERE id=$1`,
+          [
+            attempt.id,
+            blocked === 'provider_disabled' ? 'failed' : 'validation_failed',
+            blocked === 'provider_disabled'
+              ? 'provider_disabled'
+              : 'validation_failed',
+            attempt.mode,
+          ],
+        );
+        await this.summarize(manager, attempt.request_id);
+        return null;
+      }
 
       if (attempt.status === 'running' && attempt.recovery_count === 1) {
         await manager.query(

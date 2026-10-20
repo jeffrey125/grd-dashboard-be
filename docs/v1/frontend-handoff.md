@@ -476,7 +476,8 @@ New comparisons start `queued`; historical `saved` records remain unchanged.
 Status is `saved|queued|running|completed|failed`; completed means at least one
 successful provider after all attempts finish, so inspect each attempt for partial
 failure. `ratesRun` indicates an execution started, not a successful real quote.
-Retry, purchase, deletion and provider-admin endpoints remain deferred.
+Retry and soft-delete/restore are implemented by SQ-V1-007 below. Purchase and
+provider-admin endpoints remain deferred.
 
 Each attempt contains `externalId,provider,status,attemptNumber,executionMode,
 startedAt,completedAt,recoveryCount,outcome,reasonCode,simulated,quotes`.
@@ -519,16 +520,55 @@ recovery, and 15-second `heartbeat` with `{}`. Every frame rechecks the session
 and comparison visibility. All unrestricted employees share non-deleted history;
 streams filter to the requested comparison and close if access is lost.
 Events are transient hints, without replay or sequence guarantees. Subscribe while
-queued/running; fetch authoritative detail after open/resync/change. Serialize reads
+viewing nondeleted detail; fetch authoritative detail after open/resync/change. Serialize reads
 and reread if another hint arrives during a request. The frontend also refreshes
-active comparisons every 15 seconds to recover missed signals, closes streams on
-session loss/unmount/completion, and retries failed connections after session recheck.
+visible comparisons every 15 seconds to recover missed signals, closes streams on
+session loss/unmount/deletion, and retries failed connections after session recheck.
 
 The UI lives at `/quotes`, `/quotes/new`, and `/quotes/:comparisonId`. Saved details
 are read-only. Copy uses `/quotes/new?copy=<uuid>`, creates a fresh save key, refreshes
 account defaults, omits now-disabled providers, and retains other original inputs.
 An old ship date must be corrected before saving the copy. Failed save retries keep
 the same key while input is unchanged; edited input receives a new key.
+
+### SQ-V1-007 history and retry
+
+- `POST /quote-comparisons/:externalId/attempts/:attemptId/retry` returns the updated
+  comparison (201). The attempt UUID identifies the failure being retried; a stale,
+  nonlatest, successful, validation-failed, unsupported, queued, or running attempt
+  returns 409. A missing/deleted comparison returns 404. Staff and Admin may retry.
+- Retry preserves the original input, resolved sender, conversions, earlier attempts,
+  and quotes. It uses the current provider mode when execution starts. Eligibility
+  is checked under database locks and again at worker claim: disabled providers,
+  past ship dates (America/New_York), and currently invalid inputs cannot execute.
+  Correcting input requires Copy to new comparison. One provider can retry while
+  the other runs; duplicate clicks cannot enqueue a second active attempt.
+- `DELETE /quote-comparisons/:externalId` (Admin, 200) soft deletes only completed or
+  failed comparisons without active attempts. `POST /quote-comparisons/:externalId/restore`
+  (Admin, 201) restores visibility without running rates. Repeating either operation
+  retains its timestamp. Children are retained; there is no purge or cancellation.
+- `GET /quote-comparisons?deleted=true&page=1` lists deleted records for Admin only
+  (Staff receives 403). Normal lists exclude deleted records. Admin can open deleted
+  detail; Staff receives 404, including on the SSE endpoint.
+- Comparison adds nullable `deletedAt,lastDeletedAt,restoredAt`. The last two retain
+  the latest lifecycle timestamps after restore. Attempts add `createdAt,sender`
+  and nullable `retryBlockedReason` (null means eligible). Reasons are
+  `comparison_deleted,newer_attempt,attempt_active,outcome_not_retryable,
+provider_disabled,ship_date_passed,input_invalid`. Unknown reasons fail closed.
+- Results add nullable `staleAt`: null when provider expiry is known, otherwise
+  retrieval time plus the provider's currently configured stale hours (default 24).
+  Provider expiry is authoritative; changing stale policy changes its derived
+  deadline without rewriting quote history.
+- Frontend price sorting and Lowest price require equivalent actual origin,
+  currency, shared immutable shipment details, and requested options. Requested
+  options with unverified/unsupported coverage and mixed simulated/real rates also
+  suppress an overall winner. Ties share the badge. Stale/expired/unknown-freshness
+  rates never receive it; all rates remain readable. Exact comparison uses decimal.js.
+- Visible details refresh every 15 seconds, including terminal comparisons. SSE
+  stays subscribed to nondeleted detail so another user's retry is observed.
+  A confirmed 401/403/404 hides cached detail. Deleted Admin views use polling;
+  retry/delete/restore invalidate the detail and all history query variants.
+  The UI updates freshness locally as deadlines pass, with timestamps labelled ET.
 
 ### Sender refresh operational boundary
 

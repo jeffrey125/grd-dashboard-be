@@ -1,6 +1,7 @@
 import { SenderDefaultsService } from './sender-defaults.service.js';
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -95,18 +96,30 @@ export class QuoteService {
     });
     return this.repository.create(input, actorId, senders);
   }
-  async find(id: string) {
-    const result = await this.repository.find(id);
+  retry(id: string, attemptId: string) {
+    return this.repository.retry(id.toLowerCase(), attemptId.toLowerCase());
+  }
+  setDeleted(id: string, deleted: boolean, actorId: number) {
+    return this.repository.setDeleted(id, deleted, actorId);
+  }
+  async find(id: string, includeDeleted = false) {
+    const result = await this.repository.find(id, includeDeleted);
     if (!result) throw new NotFoundException('Comparison not found');
     return result;
   }
-  list(raw: unknown) {
+  list(raw: unknown, admin = false) {
     const parsed = z
       .strictObject({
         page: z.coerce.number().int().min(1).max(1000000).default(1),
+        deleted: z.enum(['true', 'false']).default('false'),
       })
       .safeParse(raw);
     if (!parsed.success) throw new BadRequestException('Invalid page');
-    return this.repository.list(parsed.data.page);
+    if (parsed.data.deleted === 'true' && !admin)
+      throw new ForbiddenException('Deleted history is admin-only');
+    return this.repository.list(
+      parsed.data.page,
+      parsed.data.deleted === 'true',
+    );
   }
 }

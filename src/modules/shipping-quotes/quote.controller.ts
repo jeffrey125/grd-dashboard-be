@@ -2,6 +2,7 @@ import { SenderDefaultsService } from './sender-defaults.service.js';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Inject,
@@ -35,13 +36,43 @@ export class QuoteController {
   @Get('providers') @Header('Cache-Control', 'no-store') providers() {
     return this.quotes.providers();
   }
-  @Get() @Header('Cache-Control', 'no-store') list(@Query() query: unknown) {
-    return this.quotes.list(query);
+  @Get() @Header('Cache-Control', 'no-store') list(
+    @Query() query: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    return this.quotes.list(query, principal.role === 'admin');
   }
   @Get(':externalId') @Header('Cache-Control', 'no-store') find(
     @Param('externalId', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentPrincipal() principal: Principal,
   ) {
-    return this.quotes.find(id);
+    return this.quotes.find(id, principal.role === 'admin');
+  }
+  @Post(':externalId/attempts/:attemptId/retry')
+  @Header('Cache-Control', 'no-store')
+  retry(
+    @Param('externalId', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('attemptId', new ParseUUIDPipe({ version: '4' })) attemptId: string,
+  ) {
+    return this.quotes.retry(id, attemptId);
+  }
+  @Delete(':externalId')
+  @AuthPolicy('admin')
+  @Header('Cache-Control', 'no-store')
+  remove(
+    @Param('externalId', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    return this.quotes.setDeleted(id, true, principal.id);
+  }
+  @Post(':externalId/restore')
+  @AuthPolicy('admin')
+  @Header('Cache-Control', 'no-store')
+  restore(
+    @Param('externalId', new ParseUUIDPipe({ version: '4' })) id: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    return this.quotes.setDeleted(id, false, principal.id);
   }
   @Post() @Header('Cache-Control', 'no-store') async create(
     @Body() input: unknown,

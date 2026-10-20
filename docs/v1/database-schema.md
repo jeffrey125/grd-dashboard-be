@@ -599,3 +599,32 @@ package-group quantity and subtotal supplied by the provider adapter, including 
 group that has no charge row. The array constraint keeps the stored shape explicit;
 charge details remain normalized in `shipping_quote_items`. The migration is
 reversible by dropping the column and does not add foreign keys.
+
+## SQ-V1-007 history and retry
+
+Migration `1792972800000-QuoteHistoryRetry` adds nullable `restored_at`,
+`last_deleted_at`, and `restored_by_id` to `quote_requests`. The actor FK and ORM
+mapping explicitly use `ON DELETE NO ACTION`; the actor column is indexed.
+`deleted_at` remains the active deletion marker. Restoration clears that marker
+and `deleted_by_id`, but retains `last_deleted_at` and records the latest restore
+time/actor. Repeated delete/restore calls in the same state do not change timestamps.
+Existing deleted rows receive `last_deleted_at` from their deletion marker.
+
+The input immutability trigger permits only status and lifecycle metadata updates.
+No input, sender, package, customs item, attempt, quote, or charge is deleted by
+the soft-delete workflow. A lifecycle trigger emits the comparison UUID through
+`grd_changes` after committed deletion/restoration.
+
+Unique indexes enforce `(request_id,account_id,attempt_number)` and at most one
+queued/running attempt per `(request_id,account_id)`. Retry locks provider settings,
+the account, and the comparison; checks the specific failed attempt is still latest;
+then appends a new numbered attempt from its immutable sender/conversion snapshots.
+Worker and deletion transitions serialize on the comparison row, preventing an
+active comparison from being deleted. The worker revalidates queued retries before
+external I/O using execution-time configuration. All previous outcomes remain intact.
+
+`staleAt` is derived on read from retrieval time plus current provider `stale_hours`
+only when `expires_at` is null. Provider expiry wins. No quote row is rewritten.
+Rollback removes the new indexes, trigger, and lifecycle metadata, preserving quote
+children and restoring the earlier immutability trigger. Run rollback only with
+the updated API/worker stopped; it discards restoration audit metadata.

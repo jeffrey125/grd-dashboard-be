@@ -20,6 +20,8 @@ const address = {
   division: 'WI',
   postalCode: '53125',
   country: 'US',
+  contactName: 'Fixture Contact',
+  phone: '2625550123',
 };
 const senders: SenderSnapshot[] = ['amazon', 'unishippers'].map((code) => ({
   code: code as SenderSnapshot['code'],
@@ -72,6 +74,59 @@ describe('Durable quote execution', () => {
     await db.source.query(
       'TRUNCATE shipping_quote_items,shipping_quotes,quote_provider_attempts,quote_customs_items,quote_package_groups,quote_requests RESTART IDENTITY',
     );
+    await db.source.query(
+      "UPDATE shipping_providers SET enabled=true,execution_mode='request',stale_hours=24",
+    );
+  });
+
+  it('retries a failed provider once under concurrent clicks and preserves the original input and partial rates', async () => {
+    const original = input();
+    const saved = await quotes.create(original, actor, senders);
+    const first = (await jobs.claim(120000))!;
+    const second = (await jobs.claim(120000))!;
+    await jobs.finish(
+      first,
+      await executeQuote(
+        first,
+        new FixtureQuoteAdapter('success', 0),
+        new AbortController().signal,
+      ),
+    );
+    await jobs.finish(second, quoteFailure('timeout'));
+    const before = (await quotes.find(saved.comparison.externalId))!;
+    const failed = before.attempts.find(
+      (attempt) => attempt.provider === second.code,
+    )!;
+
+    const retries = await Promise.allSettled([
+      quotes.retry(saved.comparison.externalId, failed.externalId),
+      quotes.retry(saved.comparison.externalId, failed.externalId),
+    ]);
+
+    expect(
+      retries.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    const after = (await quotes.find(saved.comparison.externalId))!;
+    expect(after.input).toEqual(original);
+    expect(after.attempts).toHaveLength(3);
+    expect(after.attempts[0].quotes).toEqual(before.attempts[0].quotes);
+    expect(after.attempts[1]).toMatchObject({
+      outcome: 'timeout',
+      attemptNumber: 1,
+    });
+    expect(after.attempts[2]).toMatchObject({
+      status: 'queued',
+      attemptNumber: 2,
+      sender: senders[1],
+    });
+    await db.source.query(
+      "UPDATE shipping_providers SET execution_mode='browser' WHERE code=$1",
+      [second.code],
+    );
+    const retry = (await jobs.claim(120000))!;
+    expect(retry.mode).toBe('browser');
+    expect(retry.input).toEqual(original);
+    expect(retry.sender).toEqual(second.sender);
   });
 
   it('preserves the actionable myUnishippers sender error through the comparison read contract', async () => {
@@ -99,6 +154,197 @@ describe('Durable quote execution', () => {
     });
     expect(snapshot?.input).toEqual(original);
     expect(snapshot?.senders[0]?.address).toEqual(address);
+  });
+
+  it.each(['unsupported', 'validation_failed'] as const)(
+    'does not retry %s outcomes',
+    async (reason) => {
+      const original = input();
+      original.providers = original.providers.slice(0, 1);
+      const saved = await quotes.create(original, actor, senders.slice(0, 1));
+      const job = (await jobs.claim(120000))!;
+      await jobs.finish(job, quoteFailure(reason));
+      await expect(
+        quotes.retry(
+          saved.comparison.externalId,
+          saved.comparison.attempts[0].externalId,
+        ),
+      ).rejects.toMatchObject({ status: 409 });
+      expect(
+        (await quotes.find(saved.comparison.externalId))?.attempts,
+      ).toHaveLength(1);
+    },
+  );
+
+  it.each(['provider_disabled', 'ship_date_passed', 'input_invalid'] as const)(
+    'rejects retry when %s and returns an actionable eligibility reason',
+    async (reason) => {
+      const original = input();
+      original.providers = original.providers.slice(1);
+      if (reason === 'ship_date_passed') original.shipDate = '2000-01-01';
+      if (reason === 'input_invalid')
+        Object.assign(original.packageGroups[0], {
+          length: '',
+          width: '',
+          height: '',
+        });
+      const saved = await quotes.create(original, actor, senders.slice(1));
+      const job = (await jobs.claim(120000))!;
+      await jobs.finish(job, quoteFailure('timeout'));
+      if (reason === 'provider_disabled')
+        await db.source.query(
+          "UPDATE shipping_providers SET enabled=false WHERE code='unishippers'",
+        );
+      if (reason === 'input_invalid')
+        await db.source.query(
+          "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
+        );
+
+      expect(
+        (await quotes.find(saved.comparison.externalId))?.attempts[0]
+          .retryBlockedReason,
+      ).toBe(reason);
+      await expect(
+        quotes.retry(
+          saved.comparison.externalId,
+          saved.comparison.attempts[0].externalId,
+        ),
+      ).rejects.toMatchObject({ status: 409 });
+    },
+  );
+
+  it('allows an independent provider retry while preserving the other running attempt', async () => {
+    const saved = await quotes.create(input(), actor, senders);
+    const first = (await jobs.claim(120000))!;
+    const second = (await jobs.claim(120000))!;
+    await jobs.finish(first, quoteFailure('timeout'));
+    const retried = await quotes.retry(
+      saved.comparison.externalId,
+      saved.comparison.attempts[0].externalId,
+    );
+    expect(retried.status).toBe('running');
+    expect(retried.attempts[1]).toMatchObject({
+      externalId: saved.comparison.attempts[1].externalId,
+      status: 'running',
+    });
+    expect((await jobs.claim(120000))?.code).toBe(first.code);
+    expect(second.code).not.toBe(first.code);
+  });
+
+  it('rechecks changed configuration before executing a queued retry', async () => {
+    const original = input();
+    original.providers = original.providers.slice(1);
+    Object.assign(original.packageGroups[0], {
+      length: '',
+      width: '',
+      height: '',
+    });
+    const saved = await quotes.create(original, actor, senders.slice(1));
+    const job = (await jobs.claim(120000))!;
+    await jobs.finish(job, quoteFailure('timeout'));
+    await quotes.retry(
+      saved.comparison.externalId,
+      saved.comparison.attempts[0].externalId,
+    );
+    await db.source.query(
+      "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
+    );
+
+    expect(await jobs.claim(120000)).toBeNull();
+    const result = (await quotes.find(saved.comparison.externalId))!;
+    expect(result.attempts[1]).toMatchObject({
+      outcome: 'validation_failed',
+      executionMode: 'browser',
+      startedAt: null,
+      quotes: [],
+    });
+    expect(result.attempts[0].outcome).toBe('timeout');
+  });
+
+  it('serializes deletion against retry and preserves children through restore', async () => {
+    const original = input();
+    original.providers = original.providers.slice(0, 1);
+    const saved = await quotes.create(original, actor, senders.slice(0, 1));
+    await jobs.finish((await jobs.claim(120000))!, quoteFailure('timeout'));
+    const results = await Promise.allSettled([
+      quotes.retry(
+        saved.comparison.externalId,
+        saved.comparison.attempts[0].externalId,
+      ),
+      quotes.setDeleted(saved.comparison.externalId, true, actor),
+    ]);
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    const result = (await quotes.find(saved.comparison.externalId, true))!;
+    if (result.deletedAt) {
+      expect(await quotes.find(saved.comparison.externalId)).toBeNull();
+      expect((await quotes.list(1)).total).toBe(0);
+      expect((await quotes.list(1, true)).total).toBe(1);
+      const restored = await quotes.setDeleted(
+        saved.comparison.externalId,
+        false,
+        actor,
+      );
+      expect(restored.input).toEqual(original);
+      expect(restored.attempts[0].outcome).toBe('timeout');
+      expect(restored.lastDeletedAt).toBe(result.deletedAt);
+      expect(restored.restoredAt).not.toBeNull();
+    } else {
+      expect(result.attempts).toHaveLength(2);
+      expect(result.status).toBe('queued');
+    }
+  });
+
+  it('uses provider expiry instead of the configured stale period and retains all quotes after soft deletion', async () => {
+    const original = input();
+    original.providers = original.providers.slice(0, 1);
+    const saved = await quotes.create(original, actor, senders.slice(0, 1));
+    const job = (await jobs.claim(120000))!;
+    await jobs.finish(job, {
+      outcome: 'success',
+      reason: null,
+      simulated: false,
+      relogins: 0,
+      quotes: [
+        {
+          carrier: 'Fixture',
+          service: 'Expires',
+          total: '20',
+          currency: 'USD',
+          estimateMethod: 'native',
+          expiresAt: '2000-01-01T00:00:00Z',
+        },
+        {
+          carrier: 'Fixture',
+          service: 'Stales',
+          total: '25',
+          currency: 'USD',
+          estimateMethod: 'native',
+        },
+      ],
+    });
+    const before = (await quotes.find(saved.comparison.externalId))!;
+    expect(before.attempts[0].quotes[0]).toMatchObject({
+      expiresAt: '2000-01-01T00:00:00.000Z',
+      staleAt: null,
+    });
+    const stale = before.attempts[0].quotes[1];
+    expect(Date.parse(stale.staleAt!) - Date.parse(stale.retrievedAt)).toBe(
+      86400000,
+    );
+    const deleted = await quotes.setDeleted(
+      saved.comparison.externalId,
+      true,
+      actor,
+    );
+    expect(deleted.attempts[0].quotes).toEqual(before.attempts[0].quotes);
+    const restored = await quotes.setDeleted(
+      saved.comparison.externalId,
+      false,
+      actor,
+    );
+    expect(restored.attempts).toEqual(before.attempts);
   });
 
   it('queues atomically and leases different accounts concurrently without duplicating an account', async () => {
@@ -154,6 +400,8 @@ describe('Durable quote execution', () => {
     );
     await db.source.query("UPDATE quote_requests SET status='saved'");
 
+    await db.source.undoLastMigration(); // History and retry migration.
+    await db.source.undoLastMigration(); // International options migration.
     await db.source.undoLastMigration(); // Optional package dimensions migration.
     await db.source.undoLastMigration(); // Amazon quote breakdown migration.
     await db.source.undoLastMigration(); // Quote execution migration.
