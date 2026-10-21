@@ -27,7 +27,12 @@ const senders: SenderSnapshot[] = ['amazon', 'unishippers'].map((code) => ({
 }));
 const input = (): QuoteInput => ({
   idempotencyKey: randomUUID(),
-  shipDate: '2099-10-19',
+  shipDate: new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date()),
   destination: address,
   providers: senders.map(({ code }) => ({
     code,

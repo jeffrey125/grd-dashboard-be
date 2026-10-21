@@ -1,5 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { shipmentDatabase } from '@test/support/shipment-database.js';
 import { TypeOrmQuoteRepository } from '@modules/shipping-quotes/typeorm-quote.repository.js';
 import { TypeOrmQuoteExecutionRepository } from '@modules/shipping-quotes/typeorm-quote-execution.repository.js';
@@ -31,7 +40,12 @@ const senders: SenderSnapshot[] = ['amazon', 'unishippers'].map((code) => ({
 }));
 const input = (): QuoteInput => ({
   idempotencyKey: randomUUID(),
-  shipDate: '2099-10-19',
+  shipDate: new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date()),
   destination: address,
   providers: senders.map((sender) => ({
     code: sender.code,
@@ -69,6 +83,9 @@ describe('Durable quote execution', () => {
 
   afterAll(async () => {
     await db?.close();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
   beforeEach(async () => {
     await db.source.query(
@@ -181,13 +198,6 @@ describe('Durable quote execution', () => {
     async (reason) => {
       const original = input();
       original.providers = original.providers.slice(1);
-      if (reason === 'ship_date_passed') original.shipDate = '2000-01-01';
-      if (reason === 'input_invalid')
-        Object.assign(original.packageGroups[0], {
-          length: '',
-          width: '',
-          height: '',
-        });
       const saved = await quotes.create(original, actor, senders.slice(1));
       const job = (await jobs.claim(120000))!;
       await jobs.finish(job, quoteFailure('timeout'));
@@ -195,10 +205,14 @@ describe('Durable quote execution', () => {
         await db.source.query(
           "UPDATE shipping_providers SET enabled=false WHERE code='unishippers'",
         );
-      if (reason === 'input_invalid')
-        await db.source.query(
-          "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
+      // Move the business date without mutating the immutable stored snapshot.
+      if (reason === 'ship_date_passed' || reason === 'input_invalid') {
+        const now = Date.now();
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(
+          now + (reason === 'ship_date_passed' ? 86_400_000 : -86_400_000),
         );
+      }
 
       expect(
         (await quotes.find(saved.comparison.externalId))?.attempts[0]
@@ -247,14 +261,15 @@ describe('Durable quote execution', () => {
       saved.comparison.attempts[0].externalId,
     );
     await db.source.query(
-      "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
+      "UPDATE shipping_providers SET enabled=false WHERE code='unishippers'",
     );
 
     expect(await jobs.claim(120000)).toBeNull();
     const result = (await quotes.find(saved.comparison.externalId))!;
     expect(result.attempts[1]).toMatchObject({
-      outcome: 'validation_failed',
-      executionMode: 'browser',
+      outcome: 'failed',
+      reasonCode: 'provider_disabled',
+      executionMode: 'request',
       startedAt: null,
       quotes: [],
     });
