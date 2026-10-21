@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   chromium,
   type Browser,
@@ -66,6 +66,7 @@ export class AmazonVerificationBrowser implements VerificationBrowser {
     width: number;
     height: number;
     url: string;
+    fingerprint: string;
   };
   private closed = false;
   private verified = false;
@@ -185,7 +186,6 @@ export class AmazonVerificationBrowser implements VerificationBrowser {
 
   private async capture() {
     if (this.closed || !this.page) throw new VerificationError('expired');
-    this.frame = undefined;
     if (
       !this.verified &&
       new URL(this.page.url()).origin === 'https://ship.amazon.com'
@@ -194,22 +194,45 @@ export class AmazonVerificationBrowser implements VerificationBrowser {
       await this.adapter!.verifySession();
       this.verified = true;
     }
-    if (this.verified) return { verified: true as const };
+    if (this.verified) {
+      this.frame = undefined;
+      return { verified: true as const };
+    }
     const area = await this.challenge();
     await area.scrollIntoViewIfNeeded();
     const bounds = await area.boundingBox();
-    if (!bounds || bounds.width > 1100 || bounds.height > 2000)
+    if (!bounds || bounds.width > 1100 || bounds.height > 2000) {
+      this.frame = undefined;
       throw new VerificationError('unsupported');
+    }
     const url = this.page.url();
-    const image = (
-      await area.screenshot({ type: 'png', timeout: 5000 })
-    ).toString('base64');
+    const screenshot = await area.screenshot({ type: 'png', timeout: 5000 });
+    const image = screenshot.toString('base64');
+    const fingerprint = createHash('sha256').update(screenshot).digest('hex');
     await this.challenge();
-    if (this.page.url() !== url)
+    if (this.page.url() !== url) {
+      this.frame = undefined;
       return { verified: false as const, preparing: true as const };
+    }
     const current = await area.boundingBox();
-    if (!current) throw new VerificationError('stale_frame');
-    this.frame = { id: randomUUID(), ...current, url };
+    if (!current) {
+      this.frame = undefined;
+      throw new VerificationError('stale_frame');
+    }
+    const previous = this.frame;
+    const unchanged =
+      previous?.url === url &&
+      previous.fingerprint === fingerprint &&
+      Math.abs(previous.x - current.x) <= 1 &&
+      Math.abs(previous.y - current.y) <= 1 &&
+      Math.abs(previous.width - current.width) <= 1 &&
+      Math.abs(previous.height - current.height) <= 1;
+    this.frame = {
+      id: unchanged ? previous.id : randomUUID(),
+      ...current,
+      url,
+      fingerprint,
+    };
     return {
       verified: false as const,
       image,

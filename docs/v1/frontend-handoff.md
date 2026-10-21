@@ -643,15 +643,19 @@ always derived from the authenticated staff account and login session.
 
 Response: `{ id, state, expiresAt, image?, frame?, width?, height? }`; state is
 `preparing | challenge | verified | cancelled`. `image` is a PNG encoded as base64.
-Poll at 1.5-second intervals, serialize input against frame polling, and discard
-old frames. Input returns `preparing` so navigation can settle before the next
-capture. On `verified`, call the existing immutable retry endpoint exactly once;
-close/cancel verification on exit. Stop polling and hide images on auth/error
-states. No recovery credentials belong in persistent browser storage.
+Poll at 1.5-second intervals. The worker waits for an in-flight capture before
+applying staff input. An identical challenge keeps its frame token; changed pixels,
+URL or bounds invalidate it. Input returns `preparing` so navigation can settle
+before the next capture. On `verified`, call the existing immutable retry endpoint
+exactly once; close/cancel verification on exit. Treat `busy` and `stale_frame` as
+recoverable: keep the dialog open and fetch the newest frame. Stop polling and hide
+images for other auth/error states. No recovery credentials belong in persistent
+browser storage.
 
 Errors include a safe `verificationCode`: `busy`, `expired`, `owner_required`,
 `unsupported`, `stale_frame` (409), or `unavailable` (503). Normal 400/401/403/404
-contracts also apply. Runtime opt-in and staff steps are documented in
+contracts also apply. Worker logs may include this safe code and the staff external
+ID, but never the challenge image or answer. Runtime opt-in and staff steps are documented in
 [amazon-session-recovery.md](amazon-session-recovery.md#staff-verification-in-the-dashboard).
 
 ## Shared US-only quote form (2026-10-22)

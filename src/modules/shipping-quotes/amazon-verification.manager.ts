@@ -21,6 +21,8 @@ type Session = {
   release: () => void;
   error?: VerificationError;
   busy: boolean;
+  idle: Promise<void>;
+  finishOperation: () => void;
 };
 
 /** Ephemeral human interaction, independent of the 90-second quote execution lease. */
@@ -48,21 +50,37 @@ export class AmazonVerificationManager {
     };
   }
 
-  private audit(session: Session, outcome: string) {
+  private audit(session: Session, outcome: string, errorCode?: string) {
     this.logger.info(
       'amazon.verification',
       'Staff Amazon verification state changed',
-      { actorExternalId: session.actorExternalId, outcome },
+      {
+        actorExternalId: session.actorExternalId,
+        outcome,
+        ...(errorCode ? { errorCode } : {}),
+      },
     );
   }
 
-  private async end(session: Session, outcome: string) {
+  private beginOperation(session: Session) {
+    session.busy = true;
+    session.idle = new Promise((resolve) => {
+      session.finishOperation = resolve;
+    });
+  }
+
+  private finishOperation(session: Session) {
+    session.busy = false;
+    session.finishOperation();
+  }
+
+  private async end(session: Session, outcome: string, errorCode?: string) {
     if (this.session === session) this.session = undefined;
     try {
       await session.browser.close().catch(() => undefined);
     } finally {
       session.release();
-      this.audit(session, outcome);
+      this.audit(session, outcome, errorCode);
     }
   }
 
@@ -105,9 +123,12 @@ export class AmazonVerificationManager {
         state: 'preparing',
         browser,
         release,
-        busy: true,
+        busy: false,
+        idle: Promise.resolve(),
+        finishOperation: () => undefined,
       };
       this.session = session;
+      this.beginOperation(session);
       this.audit(session, 'started');
       const current = session;
       void current.browser
@@ -119,7 +140,7 @@ export class AmazonVerificationManager {
           current.error = new VerificationError('unsupported');
         })
         .finally(() => {
-          current.busy = false;
+          this.finishOperation(current);
         });
       return this.view(session);
     }
@@ -137,15 +158,20 @@ export class AmazonVerificationManager {
       return { ...this.view(session), state: 'cancelled' };
     }
     if (session.error) {
-      await this.end(session, 'failed');
+      await this.end(session, 'failed', session.error.code);
       throw session.error;
     }
     if (session.state === 'verified') return this.view(session);
     if (session.busy) {
-      if (command.operation === 'action') throw new VerificationError('busy');
+      if (command.operation === 'action') {
+        const idle = session.idle;
+        await idle;
+        if (this.session !== session) throw new VerificationError('expired');
+        return this.command(command);
+      }
       return { ...this.view(session), state: 'preparing' };
     }
-    session.busy = true;
+    this.beginOperation(session);
     try {
       if (command.operation === 'action') {
         await session.browser.act(command.action);
@@ -173,14 +199,26 @@ export class AmazonVerificationManager {
         height: result.height,
       };
     } catch (error) {
-      if (error instanceof VerificationError && error.code === 'stale_frame')
+      if (error instanceof VerificationError && error.code === 'stale_frame') {
+        this.logger.warn(
+          'amazon.verification',
+          'Staff Amazon verification needs a fresh frame',
+          {
+            actorExternalId: session.actorExternalId,
+            errorCode: error.code,
+            outcome: 'recoverable_error',
+          },
+        );
         throw error;
-      await this.end(session, 'failed');
-      throw error instanceof VerificationError
-        ? error
-        : new VerificationError('unsupported');
+      }
+      const verificationError =
+        error instanceof VerificationError
+          ? error
+          : new VerificationError('unsupported');
+      await this.end(session, 'failed', verificationError.code);
+      throw verificationError;
     } finally {
-      session.busy = false;
+      this.finishOperation(session);
     }
   }
 

@@ -289,6 +289,8 @@ account for at most ten minutes with a sixty-second disconnect expiry. Quote,
 readiness and legacy sender-refresh work share the worker's Amazon account lock.
 Other providers continue independently. Successful protected-bootstrap verification
 saves an encrypted Amazon-only session and the UI retries through the existing
-immutable retry rules. No automatic CAPTCHA solving or guaranteed MFA exemption.
+immutable retry rules. Staff input waits for any in-flight screenshot capture;
+unchanged screenshots retain their frame token, while changed challenges trigger a
+fresh frame without closing the dialog. No automatic CAPTCHA solving or guaranteed MFA exemption.
 See [the staff operations guide](amazon-session-recovery.md#staff-verification-in-the-dashboard)
 and [the API contract](frontend-handoff.md#staff-amazon-verification).

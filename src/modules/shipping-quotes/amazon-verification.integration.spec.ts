@@ -82,6 +82,10 @@ it('lets a human control a challenge, blocks account navigation, then verifies a
     expect(Buffer.from(view.image, 'base64').subarray(1, 4).toString()).toBe(
       'PNG',
     );
+    const repeated = await recovery.view();
+    if (repeated.verified || 'preparing' in repeated)
+      throw new Error('Expected repeated fixture challenge');
+    expect(repeated.frame).toBe(view.frame);
     await expect(
       recovery.act({
         type: 'click',

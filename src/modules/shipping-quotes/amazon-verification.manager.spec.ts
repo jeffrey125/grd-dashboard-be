@@ -30,7 +30,7 @@ function setup() {
     close: vi.fn(async () => {}),
   };
   const access = new AmazonAccountAccess();
-  const logger = { info: vi.fn() };
+  const logger = { info: vi.fn(), warn: vi.fn() };
   const manager = new AmazonVerificationManager(
     access,
     () => browser as never,
@@ -184,7 +184,7 @@ describe('Staff verification ownership and lifetime', () => {
   });
 
   it('retains a session on stale frames but rejects overlapping control', async () => {
-    const { manager, start, browser } = setup();
+    const { manager, start, browser, logger } = setup();
     const { id } = await start();
     browser.act.mockRejectedValueOnce(new VerificationError('stale_frame'));
     await expect(
@@ -198,6 +198,56 @@ describe('Staff verification ownership and lifetime', () => {
     expect(
       await manager.command({ ...identity, operation: 'poll', id }),
     ).toMatchObject({ state: 'challenge' });
+    expect(logger.warn).toHaveBeenCalledWith(
+      'amazon.verification',
+      expect.any(String),
+      {
+        actorExternalId: identity.actorExternalId,
+        errorCode: 'stale_frame',
+        outcome: 'recoverable_error',
+      },
+    );
+  });
+
+  it('waits for an in-flight frame poll before applying staff input', async () => {
+    const { manager, start, browser } = setup();
+    const { id } = await start();
+    let finishView!: (value: never) => void;
+    browser.view.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishView = resolve;
+        }),
+    );
+    const poll = manager.command({ ...identity, operation: 'poll', id });
+    await new Promise((done) => setImmediate(done));
+    const action = manager.command({
+      ...identity,
+      operation: 'action',
+      id,
+      action: {
+        type: 'click',
+        x: 0.5,
+        y: 0.5,
+        frame: identity.attemptId,
+      },
+    });
+    const actionResult = expect(action).resolves.toMatchObject({
+      state: 'preparing',
+    });
+
+    await new Promise((done) => setImmediate(done));
+    expect(browser.act).not.toHaveBeenCalled();
+    finishView({
+      verified: false,
+      image: 'fixture',
+      frame: identity.attemptId,
+      width: 400,
+      height: 300,
+    } as never);
+    await poll;
+    await actionResult;
+    expect(browser.act).toHaveBeenCalledTimes(1);
   });
 });
 

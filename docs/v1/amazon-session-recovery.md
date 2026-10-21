@@ -155,9 +155,16 @@ it cancels the browser. Revoked/restricted sessions cannot retrieve further imag
 a revocation during a pending API request also cancels recovery. If a revoked user
 makes no further request, idle expiry cleans up within sixty seconds.
 
+Dashboard input waits for any in-flight screenshot capture. If Amazon's challenge
+is unchanged, the refreshed screenshot keeps the same frame token and the input is
+then applied. If the challenge changes, the worker rejects the old token with
+`stale_frame`; the dialog fetches the latest image and stays usable. A transient
+`busy` response follows the same refresh path.
+
 Each start/verified/cancelled/expired outcome records the staff external ID in the
-worker's normal structured logs. No challenge answer, image, cookie, password, or
-provider response is logged or stored in the database. Images exist only in
+worker's normal structured logs. Failed and recoverable session outcomes also include
+only the safe verification error code. No challenge answer, image, cookie, password,
+or provider response is logged or stored in the database. Images exist only in
 transient response/UI memory. Successful verification saves only Amazon cookies
 and local storage; third-party CAPTCHA state is discarded. The saved session still
 expires after at most twelve hours and Amazon can revoke it sooner.
