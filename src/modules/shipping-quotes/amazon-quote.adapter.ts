@@ -23,6 +23,12 @@ import type {
 import { currencyCodeSchema } from './quote-standards.js';
 
 const MAX_PHYSICAL_PACKAGES = 100;
+const businessDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
 
 const moneySchema = z.object({
   value: z.union([z.number().finite().nonnegative(), z.string().min(1)]),
@@ -72,6 +78,7 @@ type AmazonCredentials = {
 
 type AmazonAdapterOptions = {
   credentials?: () => AmazonCredentials;
+  now?: () => Date;
   session?: AmazonApiSession;
 };
 
@@ -178,6 +185,12 @@ function apiAddress(address: Address): AmazonAddress {
     countryCode: address.country,
     ...(address.phone ? { phoneNumber: address.phone } : {}),
   };
+}
+
+function amazonShipDate(shipDate: string, now: Date): string | undefined {
+  const today = businessDate.format(now);
+  if (shipDate < today) throw new AmazonValidationFailed();
+  return shipDate === today ? undefined : `${shipDate}T12:00:00Z`;
 }
 
 function physicalPackages(job: LeasedQuote): PhysicalPackage[] {
@@ -347,12 +360,13 @@ export class AmazonShippingAdapter implements QuoteAdapter {
   private async packageRates(
     job: LeasedQuote,
     physicalPackage: PhysicalPackage,
+    shipDate: string | undefined,
     signal: AbortSignal,
   ): Promise<PackageRates> {
     const body: GetRatesRequest = {
       shipTo: apiAddress(job.input.destination),
       shipFrom: apiAddress(job.sender.address),
-      shipDate: `${job.input.shipDate}T12:00:00Z`,
+      ...(shipDate ? { shipDate } : {}),
       packages: [physicalPackage.request],
       channelDetails: { channelType: ChannelType.External },
     };
@@ -398,11 +412,17 @@ export class AmazonShippingAdapter implements QuoteAdapter {
         throw new AmazonUnsupported();
       inputProvider(job.input);
       const packages = physicalPackages(job);
+      const shipDate = amazonShipDate(
+        job.input.shipDate,
+        this.options.now?.() ?? new Date(),
+      );
       await this.authenticate();
       const rates: PackageRates[] = [];
       for (const physicalPackage of packages) {
         signal.throwIfAborted();
-        rates.push(await this.packageRates(job, physicalPackage, signal));
+        rates.push(
+          await this.packageRates(job, physicalPackage, shipDate, signal),
+        );
       }
       return {
         outcome: 'success',

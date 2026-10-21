@@ -86,7 +86,9 @@ const sandboxRate = {
 describe('Amazon Shipping API sandbox adapter', () => {
   it('quotes every physical box through SP-API and aggregates the common service', async () => {
     const authenticate = vi.fn(async () => undefined);
-    const getRates = vi.fn(async () => sandboxRate);
+    const getRates = vi.fn<AmazonApiSession['getRates']>(
+      async () => sandboxRate,
+    );
     const session: AmazonApiSession = { authenticate, getRates };
     const adapter = new AmazonShippingAdapter({
       session,
@@ -138,6 +140,42 @@ describe('Amazon Shipping API sandbox adapter', () => {
       }),
       expect.any(AbortSignal),
     );
+  });
+
+  it('lets Amazon default the pickup time for a same-day shipment', async () => {
+    const current = new Date('2026-10-21T22:16:00.000Z');
+    const sameDay = job();
+    sameDay.input = structuredClone(sameDay.input);
+    sameDay.input.shipDate = '2026-10-21';
+    const getRates = vi.fn<AmazonApiSession['getRates']>(
+      async () => sandboxRate,
+    );
+    const adapter = new AmazonShippingAdapter({
+      now: () => current,
+      session: { authenticate: vi.fn(async () => undefined), getRates },
+    });
+
+    const result = await adapter.quote(sameDay, new AbortController().signal);
+
+    expect(result.outcome).toBe('success');
+    const request = getRates.mock.calls[0]![0];
+    expect(request).not.toHaveProperty('shipDate');
+  });
+
+  it('rejects a ship date that became stale before worker execution', async () => {
+    const stale = job();
+    stale.input = structuredClone(stale.input);
+    stale.input.shipDate = '2026-10-20';
+    const getRates = vi.fn(async () => sandboxRate);
+    const adapter = new AmazonShippingAdapter({
+      now: () => new Date('2026-10-21T22:16:00.000Z'),
+      session: { authenticate: vi.fn(async () => undefined), getRates },
+    });
+
+    expect(
+      await adapter.quote(stale, new AbortController().signal),
+    ).toMatchObject({ outcome: 'validation_failed', quotes: [] });
+    expect(getRates).not.toHaveBeenCalled();
   });
 
   it('classifies an LWA token failure without exposing provider details', async () => {
