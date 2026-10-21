@@ -21,6 +21,7 @@ import {
   retryInputBlock,
   type RetryConfiguration,
 } from './quote-retry-policy.js';
+import type { ExecutionMode } from './provider-execution-mode.js';
 
 const projection = `SELECT q.external_id AS "externalId", q.status, q.created_at AS "createdAt", u.external_id AS "createdBy", q.input, q.senders, q.deleted_at AS "deletedAt", q.restored_at AS "restoredAt",q.last_deleted_at AS "lastDeletedAt",
   COALESCE((SELECT jsonb_agg(jsonb_build_object(
@@ -162,7 +163,7 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
       const providers: Array<{
         code: ProviderCode;
         enabled: boolean;
-        executionMode: 'request' | 'browser';
+        executionMode: ExecutionMode;
         usedInternationally: boolean;
       }> = await manager.query(
         'SELECT code,enabled,execution_mode AS "executionMode",used_internationally AS "usedInternationally" FROM shipping_providers WHERE code=ANY($1::text[]) ORDER BY id FOR SHARE',

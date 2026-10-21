@@ -1,22 +1,27 @@
 import { z } from 'zod';
+import {
+  executionModeSchema,
+  type ExecutionMode,
+} from './provider-execution-mode.js';
 import { providerCode } from './quote.schemas.js';
 
-export const executionMode = z.enum(['request', 'browser']);
 export const providerSettingsInput = z.strictObject({
   revision: z.number().int().nonnegative(),
   enabled: z.boolean(),
-  executionMode,
+  executionMode: executionModeSchema,
   maintenanceMessage: z.string().trim().max(500).nullable(),
   staleHours: z.number().int().min(1).max(168),
   connectionTestId: z.uuid().optional(),
   acknowledgeFailure: z.boolean().default(false),
 });
-export const readinessInput = z.strictObject({ executionMode });
+export const readinessInput = z.strictObject({
+  executionMode: executionModeSchema,
+});
 export type ProviderSettingsInput = z.infer<typeof providerSettingsInput>;
 export type ReadinessWork = {
   id: string;
   code: z.infer<typeof providerCode>;
-  mode: z.infer<typeof executionMode>;
+  mode: ExecutionMode;
 };
 export type ReadinessFailure = 'readiness_failed' | 'readiness_timeout';
 

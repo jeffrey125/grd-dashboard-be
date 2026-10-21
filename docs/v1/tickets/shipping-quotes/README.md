@@ -24,6 +24,7 @@ flowchart TD
     SQ006 --> SQ009[SQ-V1-009 Release readiness]
     SQ007 --> SQ009
     SQ008 --> SQ009
+    SQ009 --> SQ011[SQ-V1-011 Amazon SP-API sandbox]
 ```
 
 SQ-V1-004 and SQ-V1-005 may proceed in parallel after their shared foundations land.
@@ -47,6 +48,7 @@ and [implementation summary](../../implementation-summary/SQ-V1-001-implementati
 | [SQ-V1-007](SQ-V1-007-history-retry.md)         | History, partial results, ranking, retry, expiry, delete, and restore work.            |
 | [SQ-V1-008](SQ-V1-008-admin-controls.md)        | Admins control modes, availability, defaults, connection tests, and stale policy.      |
 | [SQ-V1-009](SQ-V1-009-readiness.md)             | Full-stack behavior and operational recovery pass the release gate.                    |
+| [SQ-V1-011](SQ-V1-011-amazon-sp-api-sandbox.md) | Amazon quotes use SP-API sandbox with no Amazon browser/CAPTCHA runtime.               |
 
 ## Shared completion rule
 

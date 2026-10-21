@@ -111,16 +111,21 @@ describe('Provider administration HTTP API', () => {
     staleHours: p.staleHours,
   });
 
-  it('starts at one hour, validates bounds, and requires a fresh mode-specific readiness test', async () => {
+  it('fixes Amazon to API mode and rejects browser or request configuration', async () => {
     const provider = await settings();
     expect(provider.staleHours).toBe(1);
+    expect(provider.executionMode).toBe('api');
     const body = editable(provider);
     await patch({ ...body, staleHours: 0 }).expect(400);
     await patch({ ...body, staleHours: 169 }).expect(400);
     await patch({ ...body, staleHours: 1.5 }).expect(400);
-    await patch({ ...body, executionMode: 'browser' }).expect(409);
-    const test = await post(base + '/amazon/connection-tests', {
+    await patch({ ...body, executionMode: 'browser' }).expect(400);
+    await patch({ ...body, executionMode: 'request' }).expect(400);
+    await post(base + '/amazon/connection-tests', {
       executionMode: 'browser',
+    }).expect(400);
+    const test = await post(base + '/amazon/connection-tests', {
+      executionMode: 'api',
     }).expect(201);
     const repository = new TypeOrmProviderAdminRepository(db.source);
     const work = (await repository.claim())!;
@@ -135,51 +140,30 @@ describe('Provider administration HTTP API', () => {
     });
     await patch({
       ...body,
-      executionMode: 'browser',
+      staleHours: 2,
       connectionTestId: work.id,
-    }).expect(409);
-    await patch({
-      ...body,
-      executionMode: 'browser',
-      connectionTestId: work.id,
-      acknowledgeFailure: true,
     }).expect(200);
     const saved = await settings();
     expect(saved).toMatchObject({
-      executionMode: 'browser',
-      savedConnectionTest: { id: work.id, failureSummary: 'readiness_failed' },
+      executionMode: 'api',
+      staleHours: 2,
     });
     expect(saved.updatedBy).toBeTruthy();
-    await patch({ ...body, staleHours: 2 }).expect(409);
+    await patch({ ...body, staleHours: 3 }).expect(409);
   });
 
-  it('rejects expired test results and accepts a passing current test', async () => {
-    const body = editable(await settings());
+  it('runs a current API readiness test without changing the fixed mode', async () => {
     const repo = new TypeOrmProviderAdminRepository(db.source);
     const queued = await post(base + '/amazon/connection-tests', {
-      executionMode: 'request',
+      executionMode: 'api',
     }).expect(201);
     const work = (await repo.claim())!;
     await repo.finish(work, null);
-    await db.source.query(
-      "UPDATE shipping_provider_tests SET completed_at=now()-interval '15 minutes' WHERE id=$1",
-      [queued.body.id],
-    );
-    await patch({
-      ...body,
-      executionMode: 'request',
-      connectionTestId: work.id,
-    }).expect(409);
-    await post(base + '/amazon/connection-tests', {
-      executionMode: 'request',
-    }).expect(201);
-    const current = (await repo.claim())!;
-    await repo.finish(current, null);
-    await patch({
-      ...body,
-      executionMode: 'request',
-      connectionTestId: current.id,
-    }).expect(200);
+    expect(queued.body.executionMode).toBe('api');
+    expect(
+      (await get(base + '/amazon/connection-tests/' + work.id)).body,
+    ).toMatchObject({ state: 'succeeded', executionMode: 'api' });
+    expect((await settings()).executionMode).toBe('api');
   });
 
   it('allows running work to finish, blocks queued work after disable, and preserves snapshots', async () => {
@@ -201,7 +185,7 @@ describe('Provider administration HTTP API', () => {
     const preserved = (
       await get('/api/v1/quote-comparisons/' + first.externalId).expect(200)
     ).body;
-    expect(preserved.attempts[0].executionMode).toBe('request');
+    expect(preserved.attempts[0].executionMode).toBe('api');
     expect(preserved.attempts[0].sender).toEqual(first.attempts[0].sender);
     const blocked = (
       await get('/api/v1/quote-comparisons/' + second.externalId).expect(200)
@@ -224,15 +208,20 @@ describe('Provider administration HTTP API', () => {
     ).toMatchObject({
       enabled: false,
       maintenanceMessage: 'Scheduled maintenance',
-      staleHours: 1,
+      staleHours: 2,
     });
-    await patch({ ...editable(await settings()), enabled: true }).expect(200);
+    await patch({
+      ...editable(await settings()),
+      enabled: true,
+      maintenanceMessage: null,
+      staleHours: 1,
+    }).expect(200);
   });
 
   it('renews a delayed readiness reservation and excludes account work until completion', async () => {
     const repo = new TypeOrmProviderAdminRepository(db.source);
     const queued = await post(base + '/amazon/connection-tests', {
-      executionMode: 'request',
+      executionMode: 'api',
     }).expect(201);
     await db.source.query(
       "UPDATE shipping_provider_tests SET deadline=clock_timestamp()+interval '0.5 seconds' WHERE id=$1",
@@ -318,27 +307,15 @@ describe('Provider administration HTTP API', () => {
     await patch({ ...editable(await settings()), enabled: true }).expect(200);
   });
 
-  it('retains the actual mode when recovering an already-started attempt after settings change', async () => {
-    const repo = new TypeOrmProviderAdminRepository(db.source);
-    await post(base + '/amazon/connection-tests', {
-      executionMode: 'browser',
-    }).expect(201);
-    const test = (await repo.claim())!;
-    await repo.finish(test, null);
+  it('retains a historical mode when recovering an attempt started before the API migration', async () => {
     const saved = (await post('/api/v1/quote-comparisons', input()).expect(201))
       .body.comparison;
-    const jobs = new TypeOrmQuoteExecutionRepository(db.source);
-    const original = (await jobs.claim(120000))!;
-    expect(original.mode).toBe('request');
-    await patch({
-      ...editable(await settings()),
-      executionMode: 'browser',
-      connectionTestId: test.id,
-    }).expect(200);
     await db.source.query(
-      "UPDATE quote_provider_attempts SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
-      [original.id],
+      `UPDATE quote_provider_attempts SET execution_mode='request',status='running',started_at=clock_timestamp(),
+      lease_owner=$2,lease_until=clock_timestamp()-interval '1 second' WHERE external_id=$1`,
+      [saved.attempts[0].externalId, randomUUID()],
     );
+    const jobs = new TypeOrmQuoteExecutionRepository(db.source);
     const recovered = (await jobs.claim(120000))!;
     expect(recovered.mode).toBe('request');
     await jobs.finish(recovered, quoteFailure('timeout'));
@@ -346,16 +323,6 @@ describe('Provider administration HTTP API', () => {
       .body;
     expect(history.attempts[0].executionMode).toBe('request');
     expect(history.attempts[0].sender).toEqual(saved.attempts[0].sender);
-    await post(base + '/amazon/connection-tests', {
-      executionMode: 'request',
-    }).expect(201);
-    const reset = (await repo.claim())!;
-    await repo.finish(reset, null);
-    await patch({
-      ...editable(await settings()),
-      executionMode: 'request',
-      connectionTestId: reset.id,
-    }).expect(200);
   });
 
   it('allows staff discovery/default refresh but denies every admin operation and mode override', async () => {
@@ -397,7 +364,7 @@ describe('Provider administration HTTP API', () => {
     await patch(editable(await settings()), staff).expect(403);
     await post(
       base + '/amazon/connection-tests',
-      { executionMode: 'request' },
+      { executionMode: 'api' },
       staff,
     ).expect(403);
     await get(base + '/amazon/connection-tests/' + randomUUID(), staff).expect(
@@ -417,8 +384,13 @@ describe('Provider administration HTTP API', () => {
     const worker = new SenderDefaultsWorker(defaults, {
       read: async () => address,
     });
-    const refresh = post(
+    await post(
       '/api/v1/quote-comparisons/providers/amazon/default-refresh',
+      {},
+      staff,
+    ).expect(400);
+    const refresh = post(
+      '/api/v1/quote-comparisons/providers/unishippers/default-refresh',
       {},
       staff,
     ).then((response) => response);
@@ -426,7 +398,7 @@ describe('Provider administration HTTP API', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
       await worker.runOnce();
       const [row] = await db.source.query(
-        "SELECT last_default FROM shipping_accounts WHERE provider_id=(SELECT id FROM shipping_providers WHERE code='amazon')",
+        "SELECT last_default FROM shipping_accounts WHERE provider_id=(SELECT id FROM shipping_providers WHERE code='unishippers')",
       );
       if (row.last_default) break;
     }
@@ -434,8 +406,8 @@ describe('Provider administration HTTP API', () => {
     const discovery = (await get('/api/v1/quote-comparisons/providers', staff))
       .body;
     expect(
-      discovery.find((p: { code: string }) => p.code === 'amazon').cachedDefault
-        .address,
+      discovery.find((p: { code: string }) => p.code === 'unishippers')
+        .cachedDefault.address,
     ).toEqual(address);
   });
 });

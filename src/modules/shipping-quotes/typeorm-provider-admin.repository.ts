@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import {
   ProviderAdminRepository,
@@ -6,6 +10,11 @@ import {
   type ReadinessWork,
   type ReadinessFailure,
 } from './provider-admin.repository.js';
+import {
+  providerSupportsExecutionMode,
+  type ExecutionMode,
+} from './provider-execution-mode.js';
+import { providerCode } from './quote.schemas.js';
 
 const testProjection = `SELECT t.id,t.mode AS "executionMode",t.state,t.failure_summary AS "failureSummary",
   t.created_at AS "createdAt",t.completed_at AS "completedAt",t.completed_at + interval '15 minutes' AS "expiresAt",
@@ -49,6 +58,7 @@ export class TypeOrmProviderAdminRepository extends ProviderAdminRepository {
   }
 
   async save(code: string, input: ProviderSettingsInput, actorId: number) {
+    this.assertMode(code, input.executionMode);
     await this.source.transaction(async (manager) => {
       // The provider lock also serializes create/retry and worker start with disable.
       const [provider] = await manager.query(
@@ -101,6 +111,7 @@ export class TypeOrmProviderAdminRepository extends ProviderAdminRepository {
   }
 
   async enqueue(code: string, mode: ReadinessWork['mode'], actorId: number) {
+    this.assertMode(code, mode);
     const id = await this.source.transaction(async (manager) => {
       const [provider] = await manager.query(
         'SELECT id,revision FROM shipping_providers WHERE code=$1 FOR UPDATE',
@@ -179,5 +190,13 @@ export class TypeOrmProviderAdminRepository extends ProviderAdminRepository {
       WHERE id=$1 AND state='running' AND deadline>clock_timestamp()`,
       [work.id, failure ? 'failed' : 'succeeded', failure],
     );
+  }
+
+  private assertMode(code: string, mode: ExecutionMode) {
+    const parsed = providerCode.safeParse(code);
+    if (!parsed.success || !providerSupportsExecutionMode(parsed.data, mode))
+      throw new BadRequestException(
+        'Execution mode is unavailable for provider',
+      );
   }
 }

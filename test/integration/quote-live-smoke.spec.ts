@@ -16,14 +16,16 @@ describe('Opt-in live quote command', () => {
         .split('\n')
         .map((line) => JSON.parse(line)),
     ).toEqual(
-      ['amazon', 'unishippers'].flatMap((provider) =>
-        ['request', 'browser'].map((mode) => ({
-          provider,
-          mode,
-          outcome: 'blocked',
-          reason: 'credentials_missing',
-        })),
-      ),
+      [
+        { provider: 'amazon', mode: 'api' },
+        { provider: 'unishippers', mode: 'request' },
+        { provider: 'unishippers', mode: 'browser' },
+      ].map(({ provider, mode }) => ({
+        provider,
+        mode,
+        outcome: 'blocked',
+        reason: 'credentials_missing',
+      })),
     );
   });
 
@@ -36,14 +38,14 @@ describe('Opt-in live quote command', () => {
         '--provider',
         'amazon',
         '--mode',
-        'browser',
+        'api',
       ],
       { env: { PATH: process.env.PATH }, encoding: 'utf8' },
     );
     expect(run.status).toBe(1);
     expect(JSON.parse(run.stdout)).toEqual({
       provider: 'amazon',
-      mode: 'browser',
+      mode: 'api',
       outcome: 'blocked',
       reason: 'credentials_missing',
     });

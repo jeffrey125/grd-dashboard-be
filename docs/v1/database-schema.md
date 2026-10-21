@@ -655,3 +655,16 @@ Failure summaries are `readiness_failed` or `readiness_timeout`; a failed consum
 result records the explicitly acknowledged save. Settings changes never rewrite
 quote prices, senders or already-started attempt modes. Rollback removes the new
 metadata/tables and restores the 24-hour schema default, without rewriting values.
+
+## SQ-V1-011 Amazon API execution mode
+
+Migration `1793145600000-AmazonApiMode` adds `api` to the execution-mode checks and
+constrains the current Amazon provider row to `api`; myUnishippers remains limited
+to `request` or `browser`. Attempt and readiness-test tables continue accepting all
+three values so historical Amazon `request`/`browser` evidence remains readable.
+
+The migration fails queued/running Amazon readiness tests, changes the configured
+Amazon mode to `api`, increments its revision, and clears its retired cached sender
+default/default-refresh state. It adds no table, column, index or foreign key. Down
+migration maps `api` evidence to `request` because the prior checks cannot represent
+it; run rollback only with the updated API and worker stopped.

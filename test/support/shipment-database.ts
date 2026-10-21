@@ -1,4 +1,5 @@
 import { ProviderAdministration1793059200000 } from '@infrastructure/database/migrations/1793059200000-ProviderAdministration.js';
+import { AmazonApiMode1793145600000 } from '@infrastructure/database/migrations/1793145600000-AmazonApiMode.js';
 import { QUOTE_ENTITIES } from '@modules/shipping-quotes/quote.entities.js';
 import { QuoteHistoryRetry1792972800000 } from '@infrastructure/database/migrations/1792972800000-QuoteHistoryRetry.js';
 import { QuoteExecution1792627200000 } from '@infrastructure/database/migrations/1792627200000-QuoteExecution.js';
@@ -60,6 +61,7 @@ export async function shipmentDatabase() {
       InternationalQuoteOptions1792886400000,
       QuoteHistoryRetry1792972800000,
       ProviderAdministration1793059200000,
+      AmazonApiMode1793145600000,
     ],
   });
 

@@ -5,7 +5,7 @@ import type {
   ReadinessWork,
 } from './provider-admin.repository.js';
 
-const work: ReadinessWork = { id: 'test', code: 'amazon', mode: 'browser' };
+const work: ReadinessWork = { id: 'test', code: 'amazon', mode: 'api' };
 
 describe('Provider readiness worker', () => {
   it('runs the proposed mode and persists only an allowlisted failure', async () => {
@@ -21,7 +21,7 @@ describe('Provider readiness worker', () => {
       close: vi.fn().mockResolvedValue(undefined),
     };
     await new ProviderReadinessWorker(repository, () => adapter).runOnce();
-    expect(adapter.readiness).toHaveBeenCalledWith('browser');
+    expect(adapter.readiness).toHaveBeenCalledWith('api');
     expect(adapter.close).toHaveBeenCalledOnce();
     expect(finish).toHaveBeenCalledWith(work, 'readiness_failed');
     expect(JSON.stringify(finish.mock.calls)).not.toContain('secret');

@@ -71,42 +71,28 @@ across provider requests remain subject to the existing comparable-price ranking
 Only genuinely provider-specific inputs belong in a provider-specific section.
 
 Discovery returns `inputRequirements` for sender and destination: `requiredFields`
-(contactName, phone, division) and `maxNameLength`. Shared fields become required if
+(contactName, phone, division), `maxNameLength`, `maxStreetLength`, and
+`maxContactNameLength`. Shared fields become required if
 any selected provider needs them; validation identifies that provider. The same
 backend requirement definition drives discovery and submission validation.
 myUnishippers limits the sender company/name to 35 characters. Its current Quick
-Quote flow does not require contact name or phone. No new production dependency or
-database migration is needed: reuse React Hook Form, MUI, Zod and installed standards
-libraries, with the approved provider mappings.
+Quote flow does not require contact name or phone. Reuse React Hook Form, MUI, Zod
+and installed standards libraries, with the approved provider mappings.
 
 ## Provider execution
 
-Each provider has one configured account and an admin-controlled execution mode:
-`request` or `browser`. Staff cannot override it. Saving a mode first runs a connection
-test; an admin may explicitly save after a failed test with a visible warning.
+Amazon is fixed to `api` mode. It uses Shipping API v2 through Amazon's dynamic
+sandbox with environment-only LWA client ID, client secret and refresh token. No
+Amazon email/password login, Playwright page, cookie/session persistence, CAPTCHA
+bridge or provider-account mutation remains. Readiness retrieves an LWA token but
+does not request a rate.
 
-Playwright performs login and controlled relogin for both modes. Request mode calls the
-observed quote endpoint from inside the authenticated browser page so the provider's
-cookies, tokens, and browser-generated session context remain available. It does not
-require transferring the session to a standalone Axios client. Browser mode operates
-the quote form and captures the matching response or validated visible result. There is
-no automatic cross-mode fallback. New attempts and user retries use the mode that is
-current when they start, and every attempt records the actual mode.
-
-Provider login credentials remain environment-only:
-
-- `AMAZON_SHIPPING_EMAIL` and `AMAZON_SHIPPING_PASSWORD`
-- `MYUNISHIPPERS_EMAIL` and `MYUNISHIPPERS_PASSWORD`
-
-Browser cookies and tokens normally stay in worker memory. The approved opt-in
-Amazon recovery flow saves a human-verified, account-bound encrypted snapshot
-outside the checkout/database for at most 12 hours. Quote/readiness operations
-restore it after restarts and never automatically fall back to password login.
-Quote/readiness attempts only read snapshots; explicit staff recovery or the SSH
-operator writes them, and the operator can revoke them. See
-[Amazon session recovery](amazon-session-recovery.md).
-Authentication failure permits one relogin and one replay. Other provider errors and
-timeouts remain failed until a user chooses Retry.
+myUnishippers retains its admin-controlled `request` and `browser` modes and
+environment-only `MYUNISHIPPERS_EMAIL` / `MYUNISHIPPERS_PASSWORD`. Its existing
+Playwright-authenticated request/browser behavior is unchanged. New attempts and
+user retries use the current provider mode when they start, while historical
+attempts retain their recorded mode. Authentication failure permits one relogin
+and replay; other provider failures wait for an explicit Retry.
 
 The admin may disable a provider with a maintenance message. Disabled providers are
 omitted from new comparisons, remain visible in history, and cannot be retried while
@@ -114,12 +100,11 @@ disabled.
 
 ## Multiple packages
 
-Amazon's observed estimator accepts one package. Quote each distinct package/rating
-signature once, multiply compatible per-package transportation charges by the group
-quantity, and sum the groups. Mark the total as a **calculated estimate**. Never
-multiply shipment-level or pickup-level fees. Package signatures must include every
-input that can change a rate, including origin, destination, ship date, dimensions,
-weight, contents/customs, and requested options where supported.
+Amazon Shipping API is called once for every physical package because sandbox/live
+multi-package rate semantics are not assumed. Return only carrier/service/currency
+combinations present for every package, sum their exact package charges with
+Decimal.js, and mark multi-package totals as a **calculated estimate**. Fail closed
+when any package has no eligible rate or there is no common service.
 
 myUnishippers Quick Quote accepts one box. Drive Quick Quote once to capture its
 current authenticated `/svc/shopFlow` request, then replay that captured request for
@@ -158,15 +143,9 @@ other is running, but at most one attempt per provider/comparison may be active.
 Eligibility is rechecked at execution time, and no current sender-default refresh
 replaces the original resolved sender.
 
-Amazon account verification pages return `failed` / `verification_required` without
-automatic relogin. This also applies when opt-in saved authentication is absent,
-expired, unreadable or rejected. Staff can choose **Verify Amazon & retry** to
-complete supported challenges and retry the original attempt. Operator recovery
-remains the fallback; other providers are unchanged. An authenticated account
-that still shows the
-Shipping pickup/contact onboarding returns `provider_setup_required`; it does not
-request a rate or submit onboarding data. The failed attempt becomes retryable after
-an administrator completes that setup directly with Amazon.
+Historical Amazon browser failures such as `verification_required` remain readable.
+Retrying an eligible historical failure creates a new attempt in the current `api`
+mode; no browser challenge UI is available.
 
 ## Results and ranking
 
@@ -189,6 +168,8 @@ stale period applies, defaulting to 1 hour. Expired or stale quotes remain in hi
 They do not qualify for Lowest price. Equivalent fresh ties share the badge; when
 every rate is stale or expired there is no winner. Requested options must have
 confirmed coverage before ranking; mixed simulated and real quotes are not ranked.
+Amazon sandbox quotes are always simulated, show **Amazon sandbox mode — test data,
+not live commercial prices**, and never receive a Lowest price badge.
 
 ## Persistence model
 
@@ -230,11 +211,12 @@ but the domain behaviors and authorization above are fixed.
 
 ## Approved technical approach
 
-No new production dependency is approved or required. Use the existing backend stack:
-NestJS, TypeORM/PostgreSQL, Zod, Bottleneck, Playwright, and Nest/RxJS SSE. Request mode
-uses an in-page authenticated HTTP call through Playwright. Use the existing frontend
-stack: React, MUI, React Hook Form, TanStack Query, Zod, and the browser `EventSource`
-API.
+SQ-V1-011 approves `@sp-api-sdk/shipping-api-v2@3.1.7` and
+`@sp-api-sdk/auth@3.1.6` for Amazon's generated Shipping v2 contract, sandbox endpoint,
+LWA token lifecycle and 429 retry. Keep Zod runtime validation and Decimal.js
+aggregation at the application boundary. Playwright remains for myUnishippers and
+tracking only. The frontend uses its existing React, MUI, React Hook Form, TanStack
+Query, Zod and browser `EventSource` stack.
 
 ## Evidence and open contract verification
 
@@ -279,18 +261,8 @@ can test a disabled provider before an admin enables it; default refresh require
 enabled provider. Readiness results persist across API restarts; interrupted tests
 expire with a safe timeout and require an explicit new test.
 
-### Approved staff Amazon verification follow-up
+### Amazon browser verification retirement
 
-Staff can manually complete a recognized Amazon challenge from the comparison
-page, using a challenge-only view of a worker-owned browser. The API proxies
-validated commands over a private Unix socket; it never launches a provider
-browser or receives Amazon cookies/passwords. One staff login controls the
-account for at most ten minutes with a sixty-second disconnect expiry. Quote,
-readiness and legacy sender-refresh work share the worker's Amazon account lock.
-Other providers continue independently. Successful protected-bootstrap verification
-saves an encrypted Amazon-only session and the UI retries through the existing
-immutable retry rules. Staff input waits for any in-flight screenshot capture;
-unchanged screenshots retain their frame token, while changed challenges trigger a
-fresh frame without closing the dialog. No automatic CAPTCHA solving or guaranteed MFA exemption.
-See [the staff operations guide](amazon-session-recovery.md#staff-verification-in-the-dashboard)
-and [the API contract](frontend-handoff.md#staff-amazon-verification).
+SQ-V1-011 removes the Amazon browser/session/CAPTCHA runtime and staff verification
+endpoint. Amazon uses sandbox API credentials only. Historical browser outcomes
+remain immutable evidence; they do not reactivate the retired flow.

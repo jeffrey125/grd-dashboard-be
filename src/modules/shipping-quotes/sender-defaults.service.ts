@@ -53,6 +53,10 @@ export class SenderDefaultsService {
     const parsed = providerCode.safeParse(raw);
     if (!parsed.success) throw new BadRequestException('Unknown provider');
     const code = parsed.data;
+    if (code === 'amazon')
+      throw new BadRequestException(
+        'Amazon API quotes require an explicit sender',
+      );
     try {
       let pending = this.inFlight.get(code);
       if (!pending) {

@@ -15,15 +15,32 @@ const { values } = parseArgs({
 });
 if (values.provider && !['amazon', 'unishippers'].includes(values.provider))
   throw new Error('Provider must be amazon or unishippers');
-if (values.mode && !['request', 'browser'].includes(values.mode))
-  throw new Error('Mode must be request or browser');
+if (values.mode && !['api', 'request', 'browser'].includes(values.mode))
+  throw new Error('Mode must be api, request or browser');
+
+const modes = {
+  amazon: ['api'],
+  unishippers: ['request', 'browser'],
+} as const;
+const amazonCredentialsAvailable = () =>
+  Boolean(
+    process.env.AMAZON_SP_API_SANDBOX_CLIENT_ID &&
+    process.env.AMAZON_SP_API_SANDBOX_CLIENT_SECRET &&
+    process.env.AMAZON_SP_API_SANDBOX_REFRESH_TOKEN,
+  );
 
 for (const code of ['amazon', 'unishippers'] as const) {
   if (values.provider && values.provider !== code) continue;
-  const prefix = code === 'amazon' ? 'AMAZON_SHIPPING' : 'MYUNISHIPPERS';
-  for (const mode of ['request', 'browser'] as const) {
+  for (const mode of modes[code]) {
     if (values.mode && values.mode !== mode) continue;
-    if (!process.env[`${prefix}_EMAIL`] || !process.env[`${prefix}_PASSWORD`]) {
+    const credentialsAvailable =
+      code === 'amazon'
+        ? amazonCredentialsAvailable()
+        : Boolean(
+            process.env.MYUNISHIPPERS_EMAIL &&
+            process.env.MYUNISHIPPERS_PASSWORD,
+          );
+    if (!credentialsAvailable) {
       console.log(
         JSON.stringify({
           provider: code,
@@ -36,14 +53,25 @@ for (const code of ['amazon', 'unishippers'] as const) {
       continue;
     }
     try {
-      // Resolve independently per mode so a failed login does not hide another result.
-      const address = {
-        ...(await new BrowserSenderDefaults().read(code)),
-        country: 'US' as const,
-        name: 'Quote smoke',
-        contactName: 'Quote Smoke',
-        phone: '2025550147',
-      };
+      const address =
+        code === 'amazon'
+          ? {
+              name: 'Quote smoke',
+              street: '410 Terry Avenue North',
+              city: 'Seattle',
+              division: 'WA',
+              postalCode: '98109',
+              country: 'US' as const,
+              contactName: 'Quote Smoke',
+              phone: '2025550147',
+            }
+          : {
+              ...(await new BrowserSenderDefaults().read('unishippers')),
+              country: 'US' as const,
+              name: 'Quote smoke',
+              contactName: 'Quote Smoke',
+              phone: '2025550147',
+            };
       const shipDate = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/New_York',
       }).format(

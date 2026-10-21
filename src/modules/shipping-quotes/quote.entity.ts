@@ -14,7 +14,7 @@ import {
 @Check('shipping_providers_code_check', "code IN ('amazon','unishippers')")
 @Check(
   'shipping_providers_execution_mode_check',
-  "execution_mode IN ('request','browser')",
+  "(code='amazon' AND execution_mode='api') OR (code='unishippers' AND execution_mode IN ('request','browser'))",
 )
 @Check('shipping_providers_stale_hours_check', 'stale_hours BETWEEN 1 AND 168')
 @Index('ix_shipping_providers_updated_by', ['updated_by_id'])
@@ -317,7 +317,7 @@ export class QuoteCustomsItemsEntity {
 })
 @Check(
   'quote_provider_attempts_execution_mode_check',
-  "execution_mode IN ('request','browser')",
+  "execution_mode IN ('api','request','browser')",
 )
 @Check(
   'quote_provider_attempts_status_check',
@@ -550,7 +550,10 @@ export class ShippingQuoteItemsEntity {
   name: 'shipping_provider_tests_actor_id_fkey',
   onDelete: 'NO ACTION',
 })
-@Check('shipping_provider_tests_mode_check', "mode IN ('request','browser')")
+@Check(
+  'shipping_provider_tests_mode_check',
+  "mode IN ('api','request','browser')",
+)
 @Check(
   'shipping_provider_tests_state_check',
   "state IN ('queued','running','succeeded','failed')",

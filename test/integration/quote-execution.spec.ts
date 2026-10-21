@@ -92,7 +92,7 @@ describe('Durable quote execution', () => {
       'TRUNCATE shipping_quote_items,shipping_quotes,quote_provider_attempts,quote_customs_items,quote_package_groups,quote_requests RESTART IDENTITY',
     );
     await db.source.query(
-      "UPDATE shipping_providers SET enabled=true,execution_mode='request',stale_hours=24",
+      "UPDATE shipping_providers SET enabled=true,execution_mode=CASE WHEN code='amazon' THEN 'api' ELSE 'request' END,stale_hours=24",
     );
   });
 
@@ -415,6 +415,7 @@ describe('Durable quote execution', () => {
     );
     await db.source.query("UPDATE quote_requests SET status='saved'");
 
+    await db.source.undoLastMigration(); // Amazon API mode migration.
     await db.source.undoLastMigration(); // Provider administration migration.
     await db.source.undoLastMigration(); // History and retry migration.
     await db.source.undoLastMigration(); // International options migration.
@@ -618,12 +619,13 @@ describe('Durable quote execution', () => {
     const original = input();
     const saved = await quotes.create(original, actor, senders);
     await db.source.query(
-      "UPDATE shipping_providers SET execution_mode='browser' WHERE code='amazon'",
+      "UPDATE shipping_providers SET execution_mode='browser' WHERE code='unishippers'",
     );
     const first = (await jobs.claim(120000))!;
     const second = (await jobs.claim(120000))!;
 
-    expect(first.mode).toBe('browser');
+    expect(first).toMatchObject({ code: 'amazon', mode: 'api' });
+    expect(second).toMatchObject({ code: 'unishippers', mode: 'browser' });
     const signal = new AbortController().signal;
     await jobs.finish(
       first,

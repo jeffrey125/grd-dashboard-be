@@ -13,6 +13,7 @@ afterAll(async () => {
 });
 
 it('backfills unique immutable public identities without changing populated history or ownership', async () => {
+  await db.source.undoLastMigration(); // Amazon API mode migration.
   await db.source.undoLastMigration(); // Provider administration migration.
   await db.source.undoLastMigration(); // History and retry migration.
   await db.source.undoLastMigration(); // International quote options migration.
@@ -128,6 +129,7 @@ it('backfills unique immutable public identities without changing populated hist
     )[0].external_id,
   ).toBe(after[0].external_id);
 
+  await db.source.undoLastMigration(); // Amazon API mode migration.
   await db.source.undoLastMigration(); // Provider administration migration.
   await db.source.undoLastMigration(); // History and retry migration.
   await db.source.undoLastMigration(); // International quote options migration.

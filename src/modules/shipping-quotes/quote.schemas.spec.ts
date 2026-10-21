@@ -276,4 +276,32 @@ describe('US-only shared sender submissions', () => {
     );
     expect(submitQuoteSchema.safeParse(value).success).toBe(true);
   });
+
+  it('rejects Amazon address values and package counts beyond its API contract', () => {
+    const value = domesticInput();
+    value.providers = value.providers.filter(
+      (provider) => provider.code === 'amazon',
+    );
+    const sender = value.providers[0]!.sender;
+    if (sender.mode !== 'explicit') throw new Error('Expected explicit sender');
+
+    sender.address.name = 'A'.repeat(51);
+    sender.address.street = 'S'.repeat(61);
+    sender.address.contactName = 'C'.repeat(51);
+    value.destination.street2 = 'D'.repeat(61);
+    value.packageGroups[0]!.quantity = 101;
+
+    const result = submitQuoteSchema.safeParse(value);
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues.map((issue) => issue.path)).toEqual(
+        expect.arrayContaining([
+          ['providers', 0, 'sender', 'address', 'name'],
+          ['providers', 0, 'sender', 'address', 'street'],
+          ['providers', 0, 'sender', 'address', 'contactName'],
+          ['destination', 'street2'],
+          ['packageGroups'],
+        ]),
+      );
+  });
 });

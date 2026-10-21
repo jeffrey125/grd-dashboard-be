@@ -1,11 +1,15 @@
 import { z } from 'zod';
-import { providerInputRequirements } from './provider-input-requirements.js';
+import {
+  providerInputRequirements,
+  providerPhysicalPackageCountSupported,
+} from './provider-input-requirements.js';
 import { QuoteDecimal } from './quote-decimal.js';
 import {
   countryCodeSchema,
   currencyCodeSchema,
   isPossibleAddressPhone,
 } from './quote-standards.js';
+import type { ExecutionMode } from './provider-execution-mode.js';
 
 const text = z
   .string()
@@ -276,6 +280,24 @@ export const submitQuoteSchema = createQuoteSchema.superRefine((value, ctx) => {
             path: [...path, 'name'],
             message: `${provider.code} requires ${requirements[target].maxNameLength} characters or fewer`,
           });
+        for (const field of ['street', 'street2'] as const)
+          if (
+            (address[field]?.length ?? 0) > requirements[target].maxStreetLength
+          )
+            ctx.addIssue({
+              code: 'custom',
+              path: [...path, field],
+              message: `${provider.code} requires ${requirements[target].maxStreetLength} characters or fewer`,
+            });
+        if (
+          (address.contactName?.length ?? 0) >
+          requirements[target].maxContactNameLength
+        )
+          ctx.addIssue({
+            code: 'custom',
+            path: [...path, 'contactName'],
+            message: `${provider.code} requires ${requirements[target].maxContactNameLength} characters or fewer`,
+          });
         for (const field of requirements[target].requiredFields)
           if (!address[field]?.trim())
             ctx.addIssue({
@@ -298,6 +320,18 @@ export const submitQuoteSchema = createQuoteSchema.superRefine((value, ctx) => {
           'Dimensions may be blank only for a myUnishippers-only comparison',
       });
   });
+  if (
+    value.providers.some((provider) => provider.code === 'amazon') &&
+    !providerPhysicalPackageCountSupported(
+      value.packageGroups.map((group) => group.quantity),
+      'amazon',
+    )
+  )
+    ctx.addIssue({
+      code: 'custom',
+      path: ['packageGroups'],
+      message: 'Amazon supports at most 100 physical packages per comparison',
+    });
 });
 export type QuoteInput = z.infer<typeof createQuoteSchema>;
 export type Address = z.infer<typeof addressSchema>;
@@ -306,7 +340,7 @@ export type ProviderConfiguration = {
   code: ProviderCode;
   name: string;
   enabled: boolean;
-  executionMode: 'request' | 'browser';
+  executionMode: ExecutionMode;
   usedInternationally: boolean;
   internationalAvailable: boolean;
   supportsSignature: boolean;
@@ -358,7 +392,7 @@ export type QuoteAttempt = {
   createdAt: string;
   sender: SenderSnapshot;
   retryBlockedReason: string | null;
-  executionMode: 'request' | 'browser' | null;
+  executionMode: ExecutionMode | null;
   startedAt: string | null;
   completedAt: string | null;
   recoveryCount: number;

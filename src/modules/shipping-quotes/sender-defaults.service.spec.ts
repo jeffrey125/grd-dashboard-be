@@ -12,7 +12,19 @@ const address = {
 };
 
 describe('Sender default freshness', () => {
-  it('accepts a current refresh and rejects it at fifteen minutes', async () => {
+  it('does not enqueue browser refresh work for Amazon API quotes', async () => {
+    const enqueue = vi.fn();
+    const service = new SenderDefaultsService({
+      enqueue,
+    } as unknown as SenderDefaultsRepository);
+
+    await expect(service.refresh('amazon', 1)).rejects.toThrow(
+      'Amazon API quotes require an explicit sender',
+    );
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('accepts a current myUnishippers refresh and rejects it at fifteen minutes', async () => {
     const start = Date.parse('2026-10-20T10:00:00Z');
     const now = vi.spyOn(Date, 'now').mockReturnValue(start);
     const repository = {
@@ -25,14 +37,14 @@ describe('Sender default freshness', () => {
     } as unknown as SenderDefaultsRepository;
     const service = new SenderDefaultsService(repository);
     try {
-      const refreshed = await service.refresh('amazon', 1);
-      expect(service.resolve(refreshed.refreshId, 'amazon', 1).address).toEqual(
-        address,
-      );
+      const refreshed = await service.refresh('unishippers', 1);
+      expect(
+        service.resolve(refreshed.refreshId, 'unishippers', 1).address,
+      ).toEqual(address);
       now.mockReturnValue(start + 15 * 60 * 1000);
-      expect(() => service.resolve(refreshed.refreshId, 'amazon', 1)).toThrow(
-        'Refresh sender defaults again',
-      );
+      expect(() =>
+        service.resolve(refreshed.refreshId, 'unishippers', 1),
+      ).toThrow('Refresh sender defaults again');
     } finally {
       now.mockRestore();
     }

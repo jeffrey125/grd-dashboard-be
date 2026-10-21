@@ -443,13 +443,13 @@ their fixture credentials into frontend configuration.
 Staff and Admin can create, list, and read all non-deleted comparisons. Existing
 session, password-change, trusted-Origin and no-store policies apply.
 
-| Method/path (under `/api/v1`)                             | Contract                                                                                                                                                                                 |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET `/quote-comparisons/providers`                        | Array of `{code,name,enabled,executionMode}`; mode is `request` or `browser`, and codes are `amazon` and `unishippers`.                                                                  |
-| POST `/quote-comparisons/providers/:code/default-refresh` | Empty body; waits up to 90 seconds for the worker. Returns `{refreshId,address,retrievedAt}`; failure is 503 and explicit sender entry remains available. Client timeout is 120 seconds. |
-| POST `/quote-comparisons`                                 | Strict input below; returns `{outcome: created/existing,comparison}`, HTTP 201/200. Reused key with changed input is 409.                                                                |
-| GET `/quote-comparisons?page=1`                           | `{items,total,page,pageSize:25}`, newest first with a stable ID tie-breaker.                                                                                                             |
-| GET `/quote-comparisons/:externalId`                      | One immutable comparison, or 404.                                                                                                                                                        |
+| Method/path (under `/api/v1`)                             | Contract                                                                                                                                                                                                                        |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET `/quote-comparisons/providers`                        | Array of `{code,name,enabled,executionMode}`; Amazon mode is `api`, myUnishippers mode is `request` or `browser`, and codes are `amazon` and `unishippers`.                                                                     |
+| POST `/quote-comparisons/providers/:code/default-refresh` | myUnishippers only. Empty body; waits up to 90 seconds for the worker and returns `{refreshId,address,retrievedAt,expiresAt}`. Worker failure is 503; Amazon is rejected synchronously with 400. Client timeout is 120 seconds. |
+| POST `/quote-comparisons`                                 | Strict input below; returns `{outcome: created/existing,comparison}`, HTTP 201/200. Reused key with changed input is 409.                                                                                                       |
+| GET `/quote-comparisons?page=1`                           | `{items,total,page,pageSize:25}`, newest first with a stable ID tie-breaker.                                                                                                                                                    |
+| GET `/quote-comparisons/:externalId`                      | One immutable comparison, or 404.                                                                                                                                                                                               |
 
 Input contains `idempotencyKey` (UUID), `shipDate` (YYYY-MM-DD, current/future in
 America/New_York), `destination`, `providers[]`, and `packageGroups[]`.
@@ -487,18 +487,16 @@ authentication_failed|failed`. Diagnostics and lease ownership remain private.
 Known reasons are `adapter_unavailable,provider_disabled,validation_failed,
 sender_company_too_long,contact_details_required,
 unsupported,timeout,authentication_failed,verification_required,provider_setup_required,provider_failed,
-recovery_exhausted`. `provider_setup_required` means the Amazon Shipping account
-must finish its pickup/contact onboarding before the attempt can be retried.
+recovery_exhausted`. Historical Amazon browser attempts may retain
+`provider_setup_required`; an eligible retry uses the current API mode instead of
+the retired browser onboarding flow.
 Unknown reasons must use generic safe UI copy.
 
-`verification_required` has outcome `failed` and means **Amazon needs verification**.
-Staff choose **Verify Amazon & retry** to complete a supported challenge and retry
-through the existing eligibility rules. See the [staff/operator guide](amazon-session-recovery.md)
-and the staff verification endpoint below. No automatic relogin is
-attempted for this reason. Credentials/session files are never sent to the frontend.
-Existing readiness failure summaries remain `readiness_failed/readiness_timeout`;
-session-enabled Amazon readiness verifies the calculator/bootstrap without depending
-on legacy onboarding draft-address responses or requesting a sample rate.
+Historical `verification_required` outcomes remain readable, but the Amazon browser
+verification flow is retired. A normal eligible retry creates a new attempt in the
+current `api` mode. Existing readiness failure summaries remain
+`readiness_failed/readiness_timeout`; Amazon readiness verifies sandbox LWA
+authentication without requesting a sample rate.
 
 For myUnishippers, `platform` is `myUnishippers` and `carrier` is the delivering
 carrier (normally UPS). Both configured modes drive Quick Quote once to capture a
@@ -575,21 +573,22 @@ provider_disabled,ship_date_passed,input_invalid`. Unknown reasons fail closed.
 
 ### Sender refresh operational boundary
 
-The API queues a bounded refresh in the provider account row and the worker reads
-it through a feature-owned repository. Only the worker launches Playwright and
-holds browser credentials/cookies. Each operation uses a fresh isolated browser,
-with a 75-second browser deadline. Missing configuration, authentication challenges,
-incomplete addresses, and ambiguous Amazon pickup addresses fail closed. There is
-no quote request or provider-account mutation. Concurrent API refreshes for one
-provider share work. The worker handles one default lookup at a time; no rates run.
+The API queues a bounded myUnishippers refresh in the provider account row and the
+worker reads it through a feature-owned repository. Only the worker launches
+Playwright and holds myUnishippers browser credentials/cookies. Each operation uses
+a fresh isolated browser, with a 75-second browser deadline. Missing configuration,
+authentication challenges, and incomplete addresses fail closed. There is no quote
+request or provider-account mutation. Concurrent API refreshes share work. The
+worker handles one default lookup at a time; no rates run.
 
 After success the API keeps an actor-bound immutable refresh snapshot (up to 2,000
 across the single API process). Later refreshes cannot overwrite it. API restart or
 capacity eviction requires refreshing again before saving; explicit input is the
 fallback. Completed comparisons persist their resolved sender permanently.
-Provider disablement is rechecked in the save transaction. Credentials are read only
-from `AMAZON_SHIPPING_EMAIL/PASSWORD` and `MYUNISHIPPERS_EMAIL/PASSWORD` environment
-variables; raw provider responses, tokens, and cookies are never persisted.
+Provider disablement is rechecked in the save transaction. Amazon has no sender-default
+refresh and always requires an explicit sender. myUnishippers credentials are read
+only from `MYUNISHIPPERS_EMAIL/PASSWORD`; raw provider responses, tokens, and cookies
+are never persisted.
 
 ## SQ-V1-008 provider administration API
 
@@ -599,7 +598,7 @@ All paths below use `/api/v1`. Admin-only routes:
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | GET `/admin/shipping-providers`                            | Settings array: code/name/enabled/executionMode/maintenanceMessage/staleHours/revision/updatedAt/updatedBy/savedConnectionTest. |
 | PATCH `/admin/shipping-providers/:code`                    | Full editable settings plus revision; optional connectionTestId and acknowledgeFailure. Returns updated settings array.         |
-| POST `/admin/shipping-providers/:code/connection-tests`    | `{ executionMode: "request" or "browser" }`; returns durable test, HTTP 201.                                                    |
+| POST `/admin/shipping-providers/:code/connection-tests`    | Amazon accepts `{ executionMode: "api" }`; myUnishippers accepts `"request"` or `"browser"`. Returns durable test, HTTP 201.    |
 | GET `/admin/shipping-providers/:code/connection-tests/:id` | Testing admin's test; poll queued/running until succeeded/failed.                                                               |
 
 Test fields: `id`, `executionMode`, `state`, `failureSummary`, `createdAt`,
@@ -616,7 +615,8 @@ Staff/Admin discovery GET `/quote-comparisons/providers` additionally returns
 `maintenanceMessage`, `staleHours`, and `cachedDefault` (null or `{address,retrievedAt}`).
 These are effective read-only settings; no test/audit/session secrets are exposed.
 POST `/quote-comparisons/providers/:code/default-refresh` remains available to staff
-for enabled providers and now returns `expiresAt` alongside refreshId/address/retrievedAt.
+only for enabled myUnishippers accounts and returns `expiresAt` alongside
+refreshId/address/retrievedAt. Amazon is API-only and returns 400 for this endpoint.
 Backend submission rejects expired refresh IDs after 15 minutes. Cached defaults
 never provide a refresh ID. Show full cached details as stale if a current refresh
 fails, and offer refresh or a comparison-only explicit sender.
@@ -626,37 +626,12 @@ all history without provider expiry. Provider expiry remains authoritative. Disa
 blocks new work and queued execution; running quotes may finish. Historical actual
 mode/origin remain unchanged. Frontend settings route: `/admin/shipping-providers`.
 
-### Staff Amazon verification
+### Amazon sandbox presentation
 
-`POST /api/v1/quote-comparisons/:externalId/attempts/:attemptId/amazon-verification`
-requires an unrestricted Staff/Admin session, trusted Origin, and an existing
-nondeleted failed Amazon attempt with reason `verification_required`. Responses
-are `no-store`. A start also requires current retry eligibility.
-
-Body is a strict discriminated union: `{ operation: 'start' }`,
-`{ operation: 'poll' | 'cancel', id }`, or
-`{ operation: 'action', id, action }`. `action` is one of `{ type: 'click', frame,
-x, y }` (normalized 0–1 coordinates), `{ type: 'text', frame, text }` (1–100
-characters), or `{ type: 'key', frame, key }` (Enter, Backspace, ArrowLeft,
-ArrowRight, ArrowUp, ArrowDown, Space). IDs/frame tokens are UUIDs. Ownership is
-always derived from the authenticated staff account and login session.
-
-Response: `{ id, state, expiresAt, image?, frame?, width?, height? }`; state is
-`preparing | challenge | verified | cancelled`. `image` is a PNG encoded as base64.
-Poll at 1.5-second intervals. The worker waits for an in-flight capture before
-applying staff input. An identical challenge keeps its frame token; changed pixels,
-URL or bounds invalidate it. Input returns `preparing` so navigation can settle
-before the next capture. On `verified`, call the existing immutable retry endpoint
-exactly once; close/cancel verification on exit. Treat `busy` and `stale_frame` as
-recoverable: keep the dialog open and fetch the newest frame. Stop polling and hide
-images for other auth/error states. No recovery credentials belong in persistent
-browser storage.
-
-Errors include a safe `verificationCode`: `busy`, `expired`, `owner_required`,
-`unsupported`, `stale_frame` (409), or `unavailable` (503). Normal 400/401/403/404
-contracts also apply. Worker logs may include this safe code and the staff external
-ID, but never the challenge image or answer. Runtime opt-in and staff steps are documented in
-[amazon-session-recovery.md](amazon-session-recovery.md#staff-verification-in-the-dashboard).
+Amazon attempts use `executionMode: "api"` and `simulated: true`. Show the warning
+**Amazon sandbox mode — test data, not live commercial prices** whenever an Amazon
+sandbox attempt is present. Never give simulated Amazon results a Lowest price badge.
+The former Amazon verification endpoint no longer exists.
 
 ## Shared US-only quote form (2026-10-22)
 
@@ -669,6 +644,8 @@ mapped only to supporting providers with visible unsupported notices.
 
 Provider discovery adds `inputRequirements: {sender, destination}`; each address
 requirement contains `requiredFields: ('contactName'|'phone'|'division')[]` and
-`maxNameLength`. Require a shared field whenever any selected provider requires it.
-myUnishippers sender names allow at most 35 characters. Both current providers
+`maxNameLength`, `maxStreetLength`, and `maxContactNameLength`. Require a shared
+field whenever any selected provider requires it. Amazon names/contact names allow
+at most 50 characters and address lines 60; myUnishippers sender names allow at
+most 35 characters. Both current providers
 advertise no signature/insurance support and no international availability.

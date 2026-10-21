@@ -174,8 +174,18 @@ describe('Saved quote comparisons HTTP API', () => {
           supportsSignature: false,
           supportsInsurance: false,
           inputRequirements: {
-            sender: { requiredFields: [], maxNameLength: 35 },
-            destination: { requiredFields: [], maxNameLength: 200 },
+            sender: {
+              requiredFields: [],
+              maxNameLength: 35,
+              maxStreetLength: 200,
+              maxContactNameLength: 100,
+            },
+            destination: {
+              requiredFields: [],
+              maxNameLength: 200,
+              maxStreetLength: 200,
+              maxContactNameLength: 100,
+            },
           },
         }),
         expect.objectContaining({
@@ -587,20 +597,39 @@ describe('Saved quote comparisons HTTP API', () => {
     );
     worker.onModuleInit();
     try {
+      await request(app.getHttpServer() as Server)
+        .post('/api/v1/quote-comparisons/providers/amazon/default-refresh')
+        .set('Cookie', cookie)
+        .set('Origin', 'http://dashboard.example.test')
+        .send({})
+        .expect(400);
       const refresh = () =>
         request(app.getHttpServer() as Server)
-          .post('/api/v1/quote-comparisons/providers/amazon/default-refresh')
+          .post(
+            '/api/v1/quote-comparisons/providers/unishippers/default-refresh',
+          )
           .set('Cookie', cookie)
           .set('Origin', 'http://dashboard.example.test')
           .send({});
       const first = await refresh().expect(201);
       current = { ...address, street: '2 Different Street' };
       await refresh().expect(201);
-      const body = {
+      const unishippersInput = {
         ...input(),
+        shipDate: businessToday(),
         providers: [
           {
             ...input().providers[0],
+            code: 'unishippers',
+            sender: { mode: 'explicit', address },
+          },
+        ],
+      };
+      const body = {
+        ...unishippersInput,
+        providers: [
+          {
+            ...unishippersInput.providers[0],
             sender: {
               mode: 'account_default',
               refreshId: first.body.refreshId,
@@ -624,7 +653,7 @@ describe('Saved quote comparisons HTTP API', () => {
         .post('/api/v1/quote-comparisons')
         .set('Cookie', cookie)
         .set('Origin', 'http://dashboard.example.test')
-        .send(input())
+        .send({ ...unishippersInput, idempotencyKey: randomUUID() })
         .expect(201);
     } finally {
       worker.onModuleDestroy();

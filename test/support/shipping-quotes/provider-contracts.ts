@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PROVIDERS = ['amazon', 'unishippers'] as const;
+export const PROVIDERS = ['unishippers'] as const;
 export type ProviderCode = (typeof PROVIDERS)[number];
 
 export const EXECUTION_MODES = ['request', 'browser'] as const;
@@ -75,10 +75,6 @@ export const CREDENTIAL_ENV: Record<
   ProviderCode,
   { email: string; password: string }
 > = {
-  amazon: {
-    email: 'AMAZON_SHIPPING_EMAIL',
-    password: 'AMAZON_SHIPPING_PASSWORD',
-  },
   unishippers: {
     email: 'MYUNISHIPPERS_EMAIL',
     password: 'MYUNISHIPPERS_PASSWORD',

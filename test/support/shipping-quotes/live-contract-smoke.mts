@@ -1,17 +1,12 @@
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
-import {
-  AmazonContractHarness,
-  UnishippersContractHarness,
-} from './playwright-harness.js';
+import { UnishippersContractHarness } from './playwright-harness.js';
 import {
   availableProviders,
   readProviderCredentials,
   safePath,
   ProviderAuthenticationChallenge,
   ProviderContractBlocker,
-  PROVIDERS,
-  type ProviderCode,
   type QuoteInput,
 } from './provider-contracts.js';
 import {
@@ -26,8 +21,8 @@ const { values } = parseArgs({
     interactive: { type: 'boolean', default: false },
   },
 });
-if (values.provider && !PROVIDERS.includes(values.provider as ProviderCode))
-  throw new Error('Provider must be amazon or unishippers');
+if (values.provider && values.provider !== 'unishippers')
+  throw new Error('The browser contract smoke supports only unishippers');
 
 const domesticInput: QuoteInput = {
   originZip: '53125',
@@ -57,11 +52,9 @@ function safeError(error: unknown) {
   };
 }
 
-async function verifyProvider(provider: ProviderCode) {
-  const harness =
-    provider === 'amazon'
-      ? new AmazonContractHarness()
-      : new UnishippersContractHarness();
+async function verifyProvider() {
+  const provider = 'unishippers' as const;
+  const harness = new UnishippersContractHarness();
   const credentials = readProviderCredentials(provider);
   const browser = await chromium.launch({ headless: !values.interactive });
   const context = await browser.newContext({ serviceWorkers: 'block' });
@@ -98,16 +91,8 @@ async function verifyProvider(provider: ProviderCode) {
       );
       return false;
     }
-    // Keep independent mode results even if an optional international attempt fails.
     for (const attempt of [
-      {
-        stage: 'request-domestic',
-        input:
-          provider === 'amazon'
-            ? { ...domesticInput, quantity: 1 }
-            : domesticInput,
-        mode: 'requestQuote',
-      },
+      { stage: 'request-domestic', input: domesticInput, mode: 'requestQuote' },
       { stage: 'request-canada', input: canadaInput, mode: 'requestQuote' },
       {
         stage: 'browser-domestic',
@@ -115,29 +100,15 @@ async function verifyProvider(provider: ProviderCode) {
         mode: 'browserQuote',
       },
     ] as const) {
-      if (provider === 'amazon' && attempt.stage === 'request-canada') {
-        console.log(
-          JSON.stringify({
-            provider,
-            stage: attempt.stage,
-            status: 'skipped',
-            reason:
-              'The native Amazon estimator exposes no country/customs input; the international contract is unverified.',
-          }),
-        );
-        continue;
-      }
       try {
         const result = await guarded(() =>
           harness[attempt.mode](page, attempt.input, credentials),
         );
         const summary = summarizeQuote(provider, result);
         const success = result.status === 200 && summary.serviceCount > 0;
-        const quantityMatches =
-          provider !== 'unishippers' ||
-          summary.services.every(
-            (service) => service.packageCount === attempt.input.quantity,
-          );
+        const quantityMatches = summary.services.every(
+          (service) => service.packageCount === attempt.input.quantity,
+        );
         if (
           attempt.stage !== 'request-canada' &&
           (!success || !quantityMatches)
@@ -171,20 +142,13 @@ async function verifyProvider(provider: ProviderCode) {
   }
 }
 
-const providers = availableProviders().filter(
-  (provider) => !values.provider || provider === values.provider,
-);
-if (providers.length === 0) {
+if (!availableProviders().length) {
   console.log(
     JSON.stringify({
       status: 'skipped',
       reason:
-        'Credentials for the selected provider were not supplied through the documented environment variables',
+        'myUnishippers credentials were not supplied through the documented environment variables',
     }),
   );
   process.exitCode = 1;
-} else {
-  for (const provider of providers) {
-    if (!(await verifyProvider(provider))) process.exitCode = 1;
-  }
-}
+} else if (!(await verifyProvider())) process.exitCode = 1;

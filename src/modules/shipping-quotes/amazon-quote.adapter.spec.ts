@@ -1,39 +1,23 @@
-import type { Browser, BrowserContext, Locator, Page } from 'playwright';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  aggregateAmazonRates,
-  AmazonChargeScopeUnknown,
   AmazonShippingAdapter,
-  normalizeAmazonRate,
+  type AmazonApiSession,
 } from './amazon-quote.adapter.js';
 import type { LeasedQuote } from './quote-execution.repository.js';
-import { executeQuote } from './quote-executor.js';
-
-const evidenceBody = {
-  totalCharge: { unit: 'USD', value: 13.81 },
-  shippingCharges: [
-    { chargeCode: 'BASE_CHARGE', charge: { unit: 'USD', value: 7.83 } },
-    {
-      chargeCode: 'DELIVERY_AREA_SURCHARGE',
-      charge: { unit: 'USD', value: 3.56 },
-    },
-    { chargeCode: 'FUEL_SURCHARGE', charge: { unit: 'USD', value: 2.42 } },
-  ],
-};
 
 const address = {
-  name: 'Fixture',
-  street: '1 Example St',
-  city: 'Walworth',
-  division: 'WI',
-  postalCode: '53125',
+  name: 'Global Resources Direct',
+  street: '123 Example Street',
+  city: 'Seattle',
+  division: 'WA',
+  postalCode: '98101',
   country: 'US' as const,
 };
 
 const input = {
   idempotencyKey: '11111111-1111-4111-8111-111111111111',
-  shipDate: '2099-10-19',
-  destination: { ...address, postalCode: '10118' },
+  shipDate: '2099-10-22',
+  destination: { ...address, postalCode: '10001', division: 'NY' },
   providers: [
     {
       code: 'amazon' as const,
@@ -43,7 +27,7 @@ const input = {
   ],
   packageGroups: [
     {
-      quantity: 1,
+      quantity: 2,
       units: 'imperial' as const,
       length: '10',
       width: '8',
@@ -54,14 +38,14 @@ const input = {
   ],
 };
 
-function job(mode: 'request' | 'browser'): LeasedQuote {
+function job(): LeasedQuote {
   return {
     id: 'attempt-1',
     requestId: 'request-1',
     accountId: 1,
     owner: 'owner-1',
     code: 'amazon',
-    mode,
+    mode: 'api',
     enabled: true,
     input,
     sender: { code: 'amazon', mode: 'explicit', retrievedAt: null, address },
@@ -69,400 +53,215 @@ function job(mode: 'request' | 'browser'): LeasedQuote {
   };
 }
 
-function fakeLocator(visible: boolean) {
-  const value = {
-    first: () => value,
-    or: (other: Locator) => (visible ? value : other),
-    isVisible: async () => visible,
-    waitFor: vi.fn(async () => undefined),
-    fill: vi.fn(async () => undefined),
-    click: vi.fn(async () => undefined),
-    innerText: async () => '',
-  };
-  return value as unknown as Locator;
-}
-
-function fakePage(mode: 'request' | 'browser') {
-  const origin = 'https://amazon.fixture';
-  const visible = fakeLocator(true);
-  const body = fakeLocator(true);
-  const email = fakeLocator(false);
-  const rateRequest = {
-    method: () => 'POST',
-    postDataJSON: () => ({
-      originZip: '53125',
-      destinationZip: '10118',
-      length: 10,
-      width: 8,
-      height: 6,
-      weight: 5,
-      serviceCode: 'swa-us-mfn',
-    }),
-    headers: () => ({}),
-  };
-  const rateResponse = {
-    status: () => 200,
-    ok: () => true,
-    url: () =>
-      `${origin}/shipping-rates/getRates?merchantId=merchant-1&simulatedShipperId=proposal-1`,
-    request: () => rateRequest,
-    json: async () => evidenceBody,
-  };
-  const bootstrapResponse = {
-    status: () => 200,
-    ok: () => true,
-    url: () => `${origin}/hz/getLatestProposalSharedWithShipper`,
-    request: () => ({ headers: () => ({ 'x-xsrf-token': 'xsrf-1' }) }),
-    json: async () => ({
-      rateCardProposal: {
-        merchantId: 'merchant-1',
-        simulatedShipperId: 'proposal-1',
-      },
-    }),
-  };
-  let responseCalls = 0;
-  const page = {
-    setDefaultTimeout: vi.fn(),
-    url: vi.fn(() => `${origin}/getstarted/progress?show=rates`),
-    goto: vi.fn(async () => undefined),
-    waitForResponse: vi.fn(
-      async (predicate: (response: unknown) => boolean) => {
-        responseCalls += 1;
-        if (mode === 'request' || responseCalls % 2 === 1)
-          return bootstrapResponse;
-        expect(predicate(rateResponse)).toBe(true);
-        return rateResponse;
-      },
-    ),
-    getByLabel: vi.fn(() => visible),
-    getByRole: vi.fn(() => visible),
-    locator: vi.fn((selector: string) =>
-      selector === 'body'
-        ? body
-        : selector.includes('ap_email')
-          ? email
-          : visible,
-    ),
-    evaluate: vi.fn(async () => ({
-      status: 200,
-      body: JSON.stringify(evidenceBody),
-    })),
-  } as unknown as Page;
-  const context = {
-    newPage: vi.fn(async () => page),
-  } as unknown as BrowserContext;
-  return { origin, context, page, mode };
-}
-
-function blockedPage(kind: 'verification' | 'setup') {
-  const origin = 'https://ship.amazon.com';
-  let currentUrl = `${origin}/getstarted/progress?show=rates`;
-  const visible = fakeLocator(true);
-  const hidden = fakeLocator(false);
-  const email = fakeLocator(kind === 'verification');
-  const body = {
-    ...fakeLocator(true),
-    innerText: async () =>
-      kind === 'setup'
-        ? 'Welcome! Pickup information In progress Save and Continue'
-        : '',
-  } as unknown as Locator;
-  const pendingResponse = new Promise<never>(() => undefined);
-  const page = {
-    setDefaultTimeout: vi.fn(),
-    url: vi.fn(() => currentUrl),
-    goto: vi.fn(async () => undefined),
-    waitForResponse: vi.fn(() => pendingResponse),
-    waitForURL: vi.fn(async (predicate: (url: URL) => boolean) => {
-      currentUrl = 'https://www.amazon.com/ap/cvf/request';
-      expect(predicate(new URL(currentUrl))).toBe(true);
-    }),
-    getByLabel: vi.fn(() => hidden),
-    getByRole: vi.fn((_role: string, options?: { name?: RegExp }) => {
-      if (kind === 'setup')
-        return options?.name?.test('Save and Continue') ? visible : hidden;
-      return visible;
-    }),
-    locator: vi.fn((selector: string) => {
-      if (selector === 'body') return body;
-      if (selector.includes('ap_email')) return email;
-      return visible;
-    }),
-  } as unknown as Page;
-  const context = {
-    newPage: vi.fn(async () => page),
-  } as unknown as BrowserContext;
-  return { context, page };
-}
-
-describe('Amazon quote normalization and aggregation', () => {
-  it('reloads saved authentication after close and still refreshes request tokens', async () => {
-    const fixture = fakePage('request');
-    const state = { cookies: [], origins: [] };
-    const load = vi.fn(async () => state);
-    const newContext = vi.fn(async () => fixture.context);
-    const close = vi.fn(async () => undefined);
-    const browser = { newContext, close } as unknown as Browser;
-    const credentials = vi.fn(() => {
-      throw new Error('must not log in');
-    });
-    const adapter = new AmazonShippingAdapter({
-      origin: fixture.origin,
-      launch: async () => browser,
-      sessionStore: { load },
-      credentials,
-    });
-
-    expect(
-      (
-        await executeQuote(
-          job('request'),
-          adapter,
-          new AbortController().signal,
-        )
-      ).outcome,
-    ).toBe('success');
-    expect(
-      (
-        await executeQuote(
-          job('request'),
-          adapter,
-          new AbortController().signal,
-        )
-      ).outcome,
-    ).toBe('success');
-    expect(newContext).toHaveBeenCalledTimes(2);
-    expect(newContext).toHaveBeenCalledWith({
-      serviceWorkers: 'block',
-      storageState: state,
-    });
-    expect(load).toHaveBeenCalledTimes(2);
-    expect(fixture.page.waitForResponse).toHaveBeenCalledTimes(2);
-    expect(credentials).not.toHaveBeenCalled();
-    expect(close).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not launch a browser or retry when the saved session is unavailable', async () => {
-    const launch = vi.fn();
-    const adapter = new AmazonShippingAdapter({
-      launch,
-      sessionStore: { load: async () => undefined },
-    });
-    const result = await executeQuote(
-      job('request'),
-      adapter,
-      new AbortController().signal,
-    );
-    expect(result).toMatchObject({
-      outcome: 'failed',
-      reason: 'verification_required',
-      relogins: 0,
-    });
-    expect(launch).not.toHaveBeenCalled();
-  });
-
-  it('requires manual reconnection if a restored session redirects to sign-in', async () => {
-    const fixture = blockedPage('verification');
-    const credentials = vi.fn();
-    const adapter = new AmazonShippingAdapter({
-      context: fixture.context,
-      credentials,
-      sessionStore: { load: async () => ({ cookies: [], origins: [] }) },
-    });
-    expect(
-      await executeQuote(job('request'), adapter, new AbortController().signal),
-    ).toMatchObject({
-      outcome: 'failed',
-      reason: 'verification_required',
-      relogins: 0,
-    });
-    expect(credentials).not.toHaveBeenCalled();
-    expect(fixture.page.waitForURL).not.toHaveBeenCalled();
-  });
-
-  it('normalizes the verified single-package USD 13.81 response', () => {
-    expect(normalizeAmazonRate(evidenceBody)).toMatchObject({
-      carrier: 'Not provided',
-      service: 'Not provided',
-      total: '13.810000',
-      currency: 'USD',
-      charges: [
-        { description: 'BASE_CHARGE', amount: '7.830000', scope: 'package' },
-        {
-          description: 'DELIVERY_AREA_SURCHARGE',
-          amount: '3.560000',
-          scope: 'package',
-        },
-        { description: 'FUEL_SURCHARGE', amount: '2.420000', scope: 'package' },
-      ],
-    });
-  });
-
-  it('deduplicates compatible boxes and multiplies only package charges', () => {
-    const rate = normalizeAmazonRate({
-      ...evidenceBody,
-      shippingCharges: [
-        ...evidenceBody.shippingCharges,
-        { chargeCode: 'SHIPMENT_FEE', charge: { unit: 'USD', value: 1 } },
-      ],
-      totalCharge: { unit: 'USD', value: 14.81 },
-    });
-    const [quote] = aggregateAmazonRates([
+const sandboxRate = {
+  payload: {
+    requestToken: 'sandbox-request-token',
+    rates: [
       {
-        rate,
-        groups: [{ packageGroupPosition: 0, quantity: 2 }],
+        rateId: 'sandbox-rate',
+        carrierId: 'AMZN_US',
+        carrierName: 'Amazon Shipping',
+        serviceId: 'std-us-swa-mfn',
+        serviceName: 'Amazon Shipping Ground',
+        totalCharge: { value: 17.53, unit: 'USD' },
+        promise: {
+          pickupWindow: { start: '2099-10-22T20:00:00Z' },
+          deliveryWindow: { end: '2099-10-29T03:00:00Z' },
+        },
+        supportedDocumentSpecifications: [],
+        requiresAdditionalInputs: false,
+        rateItemList: [
+          {
+            rateItemID: 'BASE_RATE',
+            rateItemType: 'MANDATORY',
+            rateItemCharge: { value: 17.53, unit: 'USD' },
+          },
+        ],
       },
-    ]);
+    ],
+    ineligibleRates: [],
+  },
+};
 
-    expect(quote).toMatchObject({
-      total: '28.620000',
-      estimateMethod: 'calculated',
-      groupContributions: [
-        { packageGroupPosition: 0, quantity: 2, subtotal: '27.620000' },
-      ],
+describe('Amazon Shipping API sandbox adapter', () => {
+  it('quotes every physical box through SP-API and aggregates the common service', async () => {
+    const authenticate = vi.fn(async () => undefined);
+    const getRates = vi.fn(async () => sandboxRate);
+    const session: AmazonApiSession = { authenticate, getRates };
+    const adapter = new AmazonShippingAdapter({
+      session,
     });
-    expect(quote?.charges).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          description: 'BASE_CHARGE',
-          amount: '15.660000',
-          packageGroupPosition: 0,
-        }),
-        expect.objectContaining({
-          description: 'SHIPMENT_FEE',
-          amount: '1.000000',
-          packageGroupPosition: null,
-        }),
-      ]),
-    );
-  });
 
-  it('preserves fractional cents when aggregating package and shipment charges', () => {
-    const rate = normalizeAmazonRate({
-      ...evidenceBody,
-      shippingCharges: [
+    const result = await adapter.quote(job(), new AbortController().signal);
+
+    expect(result).toMatchObject({
+      outcome: 'success',
+      simulated: true,
+      quotes: [
         {
-          chargeCode: 'BASE_CHARGE',
-          charge: { unit: 'USD', value: '0.100001' },
-        },
-        {
-          chargeCode: 'SHIPMENT_FEE',
-          charge: { unit: 'USD', value: '0.200002' },
+          carrier: 'Amazon Shipping',
+          service: 'Amazon Shipping Ground',
+          total: '35.060000',
+          currency: 'USD',
+          estimateMethod: 'calculated',
+          transitDescription: '2099-10-29T03:00:00Z',
+          groupContributions: [
+            {
+              packageGroupPosition: 0,
+              quantity: 2,
+              subtotal: '35.060000',
+            },
+          ],
         },
       ],
-      totalCharge: { unit: 'USD', value: '0.300003' },
     });
-    const [quote] = aggregateAmazonRates([
-      { rate, groups: [{ packageGroupPosition: 0, quantity: 3 }] },
-      { rate, groups: [{ packageGroupPosition: 1, quantity: 2 }] },
-    ]);
-
-    expect(quote?.total).toBe('0.700007');
-    expect(quote?.groupContributions).toEqual([
-      { packageGroupPosition: 0, quantity: 3, subtotal: '0.300003' },
-      { packageGroupPosition: 1, quantity: 2, subtotal: '0.200002' },
-    ]);
-  });
-
-  it('stops when a returned charge cannot be assigned a scope', () => {
-    expect(() =>
-      normalizeAmazonRate({
-        ...evidenceBody,
-        shippingCharges: [
-          ...evidenceBody.shippingCharges,
-          { chargeCode: 'UNCLASSIFIED_FEE', charge: { unit: 'USD', value: 1 } },
+    expect(authenticate).toHaveBeenCalledOnce();
+    expect(getRates).toHaveBeenCalledTimes(2);
+    expect(getRates).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        shipDate: '2099-10-22T12:00:00Z',
+        channelDetails: { channelType: 'EXTERNAL' },
+        packages: [
+          expect.objectContaining({
+            dimensions: { length: 10, width: 8, height: 6, unit: 'INCH' },
+            weight: { value: 5, unit: 'POUND' },
+            insuredValue: { value: 0, unit: 'USD' },
+            items: [
+              {
+                quantity: 1,
+                weight: { value: 5, unit: 'POUND' },
+              },
+            ],
+          }),
         ],
       }),
-    ).toThrow(AmazonChargeScopeUnknown);
+      expect.any(AbortSignal),
+    );
   });
 
-  it('uses the authenticated request mode and refreshes bootstrap context per quote', async () => {
-    const fixture = fakePage('request');
+  it('classifies an LWA token failure without exposing provider details', async () => {
     const adapter = new AmazonShippingAdapter({
-      origin: fixture.origin,
-      context: fixture.context,
-      credentials: () => ({
-        email: 'fixture@example.test',
-        password: 'fixture-password',
-      }),
+      session: {
+        authenticate: vi.fn(async () => {
+          throw new Error('client_secret=do-not-expose');
+        }),
+        getRates: vi.fn(),
+      },
     });
 
-    const first = await adapter.quote(
-      job('request'),
-      new AbortController().signal,
-    );
-    const second = await adapter.quote(
-      job('request'),
-      new AbortController().signal,
-    );
-
-    expect(first.outcome).toBe('success');
-    expect(second.outcome).toBe('success');
-    expect(fixture.page.goto).toHaveBeenCalledTimes(2);
-    expect(fixture.page.evaluate).toHaveBeenCalledTimes(2);
-    expect(fixture.page.waitForResponse).toHaveBeenCalledTimes(2);
+    expect(
+      await adapter.quote(job(), new AbortController().signal),
+    ).toMatchObject({
+      outcome: 'authentication_failed',
+      reason: 'authentication_failed',
+      simulated: true,
+      quotes: [],
+    });
   });
 
-  it('uses the browser mode response for the current proposal and package payload', async () => {
-    const fixture = fakePage('browser');
+  it('rejects more than 100 physical packages before allocating or calling Amazon', async () => {
+    const getRates = vi.fn(async () => sandboxRate);
+    const overLimit = job();
+    overLimit.input = structuredClone(overLimit.input);
+    overLimit.input.packageGroups[0]!.quantity = 101;
     const adapter = new AmazonShippingAdapter({
-      origin: fixture.origin,
-      context: fixture.context,
-      credentials: () => ({
-        email: 'fixture@example.test',
-        password: 'fixture-password',
-      }),
+      session: { authenticate: vi.fn(async () => undefined), getRates },
     });
 
-    const result = await adapter.quote(
-      job('browser'),
-      new AbortController().signal,
-    );
+    expect(
+      await adapter.quote(overLimit, new AbortController().signal),
+    ).toMatchObject({ outcome: 'unsupported', quotes: [] });
+    expect(getRates).not.toHaveBeenCalled();
+  });
+
+  it('rejects an over-limit contact name before calling Amazon', async () => {
+    const getRates = vi.fn(async () => sandboxRate);
+    const invalid = job();
+    invalid.sender = structuredClone(invalid.sender);
+    invalid.sender.address.contactName = 'C'.repeat(51);
+    const adapter = new AmazonShippingAdapter({
+      session: { authenticate: vi.fn(async () => undefined), getRates },
+    });
+
+    expect(
+      await adapter.quote(invalid, new AbortController().signal),
+    ).toMatchObject({ outcome: 'validation_failed', quotes: [] });
+    expect(getRates).not.toHaveBeenCalled();
+  });
+
+  it('accepts the 100-package boundary', async () => {
+    const getRates = vi.fn(async () => sandboxRate);
+    const boundary = job();
+    boundary.input = structuredClone(boundary.input);
+    boundary.input.packageGroups[0]!.quantity = 100;
+    const adapter = new AmazonShippingAdapter({
+      session: { authenticate: vi.fn(async () => undefined), getRates },
+    });
+
+    const result = await adapter.quote(boundary, new AbortController().signal);
 
     expect(result.outcome).toBe('success');
-    expect(fixture.page.evaluate).not.toHaveBeenCalled();
-    expect(fixture.page.waitForResponse).toHaveBeenCalledTimes(2);
+    expect(result.quotes[0]).toMatchObject({ total: '1753.000000' });
+    expect(getRates).toHaveBeenCalledTimes(100);
   });
 
-  it('stops at Amazon verification without automatic password retries', async () => {
-    const fixture = blockedPage('verification');
+  it('keeps only services returned for every physical package', async () => {
+    const alternate = structuredClone(sandboxRate.payload.rates[0]!);
+    alternate.rateId = 'alternate-rate';
+    alternate.serviceId = 'alternate-service';
+    alternate.serviceName = 'Amazon Shipping Alternate';
+    const first = structuredClone(sandboxRate);
+    first.payload.rates.push(alternate);
+    const getRates = vi
+      .fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(sandboxRate);
     const adapter = new AmazonShippingAdapter({
-      context: fixture.context,
-      credentials: () => ({
-        email: 'fixture@example.test',
-        password: 'fixture-password',
-      }),
+      session: { authenticate: vi.fn(async () => undefined), getRates },
     });
 
-    const relogin = vi.spyOn(adapter, 'relogin');
-    const result = await executeQuote(
-      job('request'),
-      adapter,
-      new AbortController().signal,
-    );
+    const result = await adapter.quote(job(), new AbortController().signal);
 
-    expect(result).toMatchObject({
-      outcome: 'failed',
-      reason: 'verification_required',
-      relogins: 0,
+    expect(result.outcome).toBe('success');
+    expect(result.quotes).toHaveLength(1);
+    expect(result.quotes[0]).toMatchObject({
+      service: 'Amazon Shipping Ground',
+      total: '35.060000',
     });
-    expect(relogin).not.toHaveBeenCalled();
-    expect(fixture.page.waitForURL).toHaveBeenCalledOnce();
   });
 
-  it('reports incomplete Amazon Shipping onboarding without requesting a rate', async () => {
-    const fixture = blockedPage('setup');
-    const adapter = new AmazonShippingAdapter({ context: fixture.context });
-
-    const result = await adapter.quote(
-      job('request'),
-      new AbortController().signal,
-    );
-
-    expect(result).toMatchObject({
-      outcome: 'failed',
-      reason: 'provider_setup_required',
+  it('fails closed when packages have no common service', async () => {
+    const second = structuredClone(sandboxRate);
+    second.payload.rates[0]!.serviceId = 'different-service';
+    const getRates = vi
+      .fn()
+      .mockResolvedValueOnce(sandboxRate)
+      .mockResolvedValueOnce(second);
+    const adapter = new AmazonShippingAdapter({
+      session: { authenticate: vi.fn(async () => undefined), getRates },
     });
-    expect(fixture.page.waitForURL).not.toHaveBeenCalled();
+
+    expect(
+      await adapter.quote(job(), new AbortController().signal),
+    ).toMatchObject({ outcome: 'unsupported', quotes: [] });
+  });
+
+  it('classifies a sandbox 400 without exposing its response body', async () => {
+    const adapter = new AmazonShippingAdapter({
+      session: {
+        authenticate: vi.fn(async () => undefined),
+        getRates: vi.fn(async () => {
+          throw Object.assign(new Error('private sandbox response'), {
+            isAxiosError: true,
+            response: { status: 400 },
+          });
+        }),
+      },
+    });
+
+    expect(
+      await adapter.quote(job(), new AbortController().signal),
+    ).toMatchObject({ outcome: 'validation_failed', quotes: [] });
   });
 });

@@ -5,6 +5,7 @@ import type {
   QuoteGroupContribution,
   SenderSnapshot,
 } from './quote.schemas.js';
+import type { ExecutionMode } from './provider-execution-mode.js';
 
 export interface LeasedQuote {
   id: string;
@@ -12,7 +13,7 @@ export interface LeasedQuote {
   accountId: number;
   owner: string;
   code: ProviderCode;
-  mode: 'request' | 'browser';
+  mode: ExecutionMode;
   enabled: boolean;
   input: QuoteInput;
   sender: SenderSnapshot;

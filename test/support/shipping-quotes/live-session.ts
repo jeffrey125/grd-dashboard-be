@@ -48,18 +48,6 @@ export function summarizeQuote(provider: ProviderCode, result: QuoteResult) {
     requestHeaderNames: result.requestHeaderNames,
     dynamicIdentifierNames: Object.keys(result.identifiers).sort(),
   };
-  if (provider === 'amazon') {
-    const parsed = z
-      .object({ totalCharge: moneySchema })
-      .safeParse(result.body);
-    return {
-      ...common,
-      chargeScope: 'single-package-estimate',
-      serviceCount: parsed.success ? 1 : 0,
-      total: parsed.success ? parsed.data.totalCharge : null,
-      services: [],
-    };
-  }
   const parsed = offersSchema.safeParse(result.body);
   const services = parsed.success
     ? parsed.data.response.offerList.map((offer) => ({
@@ -102,12 +90,8 @@ export async function runWithInteractiveVerification<T>(
     if (!(error instanceof ProviderAuthenticationChallenge) || !options)
       throw error;
     options.onRequired();
-    const origin =
-      provider === 'amazon'
-        ? 'https://ship.amazon.com'
-        : 'https://www.myunishippers.com';
-    const path =
-      provider === 'amazon' ? '/getstarted/progress' : '/ship/small-package';
+    const origin = 'https://www.myunishippers.com';
+    const path = '/ship/small-package';
     try {
       await page.waitForURL(
         (url) => url.origin === origin && url.pathname === path,

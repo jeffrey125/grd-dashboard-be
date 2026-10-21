@@ -1,6 +1,3 @@
-import { AmazonAccountAccessModule } from './amazon-account-access.module.js';
-import { AmazonAccountAccess } from './amazon-account-access.js';
-import { AmazonVerificationWorker } from './amazon-verification.worker.js';
 import {
   ProviderReadinessWorker,
   READINESS_ADAPTERS,
@@ -22,13 +19,11 @@ import {
 } from './quote.worker.js';
 import { FixtureQuoteAdapter } from './fixture-quote.adapter.js';
 import { AmazonShippingAdapter } from './amazon-quote.adapter.js';
-import { amazonSessionStore } from './amazon-session.store.js';
 import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
 
 @Module({
-  imports: [DatabaseModule, RuntimeConfigModule, AmazonAccountAccessModule],
+  imports: [DatabaseModule, RuntimeConfigModule],
   providers: [
-    AmazonVerificationWorker,
     {
       provide: ProviderAdminRepository,
       inject: [DataSource],
@@ -37,8 +32,8 @@ import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
     },
     {
       provide: READINESS_ADAPTERS,
-      inject: [ConfigService, AmazonAccountAccess],
-      useFactory: (config: ConfigService, access: AmazonAccountAccess) => {
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
         const runtime = config.getOrThrow<RuntimeConfiguration>('runtime');
         return (code: string) =>
           runtime.quoteDemo
@@ -49,11 +44,7 @@ import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
                 close: async () => {},
               }
             : code === 'amazon'
-              ? access.readiness(
-                  new AmazonShippingAdapter({
-                    sessionStore: amazonSessionStore(),
-                  }),
-                )
+              ? new AmazonShippingAdapter()
               : new UnishippersShippingAdapter();
       },
     },
@@ -66,17 +57,10 @@ import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
     },
     {
       provide: QUOTE_ADAPTERS,
-      inject: [ConfigService, AmazonAccountAccess],
-      useFactory: (
-        config: ConfigService,
-        access: AmazonAccountAccess,
-      ): QuoteAdapters => {
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): QuoteAdapters => {
         const runtime = config.getOrThrow<RuntimeConfiguration>('runtime');
-        const amazon = access.quote(
-          new AmazonShippingAdapter({
-            sessionStore: amazonSessionStore(),
-          }),
-        );
+        const amazon = new AmazonShippingAdapter();
         const unishippers = new UnishippersShippingAdapter();
         return (code) =>
           runtime.quoteDemo
