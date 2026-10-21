@@ -9,6 +9,7 @@ import {
 import { z } from 'zod';
 import { QUOTE_REPOSITORY, type QuoteRepository } from './quote.repository.js';
 import { submitQuoteSchema, type SenderSnapshot } from './quote.schemas.js';
+import { providerInputRequirements } from './provider-input-requirements.js';
 
 @Injectable()
 export class QuoteService {
@@ -17,8 +18,12 @@ export class QuoteService {
     @Inject(SenderDefaultsService)
     private readonly defaults: SenderDefaultsService,
   ) {}
-  providers() {
-    return this.repository.providers();
+  async providers() {
+    return (await this.repository.providers()).map((provider) => ({
+      ...provider,
+      internationalAvailable: false,
+      inputRequirements: providerInputRequirements(provider.code),
+    }));
   }
   async create(raw: unknown, actorId: number) {
     const parsed = submitQuoteSchema.safeParse(raw);

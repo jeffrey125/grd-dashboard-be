@@ -653,3 +653,18 @@ Errors include a safe `verificationCode`: `busy`, `expired`, `owner_required`,
 `unsupported`, `stale_frame` (409), or `unavailable` (503). Normal 400/401/403/404
 contracts also apply. Runtime opt-in and staff steps are documented in
 [amazon-session-recovery.md](amazon-session-recovery.md#staff-verification-in-the-dashboard).
+
+## Shared US-only quote form (2026-10-22)
+
+New comparisons use one explicit US sender shared across every selected provider and
+one US destination. The submission API rejects differing sender addresses, non-US
+destinations and customs data. Historical response parsing remains unchanged.
+The JSON request still contains each provider's explicit sender snapshot and options;
+the frontend expands one shared form into those entries. Signature/insurance are
+mapped only to supporting providers with visible unsupported notices.
+
+Provider discovery adds `inputRequirements: {sender, destination}`; each address
+requirement contains `requiredFields: ('contactName'|'phone'|'division')[]` and
+`maxNameLength`. Require a shared field whenever any selected provider requires it.
+myUnishippers sender names allow at most 35 characters. Both current providers
+advertise no signature/insurance support and no international availability.

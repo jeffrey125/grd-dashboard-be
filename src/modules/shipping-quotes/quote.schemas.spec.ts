@@ -80,6 +80,14 @@ describe('international quote input', () => {
 
   it('allows blank dimensions only for myUnishippers-only submissions', () => {
     const unishippersOnly = input();
+    unishippersOnly.destination = {
+      ...unishippersOnly.destination,
+      country: 'US',
+    };
+    delete unishippersOnly.international;
+    unishippersOnly.packageGroups.forEach((group) => {
+      group.customsItems = [];
+    });
     unishippersOnly.packageGroups[0]!.length = '';
     unishippersOnly.packageGroups[0]!.width = '';
     unishippersOnly.packageGroups[0]!.height = '';
@@ -213,5 +221,59 @@ describe('international quote input', () => {
         );
       }),
     );
+  });
+});
+
+describe('US-only shared sender submissions', () => {
+  function domesticInput() {
+    const value = input();
+    value.destination.country = 'US';
+    delete value.international;
+    value.packageGroups.forEach((group) => {
+      group.customsItems = [];
+    });
+    value.providers.push({
+      ...structuredClone(value.providers[0]!),
+      code: 'amazon',
+    });
+    return value;
+  }
+
+  it('accepts identical senders and rejects a different provider pickup address', () => {
+    const value = domesticInput();
+    expect(submitQuoteSchema.safeParse(value).success).toBe(true);
+    const sender = value.providers[1]!.sender;
+    if (sender.mode !== 'explicit') throw new Error('Expected explicit sender');
+    sender.address.postalCode = '90210';
+    expect(submitQuoteSchema.safeParse(value).success).toBe(false);
+    expect(createQuoteSchema.safeParse(value).success).toBe(true);
+  });
+
+  it('rejects international submissions while keeping historical records readable', () => {
+    expect(createQuoteSchema.safeParse(input()).success).toBe(true);
+    const result = submitQuoteSchema.safeParse(input());
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ['destination', 'country'] }),
+        ]),
+      );
+  });
+
+  it('rejects domestic customs data and enforces the provider sender name limit', () => {
+    const value = domesticInput();
+    value.packageGroups[0]!.customsItems =
+      input().packageGroups[0]!.customsItems;
+    expect(submitQuoteSchema.safeParse(value).success).toBe(false);
+    value.packageGroups[0]!.customsItems = [];
+    for (const provider of value.providers)
+      if (provider.sender.mode === 'explicit')
+        provider.sender.address.name = 'A'.repeat(36);
+    expect(submitQuoteSchema.safeParse(value).success).toBe(false);
+    value.providers = value.providers.filter(
+      (provider) => provider.code === 'amazon',
+    );
+    expect(submitQuoteSchema.safeParse(value).success).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { providerInputRequirements } from './provider-input-requirements.js';
 import { QuoteDecimal } from './quote-decimal.js';
 import {
   countryCodeSchema,
@@ -219,6 +220,23 @@ export const createQuoteSchema = z
   });
 
 export const submitQuoteSchema = createQuoteSchema.superRefine((value, ctx) => {
+  if (value.destination.country !== 'US')
+    ctx.addIssue({
+      code: 'custom',
+      path: ['destination', 'country'],
+      message: 'V1 supports US destinations only',
+    });
+  if (
+    value.international ||
+    value.packageGroups.some((group) => group.customsItems.length)
+  )
+    ctx.addIssue({
+      code: 'custom',
+      path: ['international'],
+      message: 'Customs details are unavailable in US-only v1',
+    });
+
+  const firstSender = value.providers[0]?.sender;
   value.providers.forEach((provider, index) => {
     if (provider.sender.mode === 'account_default')
       ctx.addIssue({
@@ -226,6 +244,47 @@ export const submitQuoteSchema = createQuoteSchema.superRefine((value, ctx) => {
         path: ['providers', index, 'sender'],
         message: 'Enter an explicit sender for every provider',
       });
+    if (provider.sender.mode === 'explicit') {
+      if (
+        firstSender?.mode === 'explicit' &&
+        Object.keys(addressSchema.shape).some((key) => {
+          const field = key as keyof Address;
+          return (
+            (provider.sender.mode === 'explicit'
+              ? (provider.sender.address[field] ?? '')
+              : '') !== (firstSender.address[field] ?? '')
+          );
+        })
+      )
+        ctx.addIssue({
+          code: 'custom',
+          path: ['providers', index, 'sender'],
+          message: 'All providers must use the same sender address',
+        });
+
+      const requirements = providerInputRequirements(provider.code);
+      for (const target of ['sender', 'destination'] as const) {
+        const address =
+          target === 'sender' ? provider.sender.address : value.destination;
+        const path =
+          target === 'sender'
+            ? ['providers', index, 'sender', 'address']
+            : ['destination'];
+        if (address.name.length > requirements[target].maxNameLength)
+          ctx.addIssue({
+            code: 'custom',
+            path: [...path, 'name'],
+            message: `${provider.code} requires ${requirements[target].maxNameLength} characters or fewer`,
+          });
+        for (const field of requirements[target].requiredFields)
+          if (!address[field]?.trim())
+            ctx.addIssue({
+              code: 'custom',
+              path: [...path, field],
+              message: `Required by ${provider.code}`,
+            });
+      }
+    }
   });
   value.packageGroups.forEach((group, index) => {
     if (

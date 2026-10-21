@@ -26,8 +26,8 @@ or delete and restore quote history.
 One immutable comparison contains:
 
 - a ship date;
-- an explicit US sender entered for each selected provider;
-- a domestic or international destination, subject to provider capability;
+- one explicit US sender shared by every selected provider;
+- a US destination (international submissions are disabled for the v1 release);
 - one or more package groups, where every box in a group has identical dimensions
   when supplied, weight, contents, and a positive quantity;
 - input in imperial or metric units, preserving the original values and provider
@@ -49,11 +49,35 @@ included, unsupported, or unverified.
 
 ## Senders
 
-Every new comparison requires an explicit US sender for each selected provider. The
-application snapshots the entered sender and never saves it to the provider account.
+Every new comparison requires one explicit US sender shared by all selected providers.
+The API retains per-provider snapshots and rejects differing sender addresses.
+The application never saves the entered sender to a provider account.
 Historical comparisons that used an account default remain readable and copy their
 resolved sender into editable explicit fields. Admin default refresh remains available
 only as provider-account diagnostics.
+
+## US-only shared form release
+
+The 2026-10-22 approved release decision supersedes earlier international input UI
+requirements for new comparisons. Both sender and destination must be US; the API
+rejects non-US destinations and customs data. Historical international records remain
+readable. Provider selection preserves the single sender, including when all services
+are temporarily deselected. New providers reuse the shared form.
+
+Signature and insurance are entered once and mapped only to supporting selected
+providers, with unsupported services identified before submission. Both current
+adapters advertise no support, so these controls are absent today. Options that differ
+across provider requests remain subject to the existing comparable-price ranking rules.
+Only genuinely provider-specific inputs belong in a provider-specific section.
+
+Discovery returns `inputRequirements` for sender and destination: `requiredFields`
+(contactName, phone, division) and `maxNameLength`. Shared fields become required if
+any selected provider needs them; validation identifies that provider. The same
+backend requirement definition drives discovery and submission validation.
+myUnishippers limits the sender company/name to 35 characters. Its current Quick
+Quote flow does not require contact name or phone. No new production dependency or
+database migration is needed: reuse React Hook Form, MUI, Zod and installed standards
+libraries, with the approved provider mappings.
 
 ## Provider execution
 

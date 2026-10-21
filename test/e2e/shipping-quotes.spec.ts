@@ -173,6 +173,10 @@ describe('Saved quote comparisons HTTP API', () => {
           internationalAvailable: false,
           supportsSignature: false,
           supportsInsurance: false,
+          inputRequirements: {
+            sender: { requiredFields: [], maxNameLength: 35 },
+            destination: { requiredFields: [], maxNameLength: 200 },
+          },
         }),
         expect.objectContaining({
           code: 'amazon',
@@ -369,22 +373,13 @@ describe('Saved quote comparisons HTTP API', () => {
         .set('Cookie', cookie)
         .set('Origin', 'http://dashboard.example.test')
         .send(body)
-        .expect(201);
+        .expect(400);
 
-      expect(saved.body.comparison.status).toBe('failed');
-      expect(saved.body.comparison.attempts).toEqual(
+      expect(saved.body.fields).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            provider: 'amazon',
-            status: 'failed',
-            outcome: 'unsupported',
-            reasonCode: 'unsupported',
-          }),
-          expect.objectContaining({
-            provider: 'unishippers',
-            status: 'failed',
-            outcome: 'unsupported',
-            reasonCode: 'unsupported',
+            field: 'destination.country',
+            message: 'V1 supports US destinations only',
           }),
         ]),
       );
