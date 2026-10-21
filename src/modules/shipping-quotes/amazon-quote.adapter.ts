@@ -15,7 +15,12 @@ import type {
   ExecutionResult,
   LeasedQuote,
 } from './quote-execution.repository.js';
-import { quoteFailure, type QuoteAdapter } from './quote-executor.js';
+import {
+  quoteFailure,
+  ProviderVerificationRequired,
+  type QuoteAdapter,
+} from './quote-executor.js';
+import type { AmazonSessionStore } from './amazon-session.store.js';
 import type {
   Address,
   QuoteCharge,
@@ -112,6 +117,13 @@ export class AmazonAuthenticationFailed extends Error {
   }
 }
 
+export class AmazonVerificationRequired extends ProviderVerificationRequired {
+  constructor() {
+    super('Amazon needs reconnection by an administrator.');
+    this.name = 'AmazonVerificationRequired';
+  }
+}
+
 export class AmazonProviderSetupRequired extends Error {
   constructor() {
     super('amazon shipping account setup is incomplete');
@@ -149,7 +161,8 @@ function chargeScope(code: string): QuoteCharge['scope'] | undefined {
 
 function isAmazonVerificationUrl(url: URL): boolean {
   return (
-    url.origin === AMAZON_ACCOUNT_ORIGIN && url.pathname.startsWith('/ap/cvf/')
+    url.origin === AMAZON_ACCOUNT_ORIGIN &&
+    /^\/ap\/(?:cvf|mfa|challenge)(?:\/|$)/.test(url.pathname)
   );
 }
 
@@ -379,6 +392,8 @@ function packageSignature(
 }
 
 type AmazonAdapterOptions = {
+  sessionStore?: AmazonSessionStore;
+  manualAuthentication?: boolean;
   origin?: string;
   launch?: () => Promise<Browser>;
   context?: BrowserContext;
@@ -410,13 +425,19 @@ export class AmazonShippingAdapter implements QuoteAdapter {
 
   private async getPage(): Promise<Page> {
     if (this.page) return this.page;
+    const storageState = await this.options.sessionStore?.load();
+    if (this.options.sessionStore && !storageState)
+      throw new AmazonVerificationRequired();
     if (this.options.context) {
       this.context = this.options.context;
     } else {
       this.browser = await (
         this.options.launch ?? (() => chromium.launch({ headless: true }))
       )();
-      this.context = await this.browser.newContext({ serviceWorkers: 'block' });
+      this.context = await this.browser.newContext({
+        serviceWorkers: 'block',
+        storageState,
+      });
     }
     this.page = await this.context.newPage();
     this.page.setDefaultTimeout(LOGIN_TIMEOUT_MS);
@@ -433,7 +454,7 @@ export class AmazonShippingAdapter implements QuoteAdapter {
 
   private async waitForEntry(page: Page): Promise<void> {
     if (isAmazonVerificationUrl(new URL(page.url())))
-      throw new AmazonAuthenticationFailed();
+      throw new AmazonVerificationRequired();
     const setup = page
       .getByRole('button', { name: /^save and continue$/i })
       .first();
@@ -447,11 +468,11 @@ export class AmazonShippingAdapter implements QuoteAdapter {
     await entry.waitFor({ state: 'visible', timeout: LOGIN_TIMEOUT_MS });
     const body = (await page.locator('body').innerText()).toLowerCase();
     if (
-      /captcha|verify (?:that )?you are human|one-time password|multi-factor/.test(
+      /captcha|solve this puzzle|verify (?:that )?you are human|one-time password|multi-factor/.test(
         body,
       )
     )
-      throw new AmazonAuthenticationFailed();
+      throw new AmazonVerificationRequired();
     if (
       (await setup.isVisible()) &&
       /pickup information/.test(body) &&
@@ -538,6 +559,8 @@ export class AmazonShippingAdapter implements QuoteAdapter {
     await this.waitForEntry(page);
     const email = this.loginEmail(page);
     if (await email.isVisible()) {
+      if (this.options.sessionStore || this.options.manualAuthentication)
+        throw new AmazonVerificationRequired();
       await email.fill(this.credentials.email);
       await page
         .getByRole('button', { name: /continue/i })
@@ -565,6 +588,13 @@ export class AmazonShippingAdapter implements QuoteAdapter {
     }
     await this.openCalculator(page);
     await bootstrap;
+  }
+
+  /** Operator check: refresh bootstrap and inspect the calculator without requesting a rate. */
+  async verifySession(): Promise<void> {
+    const page = await this.getPage();
+    await guardReadinessPage(page, this.origin);
+    await this.login();
   }
 
   private async requestRate(
@@ -697,19 +727,23 @@ export class AmazonShippingAdapter implements QuoteAdapter {
   async readiness(mode: 'request' | 'browser'): Promise<void> {
     const page = await this.getPage();
     await guardReadinessPage(page, this.origin);
-    const defaults = page
-      .waitForResponse(
-        (response) => {
-          const url = new URL(response.url());
-          return (
-            url.origin === this.origin &&
-            /^\/shippers\/drafts\/[^/]+$/.test(url.pathname) &&
-            response.ok()
+    const defaults = this.options.sessionStore
+      ? Promise.resolve()
+      : page
+          .waitForResponse(
+            (response) => {
+              const url = new URL(response.url());
+              return (
+                url.origin === this.origin &&
+                /^\/shippers\/drafts\/[^/]+$/.test(url.pathname) &&
+                response.ok()
+              );
+            },
+            { timeout: LOGIN_TIMEOUT_MS },
+          )
+          .then(async (response) =>
+            mapAddress('amazon', await response.json()),
           );
-        },
-        { timeout: LOGIN_TIMEOUT_MS },
-      )
-      .then(async (response) => mapAddress('amazon', await response.json()));
     void defaults.catch(() => undefined);
     await this.login();
     await defaults;
@@ -784,6 +818,14 @@ export class AmazonShippingAdapter implements QuoteAdapter {
         quotes: aggregateAmazonRates(Array.from(groups.values())),
       };
     } catch (error) {
+      if (
+        error instanceof AmazonVerificationRequired ||
+        (this.page && isAmazonVerificationUrl(new URL(this.page.url()))) ||
+        (this.options.sessionStore &&
+          (error instanceof AmazonAuthenticationExpired ||
+            error instanceof AmazonAuthenticationFailed))
+      )
+        return quoteFailure('verification_required');
       if (
         error instanceof AmazonAuthenticationExpired ||
         error instanceof AmazonAuthenticationFailed

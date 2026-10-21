@@ -275,3 +275,14 @@ rather than contacting providers. Live sample-rate tests belong to SQ-V1-009.
 
 Stale policy now defaults to one hour (1–168 configurable), including existing quotes
 without provider expiry. Default refresh and mode-test validity are 15 minutes.
+
+### Amazon manual-session recovery
+
+The opt-in [Amazon reconnection guide](docs/v1/amazon-session-recovery.md) describes
+an operator-only SSH workflow to complete Amazon CAPTCHA/MFA and save encrypted
+authentication state outside the checkout. Quote and readiness adapters restore it
+across worker/browser restarts, while obtaining fresh request tokens per operation.
+Missing, expired or rejected sessions return `verification_required` without
+automatic password retries. There are no new dependencies or database migrations.
+The saved session is valid for at most 12 hours; Amazon can require verification
+sooner. Existing account-default refresh uses its separate legacy login flow.

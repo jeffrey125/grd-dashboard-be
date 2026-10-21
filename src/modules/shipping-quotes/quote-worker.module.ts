@@ -19,6 +19,7 @@ import {
 } from './quote.worker.js';
 import { FixtureQuoteAdapter } from './fixture-quote.adapter.js';
 import { AmazonShippingAdapter } from './amazon-quote.adapter.js';
+import { amazonSessionStore } from './amazon-session.store.js';
 import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
 
 @Module({
@@ -44,7 +45,9 @@ import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
                 close: async () => {},
               }
             : code === 'amazon'
-              ? new AmazonShippingAdapter()
+              ? new AmazonShippingAdapter({
+                  sessionStore: amazonSessionStore(),
+                })
               : new UnishippersShippingAdapter();
       },
     },
@@ -60,7 +63,9 @@ import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
       inject: [ConfigService],
       useFactory: (config: ConfigService): QuoteAdapters => {
         const runtime = config.getOrThrow<RuntimeConfiguration>('runtime');
-        const amazon = new AmazonShippingAdapter();
+        const amazon = new AmazonShippingAdapter({
+          sessionStore: amazonSessionStore(),
+        });
         const unishippers = new UnishippersShippingAdapter();
         return (code) =>
           runtime.quoteDemo

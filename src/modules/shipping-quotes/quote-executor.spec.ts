@@ -1,11 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
-import { executeQuote } from './quote-executor.js';
+import {
+  executeQuote,
+  ProviderVerificationRequired,
+} from './quote-executor.js';
 import { FixtureQuoteAdapter } from './fixture-quote.adapter.js';
 import type { LeasedQuote } from './quote-execution.repository.js';
 
 const job = { code: 'amazon', enabled: true } as LeasedQuote;
 
 describe('Quote provider execution boundary', () => {
+  it('preserves verification required if a challenge appears during bounded relogin', async () => {
+    const adapter = new FixtureQuoteAdapter('authentication_failed', 0);
+    adapter.relogin = async () => {
+      throw new ProviderVerificationRequired();
+    };
+    expect(
+      await executeQuote(job, adapter, new AbortController().signal),
+    ).toMatchObject({
+      outcome: 'failed',
+      reason: 'verification_required',
+      relogins: 1,
+    });
+  });
   it('does not relogin again after recovery, and classifies a technical replay error as failed', async () => {
     const recovered = { ...job, reloginCount: 1 as const };
     const expired = new FixtureQuoteAdapter('authentication_failed', 0);

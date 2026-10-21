@@ -486,10 +486,19 @@ null until terminal, then `success|validation_failed|unsupported|timeout|
 authentication_failed|failed`. Diagnostics and lease ownership remain private.
 Known reasons are `adapter_unavailable,provider_disabled,validation_failed,
 sender_company_too_long,contact_details_required,
-unsupported,timeout,authentication_failed,provider_setup_required,provider_failed,
+unsupported,timeout,authentication_failed,verification_required,provider_setup_required,provider_failed,
 recovery_exhausted`. `provider_setup_required` means the Amazon Shipping account
 must finish its pickup/contact onboarding before the attempt can be retried.
 Unknown reasons must use generic safe UI copy.
+
+`verification_required` has outcome `failed` and means **Amazon needs reconnection**.
+An administrator completes verification in the protected server browser and saves
+the session using the [operator guide](amazon-session-recovery.md). Staff may retry
+after reconnection, subject to normal retry eligibility. No automatic relogin is
+attempted for this reason. Credentials/session files are never sent to the frontend.
+Existing readiness failure summaries remain `readiness_failed/readiness_timeout`;
+session-enabled Amazon readiness verifies the calculator/bootstrap without depending
+on legacy onboarding draft-address responses or requesting a sample rate.
 
 For myUnishippers, `platform` is `myUnishippers` and `carrier` is the delivering
 carrier (normally UPS). Both configured modes drive Quick Quote once to capture a

@@ -13,6 +13,8 @@ export interface QuoteAdapter {
   close(job: LeasedQuote): Promise<void>;
 }
 
+export class ProviderVerificationRequired extends Error {}
+
 export function quoteFailure(
   reason: QuoteReason,
   simulated = false,
@@ -91,10 +93,14 @@ export async function executeQuote(
       ...(await firstValueFrom(race(from(run()), cancelled))),
       relogins,
     };
-  } catch {
+  } catch (error) {
     return {
       ...quoteFailure(
-        relogging ? 'authentication_failed' : 'provider_failed',
+        error instanceof ProviderVerificationRequired
+          ? 'verification_required'
+          : relogging
+            ? 'authentication_failed'
+            : 'provider_failed',
         adapter.simulated,
       ),
       relogins,

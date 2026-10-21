@@ -1,4 +1,4 @@
-import type { BrowserContext, Locator, Page } from 'playwright';
+import type { Browser, BrowserContext, Locator, Page } from 'playwright';
 import { describe, expect, it, vi } from 'vitest';
 import {
   aggregateAmazonRates,
@@ -7,6 +7,7 @@ import {
   normalizeAmazonRate,
 } from './amazon-quote.adapter.js';
 import type { LeasedQuote } from './quote-execution.repository.js';
+import { executeQuote } from './quote-executor.js';
 
 const evidenceBody = {
   totalCharge: { unit: 'USD', value: 13.81 },
@@ -195,6 +196,90 @@ function blockedPage(kind: 'verification' | 'setup') {
 }
 
 describe('Amazon quote normalization and aggregation', () => {
+  it('reloads saved authentication after close and still refreshes request tokens', async () => {
+    const fixture = fakePage('request');
+    const state = { cookies: [], origins: [] };
+    const load = vi.fn(async () => state);
+    const newContext = vi.fn(async () => fixture.context);
+    const close = vi.fn(async () => undefined);
+    const browser = { newContext, close } as unknown as Browser;
+    const credentials = vi.fn(() => {
+      throw new Error('must not log in');
+    });
+    const adapter = new AmazonShippingAdapter({
+      origin: fixture.origin,
+      launch: async () => browser,
+      sessionStore: { load },
+      credentials,
+    });
+
+    expect(
+      (
+        await executeQuote(
+          job('request'),
+          adapter,
+          new AbortController().signal,
+        )
+      ).outcome,
+    ).toBe('success');
+    expect(
+      (
+        await executeQuote(
+          job('request'),
+          adapter,
+          new AbortController().signal,
+        )
+      ).outcome,
+    ).toBe('success');
+    expect(newContext).toHaveBeenCalledTimes(2);
+    expect(newContext).toHaveBeenCalledWith({
+      serviceWorkers: 'block',
+      storageState: state,
+    });
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(fixture.page.waitForResponse).toHaveBeenCalledTimes(2);
+    expect(credentials).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not launch a browser or retry when the saved session is unavailable', async () => {
+    const launch = vi.fn();
+    const adapter = new AmazonShippingAdapter({
+      launch,
+      sessionStore: { load: async () => undefined },
+    });
+    const result = await executeQuote(
+      job('request'),
+      adapter,
+      new AbortController().signal,
+    );
+    expect(result).toMatchObject({
+      outcome: 'failed',
+      reason: 'verification_required',
+      relogins: 0,
+    });
+    expect(launch).not.toHaveBeenCalled();
+  });
+
+  it('requires manual reconnection if a restored session redirects to sign-in', async () => {
+    const fixture = blockedPage('verification');
+    const credentials = vi.fn();
+    const adapter = new AmazonShippingAdapter({
+      context: fixture.context,
+      credentials,
+      sessionStore: { load: async () => ({ cookies: [], origins: [] }) },
+    });
+    expect(
+      await executeQuote(job('request'), adapter, new AbortController().signal),
+    ).toMatchObject({
+      outcome: 'failed',
+      reason: 'verification_required',
+      relogins: 0,
+    });
+    expect(credentials).not.toHaveBeenCalled();
+    expect(fixture.page.waitForURL).not.toHaveBeenCalled();
+  });
+
   it('normalizes the verified single-package USD 13.81 response', () => {
     expect(normalizeAmazonRate(evidenceBody)).toMatchObject({
       carrier: 'Not provided',
@@ -339,7 +424,7 @@ describe('Amazon quote normalization and aggregation', () => {
     expect(fixture.page.waitForResponse).toHaveBeenCalledTimes(2);
   });
 
-  it('classifies Amazon account verification as an authentication failure without timing out', async () => {
+  it('stops at Amazon verification without automatic password retries', async () => {
     const fixture = blockedPage('verification');
     const adapter = new AmazonShippingAdapter({
       context: fixture.context,
@@ -349,15 +434,19 @@ describe('Amazon quote normalization and aggregation', () => {
       }),
     });
 
-    const result = await adapter.quote(
+    const relogin = vi.spyOn(adapter, 'relogin');
+    const result = await executeQuote(
       job('request'),
+      adapter,
       new AbortController().signal,
     );
 
     expect(result).toMatchObject({
-      outcome: 'authentication_failed',
-      reason: 'authentication_failed',
+      outcome: 'failed',
+      reason: 'verification_required',
+      relogins: 0,
     });
+    expect(relogin).not.toHaveBeenCalled();
     expect(fixture.page.waitForURL).toHaveBeenCalledOnce();
   });
 

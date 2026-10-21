@@ -36,6 +36,7 @@ export type QuoteReason =
   | 'timeout'
   | 'authentication_failed'
   | 'provider_setup_required'
+  | 'verification_required'
   | 'provider_failed'
   | 'adapter_unavailable'
   | 'provider_disabled'

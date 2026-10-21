@@ -69,12 +69,17 @@ the quote form and captures the matching response or validated visible result. T
 no automatic cross-mode fallback. New attempts and user retries use the mode that is
 current when they start, and every attempt records the actual mode.
 
-Credentials remain environment-only:
+Provider login credentials remain environment-only:
 
 - `AMAZON_SHIPPING_EMAIL` and `AMAZON_SHIPPING_PASSWORD`
 - `MYUNISHIPPERS_EMAIL` and `MYUNISHIPPERS_PASSWORD`
 
-Browser cookies and tokens stay in worker memory. A worker restart logs in again.
+Browser cookies and tokens normally stay in worker memory. The approved opt-in
+Amazon recovery flow saves an operator-verified, account-bound encrypted snapshot
+outside the checkout/database for at most 12 hours. Quote/readiness operations
+restore it after restarts and never automatically fall back to password login.
+Workers only read snapshots; only the SSH operator writes/revokes them. See
+[Amazon session recovery](amazon-session-recovery.md).
 Authentication failure permits one relogin and one replay. Other provider errors and
 timeouts remain failed until a user chooses Retry.
 
@@ -128,8 +133,11 @@ other is running, but at most one attempt per provider/comparison may be active.
 Eligibility is rechecked at execution time, and no current sender-default refresh
 replaces the original resolved sender.
 
-Amazon account verification pages return `authentication_failed` immediately instead
-of waiting for the calculator timeout. An authenticated account that still shows the
+Amazon account verification pages return `failed` / `verification_required` without
+automatic relogin. This also applies when opt-in saved authentication is absent,
+expired, unreadable or rejected. An admin reconnects before staff retries; this does
+not enqueue an automatic retry or change other providers. An authenticated account
+that still shows the
 Shipping pickup/contact onboarding returns `provider_setup_required`; it does not
 request a rate or submit onboarding data. The failed attempt becomes retryable after
 an administrator completes that setup directly with Amazon.
