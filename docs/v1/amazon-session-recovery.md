@@ -1,21 +1,23 @@
 # Amazon session recovery (SQ-V1-004 follow-up)
 
-Approved approach: installed Playwright/Zod, Node crypto/filesystem, and Chromium's
-loopback remote inspection through SSH. No new production dependency. This is an
-operator procedure, not a public remote browser or a staff-facing login form.
+Approved approach: installed Playwright/Zod, Node crypto/filesystem and private Unix
+sockets, plus NestJS and React/MUI for staff verification. No new production dependency.
+Use the [staff dashboard workflow](#staff-verification-in-the-dashboard) for supported
+challenges; Chromium loopback inspection through SSH remains an operator fallback.
 
 ## What persists
 
-The operator signs in to the configured Amazon Shipping account on the VM and
-completes CAPTCHA/MFA personally. The CLI verifies the rates calculator and fresh
+An operator or authorized staff member completes CAPTCHA/MFA in the server-side
+Amazon Shipping session. Recovery verifies the rates calculator and fresh
 merchant/proposal/XSRF bootstrap, without requesting a rate, before saving state.
 State is encrypted with AES-256-GCM, bound to `AMAZON_SHIPPING_EMAIL`, and written
 atomically with mode 0600 into a private 0700 directory. Its separate 32-byte random
 key is a private file. The files must be outside the checkout and Docker build context.
 
 The worker restores cookies/local storage into each new browser context. It still
-obtains fresh request tokens per quote; it never freezes an old XSRF token. Workers
-only read snapshots, so they cannot overwrite a newly reconnected session. The
+obtains fresh request tokens per quote; it never freezes an old XSRF token. Quote
+and readiness attempts only read snapshots; explicit staff or operator recovery
+writes a newly verified snapshot. The
 same snapshot works across worker/container restarts when its host mounts survive.
 Amazon can invalidate it or request verification at any time; persistence does not
 guarantee avoiding CAPTCHA. Local retention is bounded to **12 hours from save**,
@@ -126,3 +128,77 @@ provider activation, captcha bypass, database migration, or automatic deployment
 
 References: [Playwright authentication state](https://playwright.dev/docs/auth),
 [Chromium remote inspection](https://developer.chrome.com/docs/devtools/remote-debugging/).
+
+## Staff verification in the dashboard
+
+The approved staff workflow adds **Verify Amazon & retry** to the latest retryable
+Amazon failure with reason `verification_required`. Staff manually interact with
+the challenge image inside the dashboard. The worker signs in using its configured
+Amazon credentials if the saved session has expired; credentials and cookies never
+travel to the staff browser. There is no automatic CAPTCHA solver.
+
+1. Open the saved comparison and choose **Verify Amazon & retry**.
+2. Click the controls in the image. For text or an OTP, first click its field in
+   the image, type into **Challenge answer or verification code**, then choose
+   **Send answer** and the provider's submit control or **Enter**.
+3. After the protected rates calculator is verified, the session is encrypted and
+   the original attempt is retried through the existing retry endpoint. A stale
+   ship date, changed provider eligibility, deleted comparison or concurrent retry
+   can still block that retry; the saved shipment inputs are never rewritten.
+
+Only one staff login session can control Amazon verification at a time. Quote,
+readiness and historical sender-refresh calls share the Amazon account lock.
+Other providers continue. Busy Amazon quotes fail with `verification_required`
+and may be retried after the active verification finishes. The window expires
+in ten minutes, or after sixty seconds without authenticated polling. Closing
+it cancels the browser. Revoked/restricted sessions cannot retrieve further images;
+a revocation during a pending API request also cancels recovery. If a revoked user
+makes no further request, idle expiry cleans up within sixty seconds.
+
+Each start/verified/cancelled/expired outcome records the staff external ID in the
+worker's normal structured logs. No challenge answer, image, cookie, password, or
+provider response is logged or stored in the database. Images exist only in
+transient response/UI memory. Successful verification saves only Amazon cookies
+and local storage; third-party CAPTCHA state is discarded. The saved session still
+expires after at most twelve hours and Amazon can revoke it sooner.
+
+### Enable staff access once, during deployment
+
+This is an opt-in runtime capability, not automatically enabled by the code change.
+The previous SSH workflow remains an operator fallback.
+
+- Initialize the existing private session/key with `amazon_session init` once.
+  Configure the worker's `AMAZON_SHIPPING_EMAIL` and `AMAZON_SHIPPING_PASSWORD`.
+  Keep the key mount read-only. For staff mode, change the **worker session mount
+  to read-write**; the earlier read-only mount applies to operator-only mode.
+- Create a separate private host directory for the bridge, mode `0700`, owned by
+  the same non-root UID as the API and worker. Mount it at
+  `/run/grd-amazon/bridge` into both containers, writable for the worker and
+  accessible to the API. Do not place it in the checkout or Docker build context.
+- Set `AMAZON_VERIFICATION_SOCKET=/run/grd-amazon/bridge/worker.sock` in **both**
+  API and worker environments. The API must receive **only** this bridge mount;
+  never give it the Amazon session/key mounts or Amazon credentials.
+- Keep exactly one API and one worker, on the same host and runtime UID. The
+  worker listens on a mode `0600` Unix socket, with no TCP/debug/VNC port to publish.
+  Existing authenticated API routing carries the dialog. Use the normal protected
+  dashboard transport; do not expose an unauthenticated challenge endpoint.
+- Deploy both repositories and test with an actual staff account. Stop an operator
+  CLI recovery before enabling/using staff recovery; CLI and worker do not share
+  an inter-process account lock. After an unclean worker crash, if startup reports
+  the socket is occupied, confirm the old worker is stopped before removing its
+  stale socket and restarting. Never remove the socket of a running worker.
+
+### Supported challenges and limitations
+
+The remote view is fail-closed: only recognized verification containers on
+`https://www.amazon.com/ap/cvf`, `/ap/mfa`, and `/ap/challenge` are displayed.
+Recognized Amazon/Arkose challenge frames can receive bounded clicks, text, and
+individual keys. Navigation, arbitrary selectors/scripts, browser shortcuts,
+account links and password/email inputs are not exposed. Unsupported challenge
+layouts and audio-only/drag-only challenges require the operator fallback.
+Amazon markup changes may require updating the selectors; fixture success does
+not establish compatibility with every live challenge.
+
+An OTP sent to a phone/email still requires authorized access to that destination.
+This workflow does not change the Amazon account's MFA destination or promise that
+CAPTCHAs disappear. No database migration or new dependency is required.

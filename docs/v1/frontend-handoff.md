@@ -491,10 +491,10 @@ recovery_exhausted`. `provider_setup_required` means the Amazon Shipping account
 must finish its pickup/contact onboarding before the attempt can be retried.
 Unknown reasons must use generic safe UI copy.
 
-`verification_required` has outcome `failed` and means **Amazon needs reconnection**.
-An administrator completes verification in the protected server browser and saves
-the session using the [operator guide](amazon-session-recovery.md). Staff may retry
-after reconnection, subject to normal retry eligibility. No automatic relogin is
+`verification_required` has outcome `failed` and means **Amazon needs verification**.
+Staff choose **Verify Amazon & retry** to complete a supported challenge and retry
+through the existing eligibility rules. See the [staff/operator guide](amazon-session-recovery.md)
+and the staff verification endpoint below. No automatic relogin is
 attempted for this reason. Credentials/session files are never sent to the frontend.
 Existing readiness failure summaries remain `readiness_failed/readiness_timeout`;
 session-enabled Amazon readiness verifies the calculator/bootstrap without depending
@@ -625,3 +625,31 @@ Stale policy defaults to 1 hour, accepts 1–168 whole hours and applies on read
 all history without provider expiry. Provider expiry remains authoritative. Disable
 blocks new work and queued execution; running quotes may finish. Historical actual
 mode/origin remain unchanged. Frontend settings route: `/admin/shipping-providers`.
+
+### Staff Amazon verification
+
+`POST /api/v1/quote-comparisons/:externalId/attempts/:attemptId/amazon-verification`
+requires an unrestricted Staff/Admin session, trusted Origin, and an existing
+nondeleted failed Amazon attempt with reason `verification_required`. Responses
+are `no-store`. A start also requires current retry eligibility.
+
+Body is a strict discriminated union: `{ operation: 'start' }`,
+`{ operation: 'poll' | 'cancel', id }`, or
+`{ operation: 'action', id, action }`. `action` is one of `{ type: 'click', frame,
+x, y }` (normalized 0–1 coordinates), `{ type: 'text', frame, text }` (1–100
+characters), or `{ type: 'key', frame, key }` (Enter, Backspace, ArrowLeft,
+ArrowRight, ArrowUp, ArrowDown, Space). IDs/frame tokens are UUIDs. Ownership is
+always derived from the authenticated staff account and login session.
+
+Response: `{ id, state, expiresAt, image?, frame?, width?, height? }`; state is
+`preparing | challenge | verified | cancelled`. `image` is a PNG encoded as base64.
+Poll at 1.5-second intervals, serialize input against frame polling, and discard
+old frames. Input returns `preparing` so navigation can settle before the next
+capture. On `verified`, call the existing immutable retry endpoint exactly once;
+close/cancel verification on exit. Stop polling and hide images on auth/error
+states. No recovery credentials belong in persistent browser storage.
+
+Errors include a safe `verificationCode`: `busy`, `expired`, `owner_required`,
+`unsupported`, `stale_frame` (409), or `unavailable` (503). Normal 400/401/403/404
+contracts also apply. Runtime opt-in and staff steps are documented in
+[amazon-session-recovery.md](amazon-session-recovery.md#staff-verification-in-the-dashboard).

@@ -75,10 +75,11 @@ Provider login credentials remain environment-only:
 - `MYUNISHIPPERS_EMAIL` and `MYUNISHIPPERS_PASSWORD`
 
 Browser cookies and tokens normally stay in worker memory. The approved opt-in
-Amazon recovery flow saves an operator-verified, account-bound encrypted snapshot
+Amazon recovery flow saves a human-verified, account-bound encrypted snapshot
 outside the checkout/database for at most 12 hours. Quote/readiness operations
 restore it after restarts and never automatically fall back to password login.
-Workers only read snapshots; only the SSH operator writes/revokes them. See
+Quote/readiness attempts only read snapshots; explicit staff recovery or the SSH
+operator writes them, and the operator can revoke them. See
 [Amazon session recovery](amazon-session-recovery.md).
 Authentication failure permits one relogin and one replay. Other provider errors and
 timeouts remain failed until a user chooses Retry.
@@ -135,8 +136,9 @@ replaces the original resolved sender.
 
 Amazon account verification pages return `failed` / `verification_required` without
 automatic relogin. This also applies when opt-in saved authentication is absent,
-expired, unreadable or rejected. An admin reconnects before staff retries; this does
-not enqueue an automatic retry or change other providers. An authenticated account
+expired, unreadable or rejected. Staff can choose **Verify Amazon & retry** to
+complete supported challenges and retry the original attempt. Operator recovery
+remains the fallback; other providers are unchanged. An authenticated account
 that still shows the
 Shipping pickup/contact onboarding returns `provider_setup_required`; it does not
 request a rate or submit onboarding data. The failed attempt becomes retryable after
@@ -252,3 +254,17 @@ Readiness and default refresh share account exclusion with quote execution. Read
 can test a disabled provider before an admin enables it; default refresh requires an
 enabled provider. Readiness results persist across API restarts; interrupted tests
 expire with a safe timeout and require an explicit new test.
+
+### Approved staff Amazon verification follow-up
+
+Staff can manually complete a recognized Amazon challenge from the comparison
+page, using a challenge-only view of a worker-owned browser. The API proxies
+validated commands over a private Unix socket; it never launches a provider
+browser or receives Amazon cookies/passwords. One staff login controls the
+account for at most ten minutes with a sixty-second disconnect expiry. Quote,
+readiness and legacy sender-refresh work share the worker's Amazon account lock.
+Other providers continue independently. Successful protected-bootstrap verification
+saves an encrypted Amazon-only session and the UI retries through the existing
+immutable retry rules. No automatic CAPTCHA solving or guaranteed MFA exemption.
+See [the staff operations guide](amazon-session-recovery.md#staff-verification-in-the-dashboard)
+and [the API contract](frontend-handoff.md#staff-amazon-verification).

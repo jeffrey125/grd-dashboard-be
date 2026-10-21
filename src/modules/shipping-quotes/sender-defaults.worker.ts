@@ -1,3 +1,4 @@
+import { AmazonAccountAccess } from './amazon-account-access.js';
 import {
   Inject,
   Injectable,
@@ -19,6 +20,8 @@ export class SenderDefaultsWorker implements OnModuleInit, OnModuleDestroy {
     private readonly repository: SenderDefaultsRepository,
     @Inject(BrowserSenderDefaults)
     private readonly gateway: Pick<BrowserSenderDefaults, 'read'>,
+    @Inject(AmazonAccountAccess)
+    private readonly access: AmazonAccountAccess = new AmazonAccountAccess(),
   ) {}
   onModuleInit() {
     this.schedule();
@@ -41,10 +44,14 @@ export class SenderDefaultsWorker implements OnModuleInit, OnModuleDestroy {
     const work = await this.repository.claim();
     if (!work) return;
     let address = null;
+    let release: (() => void) | undefined;
     try {
+      if (work.code === 'amazon') release = this.access.acquire();
       address = await this.gateway.read(work.code);
     } catch {
       /* No raw provider diagnostics are persisted. */
+    } finally {
+      release?.();
     }
     await this.repository.finish(work, address);
   }

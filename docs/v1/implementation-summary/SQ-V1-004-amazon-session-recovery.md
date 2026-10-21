@@ -1,5 +1,10 @@
 # SQ-V1-004 follow-up: persistent Amazon session recovery
 
+> Historical operator-only milestone. The later approved staff flow and current
+> commit plan are recorded in [SQ-V1-004-staff-amazon-verification.md](SQ-V1-004-staff-amazon-verification.md).
+> Its writable worker recovery session and staff UI supersede the operator-only
+> limitations below; the original verification evidence remains historical.
+
 ## Summary
 
 Implemented the approved temporary request-based workaround: an SSH operator
@@ -126,7 +131,7 @@ and its untracked `FE-V1-006-tab-transition-stability-follow-up.md` summary.
 
 Proposed independently reviewable commits (stage only the listed task files):
 
-1. Backend: `feat(shipping-quotes): SQ-V1-004 persist verified Amazon sessions`
+1. Backend: `fix(shipping-quotes): SQ-V1-004 persist verified Amazon sessions`
    — all backend files in the manifest above, including this summary; excludes
    all pre-existing untracked files.
 2. Frontend: `fix(shipping-quotes): SQ-V1-004 explain Amazon reconnection`

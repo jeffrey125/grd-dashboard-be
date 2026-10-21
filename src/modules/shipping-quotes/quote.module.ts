@@ -1,3 +1,5 @@
+import { AmazonVerificationController } from './amazon-verification.controller.js';
+import { AmazonVerificationBridge } from './amazon-verification.bridge.js';
 import { DataSource } from 'typeorm';
 import { ProviderAdminController } from './provider-admin.controller.js';
 import { ProviderAdminRepository } from './provider-admin.repository.js';
@@ -16,11 +18,16 @@ import { quoteRepositoryProvider } from './typeorm-quote.repository.js';
 @Module({
   imports: [DatabaseModule, EventsModule, AuthModule],
   controllers: [
+    AmazonVerificationController,
     ProviderAdminController,
     QuoteController,
     QuoteEventsController,
   ],
   providers: [
+    {
+      provide: AmazonVerificationBridge,
+      useFactory: () => new AmazonVerificationBridge(),
+    },
     {
       provide: ProviderAdminRepository,
       inject: [DataSource],

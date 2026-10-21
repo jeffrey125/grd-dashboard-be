@@ -14,7 +14,11 @@ function isAlertFetch(request: Request): boolean {
 }
 
 /** Installed before navigation: readiness may authenticate/read, never request rates or mutate provider data. */
-export async function guardReadinessPage(page: Page, origin: string) {
+export async function guardReadinessPage(
+  page: Page,
+  origin: string,
+  staffVerification = false,
+) {
   const readOnlyPosts = new Set([
     '/hz/getLatestProposalSharedWithShipper',
     '/svc/getUserProfileFlow',
@@ -56,7 +60,14 @@ export async function guardReadinessPage(page: Page, origin: string) {
           /^(?:\/ap\/signin|\/aaut\/verify\/cvf\/?|\/u\/login(?:\/(?:identifier|password))?|\/usernamepassword\/login|\/oauth\/token)$/.test(
             url.pathname,
           )));
-    if (read || allowedPost) await route.fallback();
+    const challengePost =
+      staffVerification &&
+      request.method() === 'POST' &&
+      url.protocol === 'https:' &&
+      ((url.origin === 'https://www.amazon.com' &&
+        /^\/ap\/(?:cvf|mfa|challenge)(?:\/|$)/.test(url.pathname)) ||
+        /(?:^|\.)(?:arkoselabs|funcaptcha)\.com$/.test(url.hostname));
+    if (read || allowedPost || challengePost) await route.fallback();
     else await route.abort();
   });
 }

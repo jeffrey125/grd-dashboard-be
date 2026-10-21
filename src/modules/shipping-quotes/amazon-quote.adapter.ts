@@ -590,6 +590,13 @@ export class AmazonShippingAdapter implements QuoteAdapter {
     await bootstrap;
   }
 
+  /** Worker-only recovery: sign in once, then leave any challenge for a human. */
+  async prepareStaffVerification(): Promise<void> {
+    const page = await this.getPage();
+    await guardReadinessPage(page, this.origin, true);
+    await this.login();
+  }
+
   /** Operator check: refresh bootstrap and inspect the calculator without requesting a rate. */
   async verifySession(): Promise<void> {
     const page = await this.getPage();

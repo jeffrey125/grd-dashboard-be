@@ -286,3 +286,10 @@ Missing, expired or rejected sessions return `verification_required` without
 automatic password retries. There are no new dependencies or database migrations.
 The saved session is valid for at most 12 hours; Amazon can require verification
 sooner. Existing account-default refresh uses its separate legacy login flow.
+
+Staff can complete supported Amazon challenges using **Verify Amazon & retry**
+on a failed comparison. This needs the optional private API/worker Unix socket
+and writable worker session storage described in the
+[staff setup guide](docs/v1/amazon-session-recovery.md#staff-verification-in-the-dashboard).
+The API does not receive Amazon credentials or saved cookies. The feature is not
+enabled or deployed merely by building the code.
