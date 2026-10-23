@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DataSource, type EntityManager } from 'typeorm';
+import { providerWeightPolicy } from './provider-weight-policy.js';
 import { retryInputBlock } from './quote-retry-policy.js';
 import {
   QuoteExecutionRepository,
@@ -41,7 +42,7 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
       if (!account) return null;
 
       const [attempt] = await manager.query(
-        `SELECT a.*,a.lease_until > clock_timestamp() AS leased,p.code,CASE WHEN a.started_at IS NOT NULL THEN a.execution_mode ELSE p.execution_mode END AS mode,p.enabled,p.used_internationally,q.input
+        `SELECT a.*,a.lease_until > clock_timestamp() AS leased,p.code,CASE WHEN a.started_at IS NOT NULL THEN a.execution_mode ELSE p.execution_mode END AS mode,p.enabled,p.used_internationally,p.max_package_weight_lb::text AS "maxPackageWeightLb",q.input
         FROM quote_provider_attempts a JOIN quote_requests q ON q.id=a.request_id
         JOIN shipping_accounts s ON s.id=a.account_id JOIN shipping_providers p ON p.id=s.provider_id
         WHERE a.account_id=$1 AND a.status IN ('queued','running')
@@ -58,17 +59,34 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
         [attempt.request_id],
       );
 
+      const weightPolicy = attempt.started_at
+        ? attempt.weight_policy
+        : providerWeightPolicy(attempt.input, {
+            code: attempt.code,
+            maxPackageWeightLb: attempt.maxPackageWeightLb,
+          });
+      if (!attempt.started_at) {
+        await manager.query(
+          'UPDATE quote_provider_attempts SET weight_policy=$2 WHERE id=$1',
+          [attempt.id, JSON.stringify(weightPolicy)],
+        );
+      }
+
       // Revalidate retries at execution time as configuration/date can change while queued.
       const blocked = !attempt.enabled
         ? 'provider_disabled'
-        : attempt.attempt_number > 1
-          ? retryInputBlock(attempt.input, attempt.sender, {
-              code: attempt.code,
-              enabled: attempt.enabled,
-              executionMode: attempt.mode,
-              usedInternationally: attempt.used_internationally,
-            })
-          : null;
+        : !attempt.started_at &&
+            weightPolicy.exceededPackageGroupPositions.length
+          ? 'weight_limit_exceeded'
+          : !attempt.started_at && attempt.attempt_number > 1
+            ? retryInputBlock(attempt.input, attempt.sender, {
+                code: attempt.code,
+                enabled: attempt.enabled,
+                executionMode: attempt.mode,
+                usedInternationally: attempt.used_internationally,
+                maxPackageWeightLb: attempt.maxPackageWeightLb,
+              })
+            : null;
       if (blocked) {
         await manager.query(
           `UPDATE quote_provider_attempts SET status='failed',outcome=$2,reason_code=$3,
@@ -76,8 +94,9 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
           [
             attempt.id,
             blocked === 'provider_disabled' ? 'failed' : 'validation_failed',
-            blocked === 'provider_disabled'
-              ? 'provider_disabled'
+            blocked === 'provider_disabled' ||
+            blocked === 'weight_limit_exceeded'
+              ? blocked
               : 'validation_failed',
             attempt.mode,
           ],
@@ -121,6 +140,7 @@ export class TypeOrmQuoteExecutionRepository extends QuoteExecutionRepository {
         input: attempt.input,
         sender: attempt.sender,
         conversionSnapshot: attempt.conversion_snapshot,
+        weightPolicy,
         reloginCount: attempt.diagnostics.reloginCount === 1 ? 1 : 0,
       };
     });

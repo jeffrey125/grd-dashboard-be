@@ -1,3 +1,4 @@
+import { providerWeightPolicy } from './provider-weight-policy.js';
 import { canQueueProvider } from './quote-provider-eligibility.js';
 import {
   providerAddressMeetsInputRequirements,
@@ -14,7 +15,11 @@ import {
 
 export type RetryConfiguration = Pick<
   ProviderConfiguration,
-  'code' | 'enabled' | 'executionMode' | 'usedInternationally'
+  | 'code'
+  | 'enabled'
+  | 'executionMode'
+  | 'usedInternationally'
+  | 'maxPackageWeightLb'
 >;
 
 export function retryInputBlock(
@@ -37,6 +42,10 @@ export function retryInputBlock(
     !addressSchema.safeParse(sender.address).success
   )
     return 'input_invalid';
+  if (
+    providerWeightPolicy(input, provider).exceededPackageGroupPositions.length
+  )
+    return 'weight_limit_exceeded';
   if (!canQueueProvider(input, provider)) return 'input_invalid';
   if (!packageDimensionsSupportedForProvider(input, provider.code))
     return 'input_invalid';

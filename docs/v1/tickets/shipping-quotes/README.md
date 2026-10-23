@@ -50,6 +50,8 @@ and [implementation summary](../../implementation-summary/SQ-V1-001-implementati
 | [SQ-V1-009](SQ-V1-009-readiness.md)             | Full-stack behavior and operational recovery pass the release gate.                    |
 | [SQ-V1-011](SQ-V1-011-amazon-sp-api-sandbox.md) | Amazon quotes use SP-API sandbox with no Amazon browser/CAPTCHA runtime.               |
 
+| [SQ-V1-012](SQ-V1-012-provider-weight-limits.md) | Admin-configurable per-box limits with whole-shipment eligibility and preserved history. |
+
 ## Shared completion rule
 
 Each ticket must meet every acceptance criterion and run its listed verification in

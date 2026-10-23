@@ -266,3 +266,24 @@ expire with a safe timeout and require an explicit new test.
 SQ-V1-011 removes the Amazon browser/session/CAPTCHA runtime and staff verification
 endpoint. Amazon uses sandbox API credentials only. Historical browser outcomes
 remain immutable evidence; they do not reactivate the retired flow.
+
+## Configurable per-box weight limits (SQ-V1-012)
+
+Approved 2026-10-24: initialize Amazon Shipping at 50 lb and myUnishippers at
+150 lb per physical box. Admins may lower or raise positive limits; warn above
+published defaults without preventing a save. These are actual packed weights,
+not dimensional/billable weights or the sum of box quantities. Convert metric
+limits precisely and allow equality at the boundary.
+
+An overweight box excludes that provider from the entire comparison, with an
+explanation naming the box and limit. Continue with other eligible providers;
+never compare a partial shipment price with a full shipment price. If none of
+the selected providers qualify, disable submission and enforce rejection in the
+API. New requests and retries use current settings, rechecked before first
+execution; running requests and recovery retain their starting policy. Historical
+results remain unchanged.
+
+Reuse installed Zod, Math.js, Decimal.js and TypeORM; no new dependencies.
+Sources checked during the design interview:
+[Amazon Shipping FAQ](https://shipping.amazon.com/help) and
+[Unishippers parcel versus freight](https://www.unishippers.com/shipping-resources/general-resources/parcel-vs-ltl-freight-which-is-best-for-larger-packages).

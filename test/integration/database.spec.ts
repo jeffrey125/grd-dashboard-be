@@ -1,3 +1,4 @@
+import { ProviderWeightLimits1793232000000 } from '@infrastructure/database/migrations/1793232000000-ProviderWeightLimits.js';
 import { ProviderAdministration1793059200000 } from '@infrastructure/database/migrations/1793059200000-ProviderAdministration.js';
 import { AmazonApiMode1793145600000 } from '@infrastructure/database/migrations/1793145600000-AmazonApiMode.js';
 import { QuoteComparisons1792540800000 } from '@infrastructure/database/migrations/1792540800000-QuoteComparisons.js';
@@ -106,6 +107,7 @@ describe('production migrations and repository foundation', () => {
         QuoteHistoryRetry1792972800000,
         ProviderAdministration1793059200000,
         AmazonApiMode1793145600000,
+        ProviderWeightLimits1793232000000,
       ],
     });
     await source.initialize();
@@ -381,6 +383,7 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Provider weight limits migration.
     await source.undoLastMigration(); // Amazon API mode migration.
     await source.undoLastMigration(); // Provider administration migration.
     await source.undoLastMigration(); // History and retry migration.

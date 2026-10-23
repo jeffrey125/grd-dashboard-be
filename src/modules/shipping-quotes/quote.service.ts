@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { providerWeightLimits } from './provider-weight-policy.js';
 import { QUOTE_REPOSITORY, type QuoteRepository } from './quote.repository.js';
 import { submitQuoteSchema, type SenderSnapshot } from './quote.schemas.js';
 import { providerInputRequirements } from './provider-input-requirements.js';
@@ -21,6 +22,7 @@ export class QuoteService {
   async providers() {
     return (await this.repository.providers()).map((provider) => ({
       ...provider,
+      ...providerWeightLimits(provider),
       internationalAvailable: false,
       inputRequirements: providerInputRequirements(provider.code),
     }));

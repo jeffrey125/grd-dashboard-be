@@ -1,3 +1,4 @@
+import { ProviderWeightLimits1793232000000 } from '@infrastructure/database/migrations/1793232000000-ProviderWeightLimits.js';
 import { ProviderAdministration1793059200000 } from '@infrastructure/database/migrations/1793059200000-ProviderAdministration.js';
 import { AmazonApiMode1793145600000 } from '@infrastructure/database/migrations/1793145600000-AmazonApiMode.js';
 import { QUOTE_ENTITIES } from '@modules/shipping-quotes/quote.entities.js';
@@ -62,6 +63,7 @@ export async function shipmentDatabase() {
       QuoteHistoryRetry1792972800000,
       ProviderAdministration1793059200000,
       AmazonApiMode1793145600000,
+      ProviderWeightLimits1793232000000,
     ],
   });
 

@@ -337,6 +337,7 @@ export type QuoteInput = z.infer<typeof createQuoteSchema>;
 export type Address = z.infer<typeof addressSchema>;
 export type ProviderCode = z.infer<typeof providerCode>;
 export type ProviderConfiguration = {
+  maxPackageWeightLb?: string;
   code: ProviderCode;
   name: string;
   enabled: boolean;
@@ -399,6 +400,7 @@ export type QuoteAttempt = {
   outcome: string | null;
   reasonCode: string | null;
   simulated: boolean;
+  weightPolicy?: Record<string, unknown> | null;
   conversionSnapshot: Record<string, unknown>;
   quotes: Array<{
     platform: string;

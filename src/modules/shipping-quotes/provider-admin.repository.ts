@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { maxPackageWeightSchema } from './provider-weight-policy.js';
 import {
   executionModeSchema,
   type ExecutionMode,
@@ -6,6 +7,7 @@ import {
 import { providerCode } from './quote.schemas.js';
 
 export const providerSettingsInput = z.strictObject({
+  maxPackageWeightLb: maxPackageWeightSchema.optional(),
   revision: z.number().int().nonnegative(),
   enabled: z.boolean(),
   executionMode: executionModeSchema,

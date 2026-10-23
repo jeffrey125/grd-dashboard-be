@@ -17,12 +17,19 @@ import {
   "(code='amazon' AND execution_mode='api') OR (code='unishippers' AND execution_mode IN ('request','browser'))",
 )
 @Check('shipping_providers_stale_hours_check', 'stale_hours BETWEEN 1 AND 168')
+@Check(
+  'shipping_providers_weight_limit_check',
+  "max_package_weight_lb > 0 AND max_package_weight_lb <> 'NaN'::numeric",
+)
 @Index('ix_shipping_providers_updated_by', ['updated_by_id'])
 @ForeignKey('AuthUserEntity', ['updated_by_id'], ['id'], {
   name: 'shipping_providers_updated_by_id_fkey',
   onDelete: 'NO ACTION',
 })
 export class ShippingProvidersEntity {
+  @Column({ type: 'numeric', precision: 15, scale: 6 })
+  max_package_weight_lb: string;
+
   @Column({ type: 'integer', default: 0 })
   revision: number;
 
@@ -341,6 +348,9 @@ export class QuoteCustomsItemsEntity {
   onDelete: 'NO ACTION',
 })
 export class QuoteProviderAttemptsEntity {
+  @Column({ type: 'jsonb', nullable: true })
+  weight_policy: Record<string, unknown> | null;
+
   @PrimaryGeneratedColumn('identity', {
     type: 'bigint',
     generatedIdentity: 'ALWAYS',

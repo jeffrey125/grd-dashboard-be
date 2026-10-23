@@ -649,3 +649,34 @@ field whenever any selected provider requires it. Amazon names/contact names all
 at most 50 characters and address lines 60; myUnishippers sender names allow at
 most 35 characters. Both current providers
 advertise no signature/insurance support and no international availability.
+
+## SQ-V1-012 — provider weight limits
+
+Provider discovery now includes decimal-string `maxPackageWeightLb` and
+`maxPackageWeightKg`. Math.js converts the limit on the backend; the browser
+compares actual per-box weight in its entered units with Decimal.js, without
+rounding before comparison or multiplying by quantity. Equality is allowed.
+
+Admin settings GET includes `maxPackageWeightLb`; PATCH accepts the same positive
+decimal string (up to nine integer and six fractional digits). Omission preserves
+the current setting for older clients. Only admins can save; existing optimistic
+revision checks and actor attribution apply. Warn above Amazon 50 lb / Unishippers
+150 lb but permit saving, with no readiness test needed for a weight-only change.
+
+Keep overweight providers selected in the submitted input so their skipped
+outcomes remain in history. If any group is overweight, that provider receives
+`outcome: unsupported`, `reasonCode: weight_limit_exceeded`, and no provider call.
+Other eligible providers proceed. If every selected provider is overweight,
+submission returns 400 with `reason: weight_limit_exceeded` and a `providers` array
+containing each code, limits, and offending group positions; nothing is saved.
+The form shows per-group warnings and disables comparison in this case.
+
+Attempt responses include nullable `weightPolicy` with both limits and
+`exceededPackageGroupPositions`; display this recorded policy for historical
+failures. Queued requests recheck current settings at worker start; a newly
+ineligible attempt fails with `validation_failed` and `weight_limit_exceeded`.
+Retry availability uses current limits and reports `retryBlockedReason:
+weight_limit_exceeded`. Already-started requests/recoveries retain their policy;
+completed results are unchanged. Apply the migration before running the new API
+or worker. Frontend reads tolerate older responses without the additional fields;
+the backend remains authoritative.

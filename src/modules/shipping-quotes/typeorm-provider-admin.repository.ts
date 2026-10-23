@@ -29,7 +29,7 @@ export class TypeOrmProviderAdminRepository extends ProviderAdminRepository {
   async settings() {
     const rows = await this.source
       .query(`SELECT p.code,p.name,p.enabled,p.execution_mode AS "executionMode",
-      p.maintenance_message AS "maintenanceMessage",p.stale_hours AS "staleHours",p.revision,
+      p.maintenance_message AS "maintenanceMessage",p.stale_hours AS "staleHours",p.max_package_weight_lb::text AS "maxPackageWeightLb",p.revision,
       p.updated_at AS "updatedAt",u.external_id AS "updatedBy",
       (SELECT row_to_json(t) FROM (${testProjection} WHERE t.provider_id=p.id AND t.consumed_at IS NOT NULL ORDER BY t.consumed_at DESC LIMIT 1) t) AS "savedConnectionTest"
       FROM shipping_providers p LEFT JOIN auth_users u ON u.id=p.updated_by_id ORDER BY p.id`);
@@ -97,7 +97,7 @@ export class TypeOrmProviderAdminRepository extends ProviderAdminRepository {
       }
       await manager.query(
         `UPDATE shipping_providers SET enabled=$2,execution_mode=$3,maintenance_message=$4,
-        stale_hours=$5,updated_by_id=$6,updated_at=clock_timestamp(),revision=revision+1 WHERE id=$1`,
+        stale_hours=$5,max_package_weight_lb=COALESCE($7::numeric,max_package_weight_lb),updated_by_id=$6,updated_at=clock_timestamp(),revision=revision+1 WHERE id=$1`,
         [
           provider.id,
           input.enabled,
@@ -105,6 +105,7 @@ export class TypeOrmProviderAdminRepository extends ProviderAdminRepository {
           input.maintenanceMessage || null,
           input.staleHours,
           actorId,
+          input.maxPackageWeightLb ?? null,
         ],
       );
     });

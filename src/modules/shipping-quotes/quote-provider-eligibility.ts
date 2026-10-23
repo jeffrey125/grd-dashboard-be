@@ -4,6 +4,8 @@ import {
   type QuoteInput,
 } from './quote.schemas.js';
 
+import { providerWeightPolicy } from './provider-weight-policy.js';
+
 const businessDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/New_York',
   year: 'numeric',
@@ -20,7 +22,7 @@ export function unishippersQuickQuoteDateSupported(
 
 type QueueConfiguration = Pick<
   ProviderConfiguration,
-  'code' | 'executionMode' | 'usedInternationally'
+  'code' | 'executionMode' | 'usedInternationally' | 'maxPackageWeightLb'
 >;
 
 export function canQueueProvider(
@@ -31,6 +33,11 @@ export function canQueueProvider(
     (provider) => provider.code === configuration.code,
   );
   if (!selected) return false;
+  if (
+    providerWeightPolicy(input, configuration).exceededPackageGroupPositions
+      .length
+  )
+    return false;
 
   const international = input.destination.country !== 'US';
   if (

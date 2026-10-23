@@ -16,6 +16,7 @@ import {
   canonicalMeasurements,
   conversionSnapshot,
 } from './quote-conversions.js';
+import { providerWeightPolicy } from './provider-weight-policy.js';
 import { canQueueProvider } from './quote-provider-eligibility.js';
 import {
   retryInputBlock,
@@ -27,10 +28,10 @@ const projection = `SELECT q.external_id AS "externalId", q.status, q.created_at
   COALESCE((SELECT jsonb_agg(jsonb_build_object(
     'externalId',a.external_id,'provider',p.code,'status',a.status,'attemptNumber',a.attempt_number,
     'createdAt',a.created_at,'sender',a.sender,
-    'configuration',jsonb_build_object('code',p.code,'enabled',p.enabled,'executionMode',p.execution_mode,'usedInternationally',p.used_internationally),
+    'configuration',jsonb_build_object('code',p.code,'enabled',p.enabled,'executionMode',p.execution_mode,'usedInternationally',p.used_internationally,'maxPackageWeightLb',p.max_package_weight_lb::text),
     'executionMode',a.execution_mode,'startedAt',a.started_at,'completedAt',a.completed_at,
     'recoveryCount',a.recovery_count,'outcome',a.outcome,'reasonCode',a.reason_code,'simulated',a.simulated,
-    'conversionSnapshot',a.conversion_snapshot,
+    'conversionSnapshot',a.conversion_snapshot,'weightPolicy',a.weight_policy,
     'quotes',COALESCE((SELECT jsonb_agg(jsonb_build_object(
       'platform',p.name,'carrier',r.carrier,'service',r.service,'transportationTotal',r.transportation_total::text,
       'currency',r.currency,'estimateMethod',r.estimate_method,'transitDescription',r.transit_description,
@@ -108,7 +109,7 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
 
   providers() {
     return this.source.query(
-      `SELECT code,name,enabled,execution_mode AS "executionMode",maintenance_message AS "maintenanceMessage",stale_hours AS "staleHours",
+      `SELECT code,name,enabled,execution_mode AS "executionMode",maintenance_message AS "maintenanceMessage",stale_hours AS "staleHours",max_package_weight_lb::text AS "maxPackageWeightLb",
       (SELECT last_default FROM shipping_accounts WHERE provider_id=shipping_providers.id) AS "cachedDefault",
       used_internationally AS "usedInternationally",
       false AS "internationalAvailable",
@@ -165,8 +166,9 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
         enabled: boolean;
         executionMode: ExecutionMode;
         usedInternationally: boolean;
+        maxPackageWeightLb: string;
       }> = await manager.query(
-        'SELECT code,enabled,execution_mode AS "executionMode",used_internationally AS "usedInternationally" FROM shipping_providers WHERE code=ANY($1::text[]) ORDER BY id FOR SHARE',
+        'SELECT code,enabled,max_package_weight_lb::text AS "maxPackageWeightLb",execution_mode AS "executionMode",used_internationally AS "usedInternationally" FROM shipping_providers WHERE code=ANY($1::text[]) ORDER BY id FOR SHARE',
         [input.providers.map((p) => p.code)],
       );
       if (
@@ -176,6 +178,28 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
         throw new BadRequestException(
           'Selected provider is disabled or unavailable',
         );
+      const weightPolicies = new Map(
+        providers.map((provider) => [
+          provider.code,
+          providerWeightPolicy(input, provider),
+        ]),
+      );
+      if (
+        providers.every(
+          (provider) =>
+            weightPolicies.get(provider.code)!.exceededPackageGroupPositions
+              .length > 0,
+        )
+      )
+        throw new BadRequestException({
+          message:
+            'No selected provider can quote every box within its weight limit',
+          reason: 'weight_limit_exceeded',
+          providers: providers.map((provider) => ({
+            code: provider.code,
+            ...weightPolicies.get(provider.code),
+          })),
+        });
       const configurations = new Map(
         providers.map((provider) => [provider.code, provider]),
       );
@@ -244,8 +268,8 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
         const provider = configurations.get(sender.code)!;
         const queued = queueable(sender.code);
         await manager.query(
-          `INSERT INTO quote_provider_attempts(request_id,account_id,sender,conversion_snapshot,execution_mode,status,outcome,reason_code,completed_at)
-          SELECT $1,a.id,$2,$3,$4,$5::varchar,$6,$7,CASE WHEN $5::varchar='failed' THEN clock_timestamp() ELSE NULL END
+          `INSERT INTO quote_provider_attempts(request_id,account_id,sender,conversion_snapshot,execution_mode,status,outcome,reason_code,completed_at,weight_policy)
+          SELECT $1,a.id,$2,$3,$4,$5::varchar,$6,$7,CASE WHEN $5::varchar='failed' THEN clock_timestamp() ELSE NULL END,$9::jsonb
           FROM shipping_accounts a JOIN shipping_providers p ON p.id=a.provider_id WHERE p.code=$8`,
           [
             requestId,
@@ -254,8 +278,14 @@ export class TypeOrmQuoteRepository implements QuoteRepository {
             provider.executionMode,
             queued ? 'queued' : 'failed',
             queued ? null : 'unsupported',
-            queued ? null : 'unsupported',
+            queued
+              ? null
+              : weightPolicies.get(sender.code)!.exceededPackageGroupPositions
+                    .length
+                ? 'weight_limit_exceeded'
+                : 'unsupported',
             sender.code,
+            JSON.stringify(weightPolicies.get(sender.code)),
           ],
         );
       }

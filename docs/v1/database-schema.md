@@ -668,3 +668,22 @@ Amazon mode to `api`, increments its revision, and clears its retired cached sen
 default/default-refresh state. It adds no table, column, index or foreign key. Down
 migration maps `api` evidence to `request` because the prior checks cannot represent
 it; run rollback only with the updated API and worker stopped.
+
+## SQ-V1-012 — configurable per-box quote limits
+
+Migration `1793232000000-ProviderWeightLimits` adds
+`shipping_providers.max_package_weight_lb numeric(15,6) NOT NULL`, positive and
+not NaN. Existing providers are initialized to Amazon 50 lb and Unishippers 150 lb.
+This persisted setting is required because administrators may change the limit
+without a deployment; there is no carrier-cap ceiling. API values are positive
+decimal strings with up to nine integer and six fractional digits, consistent
+with package measurement precision. The normal revision/actor update applies.
+
+`quote_provider_attempts.weight_policy jsonb NULL` records the applied
+`maxPackageWeightLb`, `maxPackageWeightKg`, and zero-based
+`exceededPackageGroupPositions`. It is separate from the immutable conversion
+snapshot: queued work checks the current setting again before first execution.
+A trigger rejects policy changes after an attempt has started or reached a terminal
+status. Pre-migration attempts retain null; their historical results are not
+rewritten. No foreign keys are added. The down migration removes both additions
+and the policy trigger/function.

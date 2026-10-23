@@ -18,6 +18,7 @@ export interface LeasedQuote {
   input: QuoteInput;
   sender: SenderSnapshot;
   conversionSnapshot?: Record<string, unknown>;
+  weightPolicy?: Record<string, unknown> | null;
   reloginCount: 0 | 1;
 }
 
