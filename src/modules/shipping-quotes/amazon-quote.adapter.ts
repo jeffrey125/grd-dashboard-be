@@ -102,7 +102,7 @@ export interface AmazonApiSession {
   getRates(body: GetRatesRequest, signal: AbortSignal): Promise<unknown>;
 }
 
-class AmazonSpApiSandboxSession implements AmazonApiSession {
+class AmazonSpApiSession implements AmazonApiSession {
   private readonly auth: SellingPartnerApiAuth;
   private readonly client: ShippingApiClient;
 
@@ -111,7 +111,7 @@ class AmazonSpApiSandboxSession implements AmazonApiSession {
     this.client = new ShippingApiClient({
       auth: this.auth,
       region: 'na',
-      sandbox: true,
+      sandbox: false,
       userAgent: 'grd-dashboard/1.0 (Language=TypeScript)',
       rateLimiting: { retry: true },
     });
@@ -143,9 +143,9 @@ function parseMoney(value: unknown): Decimal {
 
 function credentialsFromEnvironment(): AmazonCredentials {
   const credentials = {
-    clientId: process.env.AMAZON_SP_API_SANDBOX_CLIENT_ID?.trim() ?? '',
-    clientSecret: process.env.AMAZON_SP_API_SANDBOX_CLIENT_SECRET ?? '',
-    refreshToken: process.env.AMAZON_SP_API_SANDBOX_REFRESH_TOKEN ?? '',
+    clientId: process.env.AMAZON_SP_API_CLIENT_ID?.trim() ?? '',
+    clientSecret: process.env.AMAZON_SP_API_CLIENT_SECRET ?? '',
+    refreshToken: process.env.AMAZON_SP_API_REFRESH_TOKEN ?? '',
   };
   if (
     !credentials.clientId ||
@@ -333,7 +333,7 @@ export function aggregateAmazonApiRates(
 }
 
 export class AmazonShippingAdapter implements QuoteAdapter {
-  readonly simulated = true;
+  readonly simulated = false;
   private session?: AmazonApiSession;
 
   constructor(private readonly options: AmazonAdapterOptions = {}) {
@@ -345,7 +345,7 @@ export class AmazonShippingAdapter implements QuoteAdapter {
   }
 
   private get apiSession(): AmazonApiSession {
-    this.session ??= new AmazonSpApiSandboxSession(this.credentials);
+    this.session ??= new AmazonSpApiSession(this.credentials);
     return this.session;
   }
 
@@ -427,18 +427,18 @@ export class AmazonShippingAdapter implements QuoteAdapter {
       return {
         outcome: 'success',
         reason: null,
-        simulated: true,
+        simulated: false,
         relogins: 0,
         quotes: aggregateAmazonApiRates(rates),
       };
     } catch (error) {
       if (error instanceof AmazonAuthenticationFailed)
-        return quoteFailure('authentication_failed', true);
+        return quoteFailure('authentication_failed', false);
       if (error instanceof AmazonValidationFailed)
-        return quoteFailure('validation_failed', true);
+        return quoteFailure('validation_failed', false);
       if (error instanceof AmazonUnsupported)
-        return quoteFailure('unsupported', true);
-      return quoteFailure('provider_failed', true);
+        return quoteFailure('unsupported', false);
+      return quoteFailure('provider_failed', false);
     }
   }
 

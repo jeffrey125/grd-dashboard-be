@@ -24,9 +24,9 @@ const modes = {
 } as const;
 const amazonCredentialsAvailable = () =>
   Boolean(
-    process.env.AMAZON_SP_API_SANDBOX_CLIENT_ID &&
-    process.env.AMAZON_SP_API_SANDBOX_CLIENT_SECRET &&
-    process.env.AMAZON_SP_API_SANDBOX_REFRESH_TOKEN,
+    process.env.AMAZON_SP_API_CLIENT_ID &&
+    process.env.AMAZON_SP_API_CLIENT_SECRET &&
+    process.env.AMAZON_SP_API_REFRESH_TOKEN,
   );
 
 for (const code of ['amazon', 'unishippers'] as const) {

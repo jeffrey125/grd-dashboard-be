@@ -495,7 +495,7 @@ Unknown reasons must use generic safe UI copy.
 Historical `verification_required` outcomes remain readable, but the Amazon browser
 verification flow is retired. A normal eligible retry creates a new attempt in the
 current `api` mode. Existing readiness failure summaries remain
-`readiness_failed/readiness_timeout`; Amazon readiness verifies sandbox LWA
+`readiness_failed/readiness_timeout`; Amazon readiness verifies production LWA
 authentication without requesting a sample rate.
 
 For myUnishippers, `platform` is `myUnishippers` and `carrier` is the delivering
@@ -628,7 +628,8 @@ mode/origin remain unchanged. Frontend settings route: `/admin/shipping-provider
 
 ### Amazon sandbox presentation
 
-Amazon attempts use `executionMode: "api"` and `simulated: true`. Show the warning
+New Amazon attempts use `executionMode: "api"` and `simulated: false`. Historical
+sandbox attempts retain `simulated: true`. Show the warning
 **Amazon sandbox mode — test data, not live commercial prices** whenever an Amazon
 sandbox attempt is present. Never give simulated Amazon results a Lowest price badge.
 The former Amazon verification endpoint no longer exists.

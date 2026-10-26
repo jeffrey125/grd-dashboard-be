@@ -16,10 +16,14 @@ Remove these retired values and mounts from VM configuration during rollout:
 
 Configure the worker with:
 
-- `AMAZON_SP_API_SANDBOX_CLIENT_ID`
-- `AMAZON_SP_API_SANDBOX_CLIENT_SECRET`
-- `AMAZON_SP_API_SANDBOX_REFRESH_TOKEN`
+- `AMAZON_SP_API_CLIENT_ID`
+- `AMAZON_SP_API_CLIENT_SECRET`
+- `AMAZON_SP_API_REFRESH_TOKEN`
 
 Sandbox quotes are simulated test data, not live commercial prices. See the
 [SQ-V1-011 ticket](tickets/shipping-quotes/SQ-V1-011-amazon-sp-api-sandbox.md)
 and [Amazon API feasibility report](amazon-shipping-api-rate-feasibility.md).
+
+Production follow-up: the adapter now uses the North America production endpoint
+and the neutral credential names above. New attempts are not simulated; existing
+sandbox history keeps its simulated marker. No browser recovery is required.

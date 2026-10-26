@@ -81,8 +81,8 @@ and installed standards libraries, with the approved provider mappings.
 
 ## Provider execution
 
-Amazon is fixed to `api` mode. It uses Shipping API v2 through Amazon's dynamic
-sandbox with environment-only LWA client ID, client secret and refresh token. No
+Amazon is fixed to `api` mode. It uses Shipping API v2 through the North America production
+endpoint with environment-only LWA client ID, client secret and refresh token. No
 Amazon email/password login, Playwright page, cookie/session persistence, CAPTCHA
 bridge or provider-account mutation remains. Readiness retrieves an LWA token but
 does not request a rate.
@@ -212,7 +212,7 @@ but the domain behaviors and authorization above are fixed.
 ## Approved technical approach
 
 SQ-V1-011 approves `@sp-api-sdk/shipping-api-v2@3.1.7` and
-`@sp-api-sdk/auth@3.1.6` for Amazon's generated Shipping v2 contract, sandbox endpoint,
+`@sp-api-sdk/auth@3.1.6` for Amazon's generated Shipping v2 contract, production endpoint,
 LWA token lifecycle and 429 retry. Keep Zod runtime validation and Decimal.js
 aggregation at the application boundary. Playwright remains for myUnishippers and
 tracking only. The frontend uses its existing React, MUI, React Hook Form, TanStack
@@ -264,7 +264,7 @@ expire with a safe timeout and require an explicit new test.
 ### Amazon browser verification retirement
 
 SQ-V1-011 removes the Amazon browser/session/CAPTCHA runtime and staff verification
-endpoint. Amazon uses sandbox API credentials only. Historical browser outcomes
+endpoint. Amazon uses production API credentials only. Historical browser outcomes
 remain immutable evidence; they do not reactivate the retired flow.
 
 ## Configurable per-box weight limits (SQ-V1-012)

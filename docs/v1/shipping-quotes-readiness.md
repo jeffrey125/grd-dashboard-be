@@ -85,9 +85,9 @@ Core environment names: `NODE_ENV`, `PORT`, `LOG_LEVEL`, `DB_HOST`, `DB_PORT`,
 configuration. Existing tracking adapter requirements still apply to the complete
 worker; disable tracking carriers in disposable acceptance databases.
 
-Provider credentials are environment-only. Amazon sandbox uses
-`AMAZON_SP_API_SANDBOX_CLIENT_ID`, `AMAZON_SP_API_SANDBOX_CLIENT_SECRET`, and
-`AMAZON_SP_API_SANDBOX_REFRESH_TOKEN`. myUnishippers uses
+Provider credentials are environment-only. Amazon production uses
+`AMAZON_SP_API_CLIENT_ID`, `AMAZON_SP_API_CLIENT_SECRET`, and
+`AMAZON_SP_API_REFRESH_TOKEN`. myUnishippers uses
 `MYUNISHIPPERS_EMAIL` and `MYUNISHIPPERS_PASSWORD`.
 `QUOTE_DEMO_MODE`, `QUOTE_DEMO_AMAZON`, and `QUOTE_DEMO_UNISHIPPERS` are local-only;
 demo mode is rejected in production and does not disable tracking or live default
@@ -99,7 +99,7 @@ deadline and a 120-second lease; recovery is allowed once. Authentication expiry
 allows one relogin/replay. There is no automatic mode fallback. Defaults/readiness
 expire after 15 minutes; stale-rate policy is 1–168 hours, default 1 hour.
 
-Amazon readiness retrieves a sandbox LWA access token without requesting a rate.
+Amazon readiness retrieves a production LWA access token without requesting a rate.
 There is no Amazon browser challenge or onboarding path in the runtime.
 
 Amazon international/options remain unsupported. myUnishippers Quick Quote supports

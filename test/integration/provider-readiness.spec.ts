@@ -5,7 +5,7 @@ import {
 } from '@modules/shipping-quotes/amazon-quote.adapter.js';
 
 describe('Amazon readiness boundary', () => {
-  it('verifies sandbox credentials without requesting a rate', async () => {
+  it('verifies credentials without requesting a rate', async () => {
     const authenticate = vi.fn(async () => undefined);
     const session: AmazonApiSession = {
       authenticate,

@@ -205,13 +205,13 @@ unchanged; use Copy to new to execute them. Apply migrations
 `1792627200000-QuoteExecution`, `1792713600000-AmazonQuoteBreakdown`, and
 `1792800000000-OptionalPackageDimensions` before starting the updated API/worker.
 
-Amazon uses fixed `api` execution through the Shipping API v2 dynamic sandbox.
-The worker reads `AMAZON_SP_API_SANDBOX_CLIENT_ID`,
-`AMAZON_SP_API_SANDBOX_CLIENT_SECRET`, and
-`AMAZON_SP_API_SANDBOX_REFRESH_TOKEN`; it never launches an Amazon browser. Each
+Amazon uses fixed `api` execution through the Shipping API v2 production endpoint.
+The worker reads `AMAZON_SP_API_CLIENT_ID`,
+`AMAZON_SP_API_CLIENT_SECRET`, and
+`AMAZON_SP_API_REFRESH_TOKEN`; it never launches an Amazon browser. Each
 physical package is rated separately and only common services are aggregated.
-Every Amazon sandbox attempt is marked simulated and must be shown as test data,
-not a live commercial price. myUnishippers request mode uses the authenticated in-page
+New Amazon attempts are live (`simulated: false`). Historical sandbox attempts
+remain simulated and must still be shown as test data. myUnishippers request mode uses the authenticated in-page
 `/svc/shopFlow` estimate contract and supports native multi-package shipments. Browser
 mode drives the full small-package form with native package quantities, addresses,
 contact names/phone numbers, and the selected ship date. It does not use Quick Quote.
@@ -234,7 +234,7 @@ To opt in to a quote-only adapter smoke, configure the selected provider credent
 in `.env` and run `pnpm test:shipping-quotes:adapter:live`. It tests two packages,
 uses an explicit synthetic Amazon origin or reads the myUnishippers origin in memory, and
 prints only outcomes, relogin counts, totals, currencies, and estimate methods.
-Use `-- --provider amazon --mode api` to select the sandbox check. Missing credentials,
+Use `-- --provider amazon --mode api` to select the production check. Missing credentials,
 failed sender/login resolution, and unsuccessful rates exit nonzero; each mode is
 reported independently. It uses comparison-only test company/contact values and never books.
 The isolated harness below avoids provider I/O. Existing tracking-worker credential/enablement
@@ -280,11 +280,11 @@ rather than contacting providers. Live sample-rate tests belong to SQ-V1-009.
 Stale policy now defaults to one hour (1–168 configurable), including existing quotes
 without provider expiry. Default refresh and mode-test validity are 15 minutes.
 
-### Amazon Shipping API sandbox
+### Amazon Shipping API production
 
 Apply migration `1793145600000-AmazonApiMode` before starting the updated API and
 worker. Amazon readiness checks LWA authentication only; quote execution calls the
-dynamic sandbox. The former Amazon Playwright login, saved-session mounts, CAPTCHA
+production endpoint. The former Amazon Playwright login, saved-session mounts, CAPTCHA
 socket, operator CLI and staff verification endpoint are removed. Remove their
 retired environment variables and VM mounts during rollout. The myUnishippers and
 tracking browser runtimes remain unchanged.

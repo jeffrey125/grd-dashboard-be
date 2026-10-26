@@ -53,7 +53,7 @@ function job(): LeasedQuote {
   };
 }
 
-const sandboxRate = {
+const fixtureRate = {
   payload: {
     requestToken: 'sandbox-request-token',
     rates: [
@@ -83,11 +83,11 @@ const sandboxRate = {
   },
 };
 
-describe('Amazon Shipping API sandbox adapter', () => {
+describe('Amazon Shipping API production adapter', () => {
   it('quotes every physical box through SP-API and aggregates the common service', async () => {
     const authenticate = vi.fn(async () => undefined);
     const getRates = vi.fn<AmazonApiSession['getRates']>(
-      async () => sandboxRate,
+      async () => fixtureRate,
     );
     const session: AmazonApiSession = { authenticate, getRates };
     const adapter = new AmazonShippingAdapter({
@@ -98,7 +98,7 @@ describe('Amazon Shipping API sandbox adapter', () => {
 
     expect(result).toMatchObject({
       outcome: 'success',
-      simulated: true,
+      simulated: false,
       quotes: [
         {
           carrier: 'Amazon Shipping',
@@ -148,7 +148,7 @@ describe('Amazon Shipping API sandbox adapter', () => {
     sameDay.input = structuredClone(sameDay.input);
     sameDay.input.shipDate = '2026-10-21';
     const getRates = vi.fn<AmazonApiSession['getRates']>(
-      async () => sandboxRate,
+      async () => fixtureRate,
     );
     const adapter = new AmazonShippingAdapter({
       now: () => current,
@@ -166,7 +166,7 @@ describe('Amazon Shipping API sandbox adapter', () => {
     const stale = job();
     stale.input = structuredClone(stale.input);
     stale.input.shipDate = '2026-10-20';
-    const getRates = vi.fn(async () => sandboxRate);
+    const getRates = vi.fn(async () => fixtureRate);
     const adapter = new AmazonShippingAdapter({
       now: () => new Date('2026-10-21T22:16:00.000Z'),
       session: { authenticate: vi.fn(async () => undefined), getRates },
@@ -193,13 +193,13 @@ describe('Amazon Shipping API sandbox adapter', () => {
     ).toMatchObject({
       outcome: 'authentication_failed',
       reason: 'authentication_failed',
-      simulated: true,
+      simulated: false,
       quotes: [],
     });
   });
 
   it('rejects more than 100 physical packages before allocating or calling Amazon', async () => {
-    const getRates = vi.fn(async () => sandboxRate);
+    const getRates = vi.fn(async () => fixtureRate);
     const overLimit = job();
     overLimit.input = structuredClone(overLimit.input);
     overLimit.input.packageGroups[0]!.quantity = 101;
@@ -214,7 +214,7 @@ describe('Amazon Shipping API sandbox adapter', () => {
   });
 
   it('rejects an over-limit contact name before calling Amazon', async () => {
-    const getRates = vi.fn(async () => sandboxRate);
+    const getRates = vi.fn(async () => fixtureRate);
     const invalid = job();
     invalid.sender = structuredClone(invalid.sender);
     invalid.sender.address.contactName = 'C'.repeat(51);
@@ -229,7 +229,7 @@ describe('Amazon Shipping API sandbox adapter', () => {
   });
 
   it('accepts the 100-package boundary', async () => {
-    const getRates = vi.fn(async () => sandboxRate);
+    const getRates = vi.fn(async () => fixtureRate);
     const boundary = job();
     boundary.input = structuredClone(boundary.input);
     boundary.input.packageGroups[0]!.quantity = 100;
@@ -245,16 +245,16 @@ describe('Amazon Shipping API sandbox adapter', () => {
   });
 
   it('keeps only services returned for every physical package', async () => {
-    const alternate = structuredClone(sandboxRate.payload.rates[0]!);
+    const alternate = structuredClone(fixtureRate.payload.rates[0]!);
     alternate.rateId = 'alternate-rate';
     alternate.serviceId = 'alternate-service';
     alternate.serviceName = 'Amazon Shipping Alternate';
-    const first = structuredClone(sandboxRate);
+    const first = structuredClone(fixtureRate);
     first.payload.rates.push(alternate);
     const getRates = vi
       .fn()
       .mockResolvedValueOnce(first)
-      .mockResolvedValueOnce(sandboxRate);
+      .mockResolvedValueOnce(fixtureRate);
     const adapter = new AmazonShippingAdapter({
       session: { authenticate: vi.fn(async () => undefined), getRates },
     });
@@ -270,11 +270,11 @@ describe('Amazon Shipping API sandbox adapter', () => {
   });
 
   it('fails closed when packages have no common service', async () => {
-    const second = structuredClone(sandboxRate);
+    const second = structuredClone(fixtureRate);
     second.payload.rates[0]!.serviceId = 'different-service';
     const getRates = vi
       .fn()
-      .mockResolvedValueOnce(sandboxRate)
+      .mockResolvedValueOnce(fixtureRate)
       .mockResolvedValueOnce(second);
     const adapter = new AmazonShippingAdapter({
       session: { authenticate: vi.fn(async () => undefined), getRates },
@@ -285,7 +285,7 @@ describe('Amazon Shipping API sandbox adapter', () => {
     ).toMatchObject({ outcome: 'unsupported', quotes: [] });
   });
 
-  it('classifies a sandbox 400 without exposing its response body', async () => {
+  it('classifies a provider 400 without exposing its response body', async () => {
     const adapter = new AmazonShippingAdapter({
       session: {
         authenticate: vi.fn(async () => undefined),
