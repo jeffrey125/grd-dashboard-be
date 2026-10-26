@@ -102,6 +102,7 @@ function record(row: JoinedShipment, extras: ReadExtras): ShipmentRecord {
     lastAttemptedAt: row.lastAttemptedAt,
     nextCheckAt: row.nextCheckAt,
     consecutiveNotFoundCount: row.consecutiveNotFoundCount,
+    consecutiveFailureCount: row.consecutiveFailureCount,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });

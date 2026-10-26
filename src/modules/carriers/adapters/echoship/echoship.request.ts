@@ -79,6 +79,12 @@ export class EchoShipRequest {
 
         return response.data as unknown;
       } catch (error) {
+        if (
+          axios.isAxiosError(error) &&
+          error.response?.data?.status?.code === 401104
+        )
+          throw new EchoShipFailure('ECHOSHIP_ACCOUNT_LOCKED');
+
         if (deadline.signal.aborted && !combined.aborted)
           throw new EchoShipFailure('ECHOSHIP_TIMEOUT');
 
@@ -105,6 +111,10 @@ export class EchoShipRequest {
     );
   }
 
+  async validateSession(signal: AbortSignal) {
+    searchPage(await this.search('', 0, signal));
+  }
+
   async login(signal: AbortSignal) {
     await this.request(
       {
@@ -122,7 +132,7 @@ export class EchoShipRequest {
       signal,
     );
     // A success-shaped login alone is not evidence that cookies authorize reads.
-    searchPage(await this.search('', 0, signal));
+    await this.validateSession(signal);
   }
 
   async read(reference: string, signal: AbortSignal) {

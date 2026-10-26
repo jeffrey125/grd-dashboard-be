@@ -9,7 +9,7 @@ export interface TrackingNotice {
   initial?: boolean;
   snapshot?: NormalizedTrackingState;
   previous?: NormalizedTrackingState | null;
-  stopped?: 'delivered' | 'not_found_threshold';
+  stopped?: 'delivered' | 'not_found_threshold' | 'failure_threshold';
 }
 
 export abstract class TrackingNotifications {

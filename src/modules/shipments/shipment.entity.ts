@@ -17,6 +17,7 @@ export enum ShipmentMonitoringStatus {
 export enum ShipmentMonitoringReason {
   Manual = 'manual',
   NotFoundThreshold = 'not_found_threshold',
+  FailureThreshold = 'failure_threshold',
   Delivered = 'delivered',
 }
 
@@ -39,12 +40,13 @@ export enum ShipmentMonitoringReason {
 @Index('ix_shipments_due', ['nextCheckAt', 'id'], {
   where: "deleted_at IS NULL AND monitoring_status = 'active'",
 })
+@Check('ck_shipments_failures', 'consecutive_failure_count >= 0')
 @Check('ck_shipments_not_found', 'consecutive_not_found_count >= 0')
 @Check('ck_shipments_version', 'lock_version >= 1')
 @Check(
   'ck_shipments_monitoring',
   `((monitoring_status = 'active' AND monitoring_reason IS NULL)
-  OR (monitoring_status = 'paused' AND monitoring_reason IN ('manual', 'not_found_threshold'))
+  OR (monitoring_status = 'paused' AND monitoring_reason IN ('manual', 'not_found_threshold', 'failure_threshold'))
   OR (monitoring_status = 'completed' AND monitoring_reason = 'delivered')) IS TRUE`,
 )
 @ForeignKey('AuthUserEntity', ['createdById'], ['id'], {
@@ -134,6 +136,9 @@ export class ShipmentEntity extends ExternallyIdentifiedEntity {
 
   @Column({ name: 'consecutive_not_found_count', type: 'integer', default: 0 })
   consecutiveNotFoundCount: number;
+
+  @Column({ name: 'consecutive_failure_count', type: 'integer', default: 0 })
+  consecutiveFailureCount: number;
 
   @VersionColumn({ name: 'lock_version', type: 'integer', default: 1 })
   lockVersion: number;

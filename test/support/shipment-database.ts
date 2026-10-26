@@ -1,3 +1,4 @@
+import { MonitoringSafeguards1793318400000 } from '@infrastructure/database/migrations/1793318400000-MonitoringSafeguards.js';
 import { ProviderWeightLimits1793232000000 } from '@infrastructure/database/migrations/1793232000000-ProviderWeightLimits.js';
 import { ProviderAdministration1793059200000 } from '@infrastructure/database/migrations/1793059200000-ProviderAdministration.js';
 import { AmazonApiMode1793145600000 } from '@infrastructure/database/migrations/1793145600000-AmazonApiMode.js';
@@ -64,6 +65,7 @@ export async function shipmentDatabase() {
       ProviderAdministration1793059200000,
       AmazonApiMode1793145600000,
       ProviderWeightLimits1793232000000,
+      MonitoringSafeguards1793318400000,
     ],
   });
 

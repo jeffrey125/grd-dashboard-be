@@ -97,7 +97,7 @@ export class FfeRequest {
     });
   }
 
-  private async verify(signal: AbortSignal) {
+  async validateSession(signal: AbortSignal) {
     const response = await this.request({ url: TRACKING_PATH }, signal);
 
     assertResponse(
@@ -162,7 +162,7 @@ export class FfeRequest {
     )
       throw new FfeFailure('FFE_AUTHENTICATION_FAILED');
 
-    await this.verify(signal);
+    await this.validateSession(signal);
   }
 
   async read(reference: string, signal: AbortSignal) {
@@ -191,7 +191,7 @@ export class FfeRequest {
         );
         result = searchPage(JSON.parse(response.data), draw, 100);
       } catch (error) {
-        await this.verify(signal);
+        await this.validateSession(signal);
 
         throw error;
       }
@@ -215,7 +215,7 @@ export class FfeRequest {
       if (match) return mapFfe(reference, match);
 
       if (start + result.data.length === total) {
-        await this.verify(signal);
+        await this.validateSession(signal);
 
         return { outcome: 'not_found' as const, sourceData: null };
       }

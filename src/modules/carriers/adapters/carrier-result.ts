@@ -21,6 +21,7 @@ export const trackingResultSchema = z.discriminatedUnion('outcome', [
   z
     .object({
       outcome: z.literal('failed'),
+      failureScope: z.literal('session').optional(),
       retryable: z.boolean(),
       reasonCode: z.string().trim().min(1).max(100),
       message: z.string().trim().min(1).nullable(),

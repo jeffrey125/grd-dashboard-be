@@ -35,7 +35,9 @@ function shipmentEligible(
     shipment.monitoringStatus === 'active' ||
     (trigger === 'manual' &&
       shipment.monitoringStatus === 'paused' &&
-      shipment.monitoringReason === 'not_found_threshold')
+      ['not_found_threshold', 'failure_threshold'].includes(
+        shipment.monitoringReason ?? '',
+      ))
   );
 }
 
@@ -231,6 +233,7 @@ export class TrackingService {
         ...trackingRunRecord(updated, targets.length),
         status: 'running' as const,
         carrierCode: updated.carrierCode,
+        sessionGeneration: updated.sessionGeneration,
         targets: eligibleTargets.map((target) => ({
           shipmentExternalId: target.externalId,
           trackingReference: target.trackingReference,
@@ -289,7 +292,9 @@ export class TrackingService {
         const reactivate =
           attempt.runTrigger === 'manual' &&
           attempt.monitoringStatus === 'paused' &&
-          attempt.monitoringReason === 'not_found_threshold';
+          ['not_found_threshold', 'failure_threshold'].includes(
+            attempt.monitoringReason ?? '',
+          );
 
         requireShipmentUpdate(
           await transaction.updateShipmentFound({
@@ -410,15 +415,37 @@ export class TrackingService {
     });
   }
 
+  async recordSessionOutcome(runExternalId: string, healthy: boolean) {
+    const id = trackingRunExternalIdSchema.parse(runExternalId);
+
+    return this.repository.transaction(async (transaction) => {
+      const run = await transaction.lockRun(id);
+
+      if (!run || run.status !== 'running') return false;
+
+      return transaction.recordSessionOutcome(run.id, healthy);
+    });
+  }
+
   finalizeFailed(input: unknown) {
     const command = finalizeFailedSchema.parse(input);
     let notice: TrackingNotice | undefined;
     const result = this.finalizeCurrentAttempt(
       command,
       async (transaction, attempt, completedAt) => {
+        const failureCount = command.sessionFailure
+          ? attempt.consecutiveFailureCount
+          : Math.min(attempt.consecutiveFailureCount + 1, 2147483647);
+        const thresholdReached =
+          !command.sessionFailure &&
+          attempt.failurePauseEnabled &&
+          failureCount >= attempt.failurePauseThreshold;
+
         requireShipmentUpdate(
           await transaction.updateShipmentFailed({
             shipmentId: attempt.shipmentId,
+            failureCount,
+            thresholdReached,
             completedAt,
             scheduleNext:
               attempt.runTrigger === 'scheduled' &&
@@ -443,6 +470,9 @@ export class TrackingService {
           shipmentExternalId: attempt.shipmentExternalId,
           trackingReference: attempt.trackingReference,
           outcome: 'failed',
+          ...(thresholdReached && attempt.monitoringStatus === 'active'
+            ? { stopped: 'failure_threshold' as const }
+            : {}),
         };
 
         return {

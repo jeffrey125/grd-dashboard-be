@@ -15,6 +15,7 @@ import type {
 } from './tracking.schemas.js';
 
 interface RunRow {
+  session_generation: number;
   fetch_mode: LockedTrackingRun['fetchMode'];
   id: string;
   external_id: string;
@@ -31,6 +32,7 @@ interface RunRow {
 function lockedRun(row: RunRow): LockedTrackingRun {
   return {
     id: row.id,
+    sessionGeneration: row.session_generation,
     fetchMode: row.fetch_mode,
     externalId: row.external_id,
     trigger: row.trigger,
@@ -46,6 +48,44 @@ function lockedRun(row: RunRow): LockedTrackingRun {
 
 export class TypeOrmTrackingTransaction implements TrackingTransaction {
   constructor(private readonly manager: EntityManager) {}
+
+  async recordSessionOutcome(
+    runId: string,
+    healthy: boolean,
+  ): Promise<boolean> {
+    const runs: Array<{
+      carrier_id: number;
+      session_generation: number;
+      session_failure_recorded: boolean;
+    }> = await this.manager.query(
+      "SELECT carrier_id, session_generation, session_failure_recorded FROM tracking_runs WHERE id = $1 AND status = 'running' FOR UPDATE",
+      [runId],
+    );
+    const run = runs[0];
+
+    if (!run || run.session_failure_recorded) return false;
+
+    const [rows]: [Array<{ is_active: boolean }>, number] =
+      await this.manager.query(
+        `UPDATE carriers SET
+        consecutive_session_failures = CASE WHEN $2 THEN 0 ELSE LEAST(consecutive_session_failures, 2147483646) + 1 END,
+        is_active = CASE WHEN NOT $2 AND session_failure_disable_enabled
+          AND consecutive_session_failures >= session_failure_disable_threshold - 1 THEN false ELSE is_active END,
+        auto_disabled_reason = CASE WHEN NOT $2 AND session_failure_disable_enabled
+          AND consecutive_session_failures >= session_failure_disable_threshold - 1 THEN 'session_failures' ELSE auto_disabled_reason END
+       WHERE id = $1 AND deleted_at IS NULL AND is_active AND session_generation = $3
+       RETURNING is_active`,
+        [run.carrier_id, healthy, run.session_generation],
+      );
+
+    if (!healthy)
+      await this.manager.query(
+        'UPDATE tracking_runs SET session_failure_recorded = true WHERE id = $1',
+        [runId],
+      );
+
+    return rows[0]?.is_active === false;
+  }
 
   async lockAvailableCarrier(externalId: string) {
     const rows: Array<{ id: number }> = await this.manager.query(
@@ -109,7 +149,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
 
   async lockRun(externalId: string) {
     const rows: RunRow[] = await this.manager.query(
-      `SELECT run.id, run.external_id, run.trigger, run.status, run.created_at, run.fetch_mode,
+      `SELECT run.id, run.external_id, run.trigger, run.status, run.created_at, run.fetch_mode, run.session_generation,
               run.started_at, run.completed_at, carrier.code AS carrier_code,
               carrier.is_active AS carrier_is_active,
               carrier.deleted_at AS carrier_deleted_at
@@ -126,12 +166,13 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
   async markRunRunning(runId: string) {
     await this.manager.query(
       `WITH selected AS (
-         SELECT carrier.fetch_mode FROM carriers carrier
+         SELECT carrier.fetch_mode, carrier.session_generation FROM carriers carrier
          JOIN tracking_runs run ON run.carrier_id = carrier.id
          WHERE run.id = $1 FOR SHARE OF carrier
        ) UPDATE tracking_runs
           SET status = 'running',
               fetch_mode = (SELECT fetch_mode FROM selected),
+              session_generation = (SELECT session_generation FROM selected),
               started_at = clock_timestamp(),
               updated_at = clock_timestamp()
         WHERE id = $1`,
@@ -203,6 +244,9 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
       monitoring_status: string;
       monitoring_reason: string | null;
       consecutive_not_found_count: number;
+      consecutive_failure_count: number;
+      failure_pause_enabled: boolean;
+      failure_pause_threshold: number;
       lock_version: number;
       deleted_at: Date | null;
       carrier_code: string;
@@ -221,6 +265,9 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
               shipment.monitoring_status,
               shipment.monitoring_reason,
               shipment.consecutive_not_found_count,
+              shipment.consecutive_failure_count,
+              carrier.failure_pause_enabled,
+              carrier.failure_pause_threshold,
               shipment.lock_version,
               shipment.deleted_at,
               carrier.code AS carrier_code,
@@ -251,6 +298,9 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
       monitoringStatus: row.monitoring_status,
       monitoringReason: row.monitoring_reason,
       consecutiveNotFoundCount: row.consecutive_not_found_count,
+      consecutiveFailureCount: row.consecutive_failure_count,
+      failurePauseEnabled: row.failure_pause_enabled,
+      failurePauseThreshold: row.failure_pause_threshold,
       lockVersion: row.lock_version,
       deletedAt: row.deleted_at,
       carrierCode: row.carrier_code,
@@ -329,6 +379,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
           SET current_tracking_snapshot_id = $2,
               verification_url = COALESCE(verification_url, $3),
               consecutive_not_found_count = 0,
+              consecutive_failure_count = 0,
               last_attempted_at = $4,
               next_check_at = CASE
                 WHEN $5::boolean THEN NULL
@@ -379,6 +430,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     const result: [Array<{ id: number }>, number] = await this.manager.query(
       `UPDATE shipments
           SET consecutive_not_found_count = $2,
+              consecutive_failure_count = 0,
               last_attempted_at = $3,
               next_check_at = CASE
                 WHEN $4::boolean THEN NULL
@@ -416,6 +468,8 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
 
   async updateShipmentFailed(input: {
     shipmentId: number;
+    failureCount: number;
+    thresholdReached: boolean;
     completedAt: Date;
     scheduleNext: boolean;
     effectiveIntervalMinutes: number;
@@ -424,7 +478,11 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     const result: [Array<{ id: number }>, number] = await this.manager.query(
       `UPDATE shipments
           SET last_attempted_at = $2,
+              consecutive_failure_count = $6,
+              monitoring_status = CASE WHEN $7 AND monitoring_status = 'active' THEN 'paused'::shipment_monitoring_status ELSE monitoring_status END,
+              monitoring_reason = CASE WHEN $7 AND monitoring_status = 'active' THEN 'failure_threshold'::shipment_monitoring_reason ELSE monitoring_reason END,
               next_check_at = CASE
+                WHEN $7 THEN NULL
                 WHEN $3::boolean
                   THEN $2::timestamptz + ($4::integer * INTERVAL '1 minute')
                 ELSE next_check_at
@@ -440,6 +498,8 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         input.scheduleNext,
         input.effectiveIntervalMinutes,
         input.expectedLockVersion,
+        input.failureCount,
+        input.thresholdReached,
       ],
     );
 

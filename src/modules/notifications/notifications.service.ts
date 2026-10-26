@@ -76,13 +76,17 @@ export class NotificationsService
       let title: string;
       let detail: string;
 
-      if (notice.outcome === 'failed') {
+      if (notice.stopped === 'failure_threshold') {
+        title = 'Shipment monitoring stopped';
+        detail =
+          'Monitoring stopped: consecutive lookup failure threshold reached.';
+      } else if (notice.outcome === 'failed') {
         if (this.failures.has(notice.carrierCode)) return;
 
         this.failures.add(notice.carrierCode);
         title = 'Carrier check incomplete';
         detail =
-          'Tracking check failed. Monitoring has not been stopped by this failure.';
+          'Tracking check failed. Check the dashboard for the current monitoring status.';
       } else {
         // A confirmed not-found response also demonstrates a functioning lookup.
         this.failures.delete(notice.carrierCode);

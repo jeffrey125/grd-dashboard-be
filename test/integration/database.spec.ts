@@ -1,3 +1,4 @@
+import { MonitoringSafeguards1793318400000 } from '@infrastructure/database/migrations/1793318400000-MonitoringSafeguards.js';
 import { ProviderWeightLimits1793232000000 } from '@infrastructure/database/migrations/1793232000000-ProviderWeightLimits.js';
 import { ProviderAdministration1793059200000 } from '@infrastructure/database/migrations/1793059200000-ProviderAdministration.js';
 import { AmazonApiMode1793145600000 } from '@infrastructure/database/migrations/1793145600000-AmazonApiMode.js';
@@ -108,6 +109,7 @@ describe('production migrations and repository foundation', () => {
         ProviderAdministration1793059200000,
         AmazonApiMode1793145600000,
         ProviderWeightLimits1793232000000,
+        MonitoringSafeguards1793318400000,
       ],
     });
     await source.initialize();
@@ -383,6 +385,7 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Monitoring safeguards migration.
     await source.undoLastMigration(); // Provider weight limits migration.
     await source.undoLastMigration(); // Amazon API mode migration.
     await source.undoLastMigration(); // Provider administration migration.
@@ -399,10 +402,23 @@ describe('production migrations and repository foundation', () => {
     await source.undoLastMigration(); // Auth migration.
     await source.undoLastMigration(); // FFE mode migration.
 
-    expect((await service.find(carrier.externalId)).fetchMode).toBe('browser');
-    expect((await runs.findOneByOrFail({ id: run.id })).fetchMode).toBe(
-      'browser',
-    );
+    // Current entities include newer columns; inspect only columns present at this historical schema.
+    expect(
+      (
+        await source.query(
+          'SELECT fetch_mode FROM carriers WHERE external_id = $1',
+          [carrier.externalId],
+        )
+      )[0].fetch_mode,
+    ).toBe('browser');
+    expect(
+      (
+        await source.query(
+          'SELECT fetch_mode FROM tracking_runs WHERE id = $1',
+          [run.id],
+        )
+      )[0].fetch_mode,
+    ).toBe('browser');
 
     await source.runMigrations();
 

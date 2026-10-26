@@ -9,7 +9,15 @@ describe('EchoShip cookie sessions against native HTTP fixtures', () => {
   let adapter: EchoShipAdapter;
   let cookies: Array<string | undefined>;
   let authorization: Array<string | undefined>;
-  let mode: 'normal' | 'redirect' | 'large' | 'html' | 'trickle';
+  let mode:
+    | 'normal'
+    | 'redirect'
+    | 'large'
+    | 'html'
+    | 'trickle'
+    | 'expired-once'
+    | 'validation-error'
+    | 'locked';
   const signal = new AbortController().signal;
 
   beforeEach(async () => {
@@ -28,6 +36,22 @@ describe('EchoShip cookie sessions against native HTTP fixtures', () => {
         return;
       }
 
+      if (mode === 'expired-once') {
+        mode = 'normal';
+        response.writeHead(401);
+        response.end('{}');
+        return;
+      }
+      if (mode === 'validation-error' || mode === 'locked') {
+        response.writeHead(mode === 'locked' ? 401 : 503);
+        response.end(
+          JSON.stringify({
+            status: { code: mode === 'locked' ? 401104 : 503 },
+            data: {},
+          }),
+        );
+        return;
+      }
       if (!request.headers.cookie) {
         response.writeHead(401);
         response.end('{}');
@@ -111,7 +135,7 @@ describe('EchoShip cookie sessions against native HTTP fixtures', () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
-  it('rotates cookies, limits Basic credentials to sign-in, and isolates the next run', async () => {
+  it('rotates cookies, limits Basic credentials to sign-in, and validates the next run using the rotated cookie', async () => {
     const session = await adapter.openSession({
       signal,
       rateLimitPerMinute: null,
@@ -138,17 +162,57 @@ describe('EchoShip cookie sessions against native HTTP fixtures', () => {
       'AuthToken=two',
       'AuthToken=two',
       'AuthToken=two',
-      undefined,
-      'AuthToken=one',
+      'AuthToken=two',
     ]);
     expect(authorization[0]).toMatch(/^Basic /);
-    expect(authorization.slice(1, 5)).toEqual([
+    expect(authorization.slice(1)).toEqual([
+      undefined,
       undefined,
       undefined,
       undefined,
       undefined,
     ]);
   });
+
+  it('re-authenticates once on confirmed expiry and discards cookies on generation changes', async () => {
+    const options = {
+      signal,
+      rateLimitPerMinute: null,
+      fetchMode: 'request' as const,
+    };
+    await (await adapter.openSession(options)).close();
+    mode = 'expired-once';
+    await (await adapter.openSession(options)).close();
+    expect(authorization.filter(Boolean)).toHaveLength(2);
+    await (
+      await adapter.openSession({ ...options, sessionGeneration: 1 })
+    ).close();
+    expect(authorization.filter(Boolean)).toHaveLength(3);
+    expect(cookies[cookies.length - 2]).toBeUndefined();
+    await adapter.invalidateSession();
+    await (
+      await adapter.openSession({ ...options, sessionGeneration: 1 })
+    ).close();
+    expect(authorization.filter(Boolean)).toHaveLength(4);
+  });
+
+  it.each(['validation-error', 'locked'] as const)(
+    'does not submit credentials after %s during validation',
+    async (selected) => {
+      const options = {
+        signal,
+        rateLimitPerMinute: null,
+        fetchMode: 'request' as const,
+      };
+      await (await adapter.openSession(options)).close();
+      mode = selected;
+      await expect(adapter.openSession(options)).rejects.toBeDefined();
+      expect(authorization.filter(Boolean)).toHaveLength(1);
+      mode = 'normal';
+      await (await adapter.openSession(options)).close();
+      expect(authorization.filter(Boolean)).toHaveLength(1);
+    },
+  );
 
   it.each(['redirect', 'large', 'html'] as const)(
     'rejects %s without retries or leaking response data',

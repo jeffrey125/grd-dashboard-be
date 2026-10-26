@@ -15,6 +15,7 @@ export interface TrackingExecutionTarget {
 }
 
 export interface StartedTrackingRun extends TrackingRunRecord {
+  sessionGeneration: number;
   status: 'running';
   carrierCode: string;
   targets: TrackingExecutionTarget[];
@@ -66,6 +67,7 @@ export class TrackingOperationError extends Error {
 }
 
 export interface LockedTrackingRun {
+  sessionGeneration: number;
   fetchMode: FetchMode | null;
   id: string;
   externalId: string;
@@ -107,6 +109,9 @@ export interface LockedTrackingAttempt {
   monitoringStatus: string;
   monitoringReason: string | null;
   consecutiveNotFoundCount: number;
+  consecutiveFailureCount: number;
+  failurePauseEnabled: boolean;
+  failurePauseThreshold: number;
   lockVersion: number;
   deletedAt: Date | null;
   carrierCode: string;
@@ -120,6 +125,7 @@ export interface TrackingAttemptCounts {
 }
 
 export interface TrackingTransaction {
+  recordSessionOutcome(runId: string, healthy: boolean): Promise<boolean>;
   lockAvailableCarrier(externalId: string): Promise<{ id: number } | null>;
   lockTargetShipments(
     externalIds: string[],
@@ -169,6 +175,8 @@ export interface TrackingTransaction {
   }): Promise<boolean>;
   updateShipmentFailed(input: {
     shipmentId: number;
+    failureCount: number;
+    thresholdReached: boolean;
     completedAt: Date;
     scheduleNext: boolean;
     effectiveIntervalMinutes: number;

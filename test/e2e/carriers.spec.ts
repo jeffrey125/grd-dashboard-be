@@ -1,3 +1,4 @@
+import { MonitoringSafeguards1793318400000 } from '@infrastructure/database/migrations/1793318400000-MonitoringSafeguards.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
 import { SalesRepsAndShipmentFollowUp1792454400000 } from '@infrastructure/database/migrations/1792454400000-SalesRepsAndShipmentFollowUp.js';
@@ -72,6 +73,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         TrackingReadProjection1792281600000,
         TrackingChangeEvents1792368000000,
         SalesRepsAndShipmentFollowUp1792454400000,
+        MonitoringSafeguards1793318400000,
       ],
     });
     await source.initialize();
@@ -121,6 +123,13 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       code: 'ups',
       name: 'UPS',
       isActive: true,
+      failurePauseEnabled: true,
+      failurePauseThreshold: 2,
+      sessionFailureDisableEnabled: true,
+      sessionFailureDisableThreshold: 2,
+      consecutiveSessionFailures: 0,
+      sessionGeneration: 0,
+      autoDisabledReason: null,
       fetchMode: 'request',
       notFoundPauseThreshold: 5,
       pollIntervalMinutes: 30,
@@ -128,6 +137,44 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
     });
+  });
+
+  it('validates independent monitoring safeguard settings and rejects writes to counters', async () => {
+    for (const changes of [
+      { failurePauseThreshold: 0 },
+      { failurePauseThreshold: 11 },
+      { sessionFailureDisableThreshold: 1.5 },
+      { failurePauseEnabled: 'false' },
+      { consecutiveSessionFailures: 0 },
+      { autoDisabledReason: null },
+      { sessionGeneration: 0 },
+    ])
+      await http().patch(`/api/v1/carriers/${upsId}`).send(changes).expect(400);
+
+    const changed = await http()
+      .patch(`/api/v1/carriers/${upsId}`)
+      .send({
+        failurePauseEnabled: false,
+        failurePauseThreshold: 3,
+        sessionFailureDisableEnabled: false,
+        sessionFailureDisableThreshold: 4,
+      })
+      .expect(200);
+    expect(changed.body).toMatchObject({
+      failurePauseEnabled: false,
+      failurePauseThreshold: 3,
+      sessionFailureDisableEnabled: false,
+      sessionFailureDisableThreshold: 4,
+    });
+    await http()
+      .patch(`/api/v1/carriers/${upsId}`)
+      .send({
+        failurePauseEnabled: true,
+        failurePauseThreshold: 2,
+        sessionFailureDisableEnabled: true,
+        sessionFailureDisableThreshold: 2,
+      })
+      .expect(200);
   });
 
   it('lets admins configure Sales Reps with reversible soft deletion', async () => {

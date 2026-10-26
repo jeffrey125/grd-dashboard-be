@@ -14,6 +14,10 @@ export const updateCarrierSchema = z
       .refine((value) => !value.includes('\u0000'), 'Name cannot contain NUL')
       .optional(),
     isActive: z.boolean().optional(),
+    failurePauseEnabled: z.boolean().optional(),
+    failurePauseThreshold: z.int().min(1).max(10).optional(),
+    sessionFailureDisableEnabled: z.boolean().optional(),
+    sessionFailureDisableThreshold: z.int().min(1).max(10).optional(),
     fetchMode: fetchModeSchema.optional(),
     notFoundPauseThreshold: z.int().min(2).max(32767).optional(),
     pollIntervalMinutes: z.int().min(1).max(32767).optional(),

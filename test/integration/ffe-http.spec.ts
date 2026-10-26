@@ -61,6 +61,17 @@ describe('FFE sessions against native HTTP fixtures', () => {
       }
 
       if (request.url === '/Customer/ShipmentTracking') {
+        if (mode === 'expired-once') {
+          mode = 'normal';
+          response.writeHead(302, { location: '/Account/Login' });
+          response.end();
+          return;
+        }
+        if (mode === 'validation-error') {
+          response.writeHead(503);
+          response.end('Fixture unavailable');
+          return;
+        }
         if (
           mode === 'expired' ||
           !request.headers.cookie?.includes('USERID=')
@@ -224,7 +235,7 @@ describe('FFE sessions against native HTTP fixtures', () => {
       rateLimitPerMinute: null,
     });
 
-  it('pairs the login token with cookies, rotates auth cookies and starts the next run fresh', async () => {
+  it('pairs the login token with cookies, rotates auth cookies and validates the next run with existing cookies', async () => {
     const session = await open();
 
     expect(await session.read('001', signal)).toMatchObject({
@@ -245,12 +256,39 @@ describe('FFE sessions against native HTTP fixtures', () => {
     await session.close();
     await open();
 
-    expect(cookies[4]).toBeUndefined();
+    expect(cookies[4]).toBe('ANTI=fixture; USERID=rotated');
+    expect(calls.filter((path) => path === 'POST /Account/Login')).toHaveLength(
+      1,
+    );
     expect(await session.read('001', signal)).toMatchObject({
       outcome: 'failed',
       reasonCode: 'FFE_SESSION_CLOSED',
     });
   });
+  it('re-authenticates once on confirmed expiry and retains cookies after inconclusive validation', async () => {
+    await (await open()).close();
+    mode = 'expired-once';
+    await (await open()).close();
+    expect(calls.filter((path) => path === 'POST /Account/Login')).toHaveLength(
+      2,
+    );
+    mode = 'validation-error';
+    await expect(open()).rejects.toBeDefined();
+    expect(calls.filter((path) => path === 'POST /Account/Login')).toHaveLength(
+      2,
+    );
+    mode = 'normal';
+    await (await open()).close();
+    expect(calls.filter((path) => path === 'POST /Account/Login')).toHaveLength(
+      2,
+    );
+    await adapter.invalidateSession();
+    await (await open()).close();
+    expect(calls.filter((path) => path === 'POST /Account/Login')).toHaveLength(
+      3,
+    );
+  });
+
   it.each(['missing', 'paged', 'duplicates'])(
     'handles %s without XML or whole-account retrieval',
     async (selected) => {

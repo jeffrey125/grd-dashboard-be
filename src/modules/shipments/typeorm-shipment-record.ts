@@ -110,6 +110,7 @@ export function shipmentJsonSql(alias: string): string {
     'lastAttemptedAt', ${alias}.last_attempted_at,
     'nextCheckAt', ${alias}.next_check_at,
     'consecutiveNotFoundCount', ${alias}.consecutive_not_found_count,
+    'consecutiveFailureCount', ${alias}.consecutive_failure_count,
     'createdAt', ${alias}.created_at,
     'updatedAt', ${alias}.updated_at
   )`;

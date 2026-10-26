@@ -166,11 +166,13 @@ describe('UPS adapter with mocked HTTP and clock', () => {
         adapter.openSession({ signal, rateLimitPerMinute: 10 }),
       );
 
+      expect(session.authenticationSucceeded).toBe(false);
       expect(await finish(session.read(reference, signal))).toMatchObject({
         outcome: 'found',
         snapshot: { carrierStatus: 'In Transit' },
       });
 
+      expect(session.authenticationSucceeded).toBe(true);
       await session.close();
     }
 

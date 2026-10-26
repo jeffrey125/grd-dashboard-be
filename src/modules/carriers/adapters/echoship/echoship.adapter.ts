@@ -26,6 +26,14 @@ export class EchoShipAdapter implements CarrierAdapter, OnModuleDestroy {
   readonly referencePolicy = carrierReferencePolicy('echoship');
   private readonly limiter = new EchoShipLimiter();
   private readonly sessions = new Set<TrackingSession>();
+  private cachedRequest?: { portal: EchoShipRequest; key: string };
+  private readonly lifetime = new AbortController();
+
+  async invalidateSession(): Promise<void> {
+    const cached = this.cachedRequest;
+    this.cachedRequest = undefined;
+    await cached?.portal.close();
+  }
 
   constructor(
     @Inject(EchoShipConfiguration)
@@ -56,35 +64,68 @@ export class EchoShipAdapter implements CarrierAdapter, OnModuleDestroy {
     if (!['request', 'browser'].includes(options.fetchMode ?? ''))
       throw new EchoShipFailure('ECHOSHIP_MODE_INVALID', false);
 
-    const portal =
-      options.fetchMode === 'browser'
-        ? new EchoShipBrowser(
-            settings,
-            this.launchBrowser,
-            this.limiter,
-            options.rateLimitPerMinute,
-            options.signal,
-          )
-        : new EchoShipRequest(
-            settings,
-            this.transport,
-            this.limiter,
-            options.rateLimitPerMinute,
-            options.signal,
-          );
+    const key = JSON.stringify([
+      settings,
+      options.rateLimitPerMinute,
+      options.sessionGeneration ?? 0,
+    ]);
+    let portal: EchoShipRequest | EchoShipBrowser;
 
-    try {
-      await portal.login(options.signal);
-    } catch (error) {
-      await portal.close();
-
-      throw echoShipFailure(error);
+    if (options.fetchMode === 'browser') {
+      await this.invalidateSession();
+      portal = new EchoShipBrowser(
+        settings,
+        this.launchBrowser,
+        this.limiter,
+        options.rateLimitPerMinute,
+        options.signal,
+      );
+      try {
+        await portal.login(options.signal);
+      } catch (error) {
+        await portal.close();
+        throw echoShipFailure(error);
+      }
+    } else {
+      if (this.cachedRequest?.key !== key) await this.invalidateSession();
+      if (this.cachedRequest) {
+        try {
+          await this.cachedRequest.portal.validateSession(options.signal);
+        } catch (error) {
+          options.signal.throwIfAborted();
+          const failure = echoShipFailure(error);
+          // An inconclusive check must not trigger a credential submission.
+          if (failure.code !== 'ECHOSHIP_AUTHENTICATION_FAILED') throw failure;
+          await this.invalidateSession();
+        }
+      }
+      if (!this.cachedRequest) {
+        const request = new EchoShipRequest(
+          settings,
+          this.transport,
+          this.limiter,
+          options.rateLimitPerMinute,
+          this.lifetime.signal,
+        );
+        try {
+          await request.login(options.signal);
+        } catch (error) {
+          await request.close();
+          throw echoShipFailure(error);
+        }
+        this.cachedRequest = { portal: request, key };
+      }
+      portal = this.cachedRequest.portal;
     }
 
     let authenticationFailed = false;
+    let closed = false;
     const session: TrackingSession = {
       read: async (reference, signal) => {
         signal.throwIfAborted();
+
+        if (closed)
+          return failedResult(new EchoShipFailure('ECHOSHIP_SESSION_CLOSED'));
 
         if (authenticationFailed)
           return failedResult(
@@ -103,15 +144,20 @@ export class EchoShipAdapter implements CarrierAdapter, OnModuleDestroy {
 
           const failure = echoShipFailure(error);
 
-          authenticationFailed =
-            failure.code === 'ECHOSHIP_AUTHENTICATION_FAILED';
+          authenticationFailed = [
+            'ECHOSHIP_AUTHENTICATION_FAILED',
+            'ECHOSHIP_ACCOUNT_LOCKED',
+          ].includes(failure.code);
 
           return failedResult(failure);
         }
       },
       close: async () => {
+        closed = true;
         try {
-          await portal.close();
+          if (options.fetchMode === 'browser') await portal.close();
+          else if (authenticationFailed || options.signal.aborted)
+            await this.invalidateSession();
         } finally {
           this.sessions.delete(session);
         }
@@ -124,7 +170,9 @@ export class EchoShipAdapter implements CarrierAdapter, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.lifetime.abort();
     await Promise.all([...this.sessions].map((session) => session.close()));
+    await this.invalidateSession();
     await this.limiter.close();
   }
 }

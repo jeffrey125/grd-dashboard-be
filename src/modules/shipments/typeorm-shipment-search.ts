@@ -96,6 +96,7 @@ function statement(query: ShipmentSearchQuery) {
         shipment.last_attempted_at,
         shipment.next_check_at,
         shipment.consecutive_not_found_count,
+        shipment.consecutive_failure_count,
         shipment.created_at,
         shipment.updated_at,
         shipment.follow_up_on,

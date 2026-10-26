@@ -14,6 +14,13 @@ function record(row: CarrierEntity): CarrierRecord {
     name: row.name,
     isActive: row.isActive,
     fetchMode: row.fetchMode,
+    failurePauseEnabled: row.failurePauseEnabled,
+    failurePauseThreshold: row.failurePauseThreshold,
+    sessionFailureDisableEnabled: row.sessionFailureDisableEnabled,
+    sessionFailureDisableThreshold: row.sessionFailureDisableThreshold,
+    consecutiveSessionFailures: row.consecutiveSessionFailures,
+    sessionGeneration: row.sessionGeneration,
+    autoDisabledReason: row.autoDisabledReason,
     notFoundPauseThreshold: row.notFoundPauseThreshold,
     pollIntervalMinutes: row.pollIntervalMinutes,
     rateLimitPerMinute: row.rateLimitPerMinute,
@@ -59,12 +66,44 @@ export class TypeOrmCarriersRepository implements CarriersRepository {
     // been read, so another update/deletion cannot replace this write's result.
     return this.source.transaction(async (manager) => {
       const rows = manager.getRepository(CarrierEntity);
+      const current = await rows.findOne({
+        where: { externalId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!current) return null;
+
+      const resetShipments =
+        changes.failurePauseEnabled === true && !current.failurePauseEnabled;
+      const resetSession =
+        (changes.sessionFailureDisableEnabled === true &&
+          !current.sessionFailureDisableEnabled) ||
+        (changes.isActive === true && !current.isActive);
+      const sessionChanged =
+        changes.isActive !== undefined ||
+        changes.fetchMode !== undefined ||
+        changes.sessionFailureDisableEnabled !== undefined ||
+        changes.sessionFailureDisableThreshold !== undefined;
       const result = await rows.update(
         { externalId, deletedAt: IsNull() },
-        { ...changes, updatedById: actorId },
+        {
+          ...changes,
+          updatedById: actorId,
+          ...(resetSession ? { consecutiveSessionFailures: 0 } : {}),
+          ...(changes.isActive === true ? { autoDisabledReason: null } : {}),
+          ...(sessionChanged
+            ? { sessionGeneration: current.sessionGeneration + 1 }
+            : {}),
+        },
       );
 
       if (!result.affected) return null;
+
+      if (resetShipments)
+        await manager.query(
+          'UPDATE shipments SET consecutive_failure_count = 0, lock_version = lock_version + 1 WHERE carrier_id = $1 AND deleted_at IS NULL',
+          [current.id],
+        );
 
       return record(await rows.findOneByOrFail({ externalId }));
     });

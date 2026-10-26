@@ -1,5 +1,8 @@
 # V1 tracking and Shipment behavior
 
+**MON-V1-001:** [Monitoring safeguards](monitoring-safeguards.md) supersede the
+original fresh-session and technical-retry rules below.
+
 ## Shipment management
 
 - A Shipment belongs to one Carrier and is addressed externally by UUID.
@@ -37,7 +40,7 @@ disablement still prevents the future scheduler from selecting its Shipments.
 - Seed intervals: UPS 30 minutes, EchoShip 5 minutes, FFE 5 minutes.
 - The effective scheduled interval is the greater of the database interval and the adapter hard minimum. UPS CIE therefore remains at least 60 minutes.
 - Compute the next scheduled check from finalized attempt completion, not start time.
-- A technical failure does not count as `not_found`; until a future retry-delay column is approved, it uses the normal effective interval.
+- A technical failure does not count as `not_found`. Individual lookup failures use the normal interval until the configured failure-pause threshold; session failures count only toward the Carrier auto-disable threshold.
 
 V1-012 additionally checks the adapter hard minimum against finalized **scheduled**
 attempt history. Manual attempts do not postpone automatic eligibility or change
@@ -126,8 +129,9 @@ They do not enforce limits shared with other applications using the same account
   `ECHOSHIP_BROWSER_EXECUTABLE_PATH` selects a system Chromium installation.
   The origin is restricted to `https://echoship.com`. Enabled-worker validation
   remains lazy; the API and disabled EchoShip do not require credentials.
-- Fresh verified login once per run, sequential lookups, close afterward. No
-  immediate retry or mid-run re-login. Authentication rejection fails subsequent
+- Request mode validates and reuses its worker-memory cookie session each run.
+  Confirmed expiry permits one login; inconclusive validation does not. Browser
+  sessions remain isolated per run. No mid-run re-login. Authentication rejection fails subsequent
   lookups without more requests; earlier successes survive. Recovery waits for
   the next automated run or manual refresh. Other Carriers continue.
 - Only complete authenticated searches without an exact reference are not-found.
@@ -153,8 +157,9 @@ the approved rule is that provider API detail/tracking data remains authoritativ
 
 - V1-015 defaults to request mode; browser mode is an explicit Carrier API choice.
   Both use per-reference JSON from the one-year archive, never account XML.
-- Open one fresh isolated authenticated session per run; perform sequential
-  lookups. No immediate retry, mid-run login, or automatic mode fallback.
+- Request mode validates and reuses its worker-memory cookie session each run;
+  confirmed expiry permits one login. Browser sessions remain isolated per run.
+  Perform sequential lookups without mid-run login or automatic mode fallback.
 - Request mode uses form-token/cookie login. Browser mode uses real login,
   archive-toggle and search interactions; observed JSON is authoritative, not DOM text.
 - Compare exact references. No reliable record-update timestamp was observed;

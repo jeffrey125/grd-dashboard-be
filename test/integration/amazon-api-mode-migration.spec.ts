@@ -12,7 +12,9 @@ afterAll(async () => {
 });
 
 it('migrates populated Amazon state to API mode without rewriting history', async () => {
-  await db.source.undoLastMigration();
+  await db.source.undoLastMigration(); // Monitoring safeguards migration.
+  await db.source.undoLastMigration(); // Provider weight limits migration.
+  await db.source.undoLastMigration(); // Amazon API mode migration.
   const [actor] = await db.source.query(
     `INSERT INTO auth_users (name,first_name,last_name,email)
      VALUES ('Migration Admin','Migration','Admin','migration-admin@example.test') RETURNING id`,

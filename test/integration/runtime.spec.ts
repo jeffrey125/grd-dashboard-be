@@ -1,3 +1,4 @@
+import { MonitoringSafeguards1793318400000 } from '@infrastructure/database/migrations/1793318400000-MonitoringSafeguards.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
 import { AUTH_ENGINE, type AuthEngine } from '@modules/auth/auth.engine.js';
@@ -80,6 +81,7 @@ beforeAll(async () => {
       TrackingReadProjection1792281600000,
       TrackingChangeEvents1792368000000,
       SalesRepsAndShipmentFollowUp1792454400000,
+      MonitoringSafeguards1793318400000,
     ],
   });
 

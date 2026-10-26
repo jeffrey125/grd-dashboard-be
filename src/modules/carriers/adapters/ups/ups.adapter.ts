@@ -38,8 +38,13 @@ export class UpsAdapter implements CarrierAdapter {
     await this.client.configureRateLimit(options.rateLimitPerMinute);
 
     const closed = new AbortController();
+    let authenticationSucceeded = false;
 
     return {
+      healthVerifiedAtOpen: false,
+      get authenticationSucceeded() {
+        return authenticationSucceeded;
+      },
       read: async (reference, readSignal) => {
         const signal = AbortSignal.any([
           options.signal,
@@ -48,6 +53,7 @@ export class UpsAdapter implements CarrierAdapter {
         ]);
 
         signal.throwIfAborted();
+        let authenticationOperation = false;
 
         try {
           try {
@@ -69,7 +75,10 @@ export class UpsAdapter implements CarrierAdapter {
 
           this.client.assertAvailable();
 
+          authenticationOperation = true;
           const token = await this.tokens.token(signal);
+          authenticationOperation = false;
+          authenticationSucceeded = true;
           let body: unknown;
 
           try {
@@ -78,7 +87,10 @@ export class UpsAdapter implements CarrierAdapter {
             if (!axios.isAxiosError(error) || error.response?.status !== 401)
               throw error;
 
+            authenticationOperation = true;
             const refreshed = await this.tokens.token(signal, token);
+            authenticationOperation = false;
+            authenticationSucceeded = true;
 
             body = await this.client.track(reference, refreshed, signal);
           }
@@ -95,7 +107,13 @@ export class UpsAdapter implements CarrierAdapter {
             failure = cooldown;
           }
 
-          if (failure instanceof UpsFailure) return failure.result();
+          if (failure instanceof UpsFailure)
+            return {
+              ...failure.result(),
+              ...(authenticationOperation
+                ? { failureScope: 'session' as const }
+                : {}),
+            };
 
           const status = axios.isAxiosError(failure)
             ? failure.response?.status
@@ -103,7 +121,12 @@ export class UpsAdapter implements CarrierAdapter {
 
           if (status === 404) return { outcome: 'not_found', sourceData: null };
 
-          return upsHttpFailure(failure).result();
+          return {
+            ...upsHttpFailure(failure).result(),
+            ...(authenticationOperation
+              ? { failureScope: 'session' as const }
+              : {}),
+          };
         }
       },
       close: async () => {

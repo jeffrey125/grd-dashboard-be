@@ -416,6 +416,44 @@ it('hands an authenticated HTTP refresh to the real worker scheduler through Pos
   }
 });
 
+it('allows one manual retry of a failure-paused shipment and preserves pause on not-found', async () => {
+  const created = await http()
+    .post('/api/v1/shipments')
+    .send({
+      carrierExternalId,
+      trackingReference: 'failure-pause-retry',
+    })
+    .expect(201);
+  const id = created.body.shipment.externalId;
+  await db.source.query(
+    "UPDATE shipments SET monitoring_status = 'paused', monitoring_reason = 'failure_threshold', consecutive_failure_count = 2, next_check_at = NULL WHERE external_id = $1",
+    [id],
+  );
+  const queued = await http()
+    .post(`/api/v1/shipments/${id}/refresh`)
+    .expect(202);
+  const tracking = new TrackingService(
+    new TypeOrmTrackingRepository(db.source),
+  );
+  const started = await tracking.startRun(queued.body.externalId);
+  await tracking.finalizeNotFound({
+    runExternalId: started.externalId,
+    shipmentExternalId: id,
+    expectedLockVersion: started.targets[0]!.expectedLockVersion,
+    effectiveIntervalMinutes: 30,
+    sourceData: null,
+  });
+  await tracking.finalizeRun(started.externalId);
+  const read = await http().get(`/api/v1/shipments/${id}`).expect(200);
+  expect(read.body).toMatchObject({
+    monitoringStatus: 'paused',
+    monitoringReason: 'failure_threshold',
+    consecutiveFailureCount: 0,
+    consecutiveNotFoundCount: 1,
+    nextCheckAt: null,
+  });
+});
+
 it('closes open SSE streams when the API shuts down', async () => {
   const connection = await stream();
 

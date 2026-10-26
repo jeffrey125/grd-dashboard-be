@@ -85,6 +85,7 @@ export const finalizeFailedSchema = z
     expectedLockVersion: z.int().positive(),
     effectiveIntervalMinutes: z.int().positive(),
     retryable: z.boolean(),
+    sessionFailure: z.boolean().default(false),
     reasonCode: z.string().trim().min(1).max(100),
     message: z.string().trim().min(1).nullable(),
     sourceData: sourceDataSchema,

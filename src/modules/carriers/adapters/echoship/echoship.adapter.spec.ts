@@ -370,7 +370,7 @@ describe('EchoShip request session', () => {
     },
   );
 
-  it('starts a fresh login for every manual or scheduled session', async () => {
+  it('validates and reuses the login across manual or scheduled sessions', async () => {
     const f = await fixture();
 
     try {
@@ -382,7 +382,10 @@ describe('EchoShip request session', () => {
 
       await second.close();
 
-      expect(f.calls.filter((url) => url.endsWith('signIn'))).toHaveLength(2);
+      expect(f.calls.filter((url) => url.endsWith('signIn'))).toHaveLength(1);
+      expect(
+        f.calls.filter((url) => url.includes('loadSummaries')),
+      ).toHaveLength(2);
     } finally {
       await f.close();
     }
@@ -445,7 +448,7 @@ describe('EchoShip request session', () => {
     }
   });
 
-  it('preserves request pacing across fresh sessions and cancels waits without sending', async () => {
+  it('preserves request pacing across reused sessions and cancels waits without sending', async () => {
     const times: number[] = [];
     const transport: AxiosAdapter = async (request) => {
       times.push(Date.now());
@@ -480,7 +483,7 @@ describe('EchoShip request session', () => {
         rateLimitPerMinute: 600,
       });
 
-      expect(times).toHaveLength(4);
+      expect(times).toHaveLength(3);
 
       for (let index = 1; index < times.length; index++)
         // Allow transport/interceptor clock jitter around the 100 ms dispatch spacing.
@@ -493,7 +496,7 @@ describe('EchoShip request session', () => {
       controller.abort();
       await rejected;
 
-      expect(times).toHaveLength(4);
+      expect(times).toHaveLength(3);
 
       await second.close();
     } finally {

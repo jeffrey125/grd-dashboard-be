@@ -25,6 +25,14 @@ export class FfeAdapter implements CarrierAdapter, OnModuleDestroy {
   readonly referencePolicy = carrierReferencePolicy('ffe');
   private readonly limiter = new CarrierRequestLimiter();
   private readonly sessions = new Set<TrackingSession>();
+  private cachedRequest?: { portal: FfeRequest; key: string };
+  private readonly lifetime = new AbortController();
+
+  async invalidateSession(): Promise<void> {
+    const cached = this.cachedRequest;
+    this.cachedRequest = undefined;
+    await cached?.portal.close();
+  }
 
   constructor(
     @Inject(FfeConfiguration) private readonly configuration: FfeConfiguration,
@@ -56,19 +64,50 @@ export class FfeAdapter implements CarrierAdapter, OnModuleDestroy {
       settings: this.configuration.read(),
       limiter: this.limiter,
       rpm: options.rateLimitPerMinute,
-      signal: options.signal,
+      signal: this.lifetime.signal,
     };
-    const portal =
-      options.fetchMode === 'browser'
-        ? new FfeBrowser(settings, this.launchBrowser)
-        : new FfeRequest(settings, this.transport);
+    const key = JSON.stringify([
+      settings.settings,
+      settings.rpm,
+      options.sessionGeneration ?? 0,
+    ]);
+    let portal: FfeRequest | FfeBrowser;
 
-    try {
-      await portal.login(options.signal);
-    } catch (error) {
-      await portal.close();
-
-      throw ffeFailure(error);
+    if (options.fetchMode === 'browser') {
+      await this.invalidateSession();
+      portal = new FfeBrowser(
+        { ...settings, signal: options.signal },
+        this.launchBrowser,
+      );
+      try {
+        await portal.login(options.signal);
+      } catch (error) {
+        await portal.close();
+        throw ffeFailure(error);
+      }
+    } else {
+      if (this.cachedRequest?.key !== key) await this.invalidateSession();
+      if (this.cachedRequest) {
+        try {
+          await this.cachedRequest.portal.validateSession(options.signal);
+        } catch (error) {
+          options.signal.throwIfAborted();
+          const failure = ffeFailure(error);
+          if (failure.code !== 'FFE_AUTHENTICATION_FAILED') throw failure;
+          await this.invalidateSession();
+        }
+      }
+      if (!this.cachedRequest) {
+        const request = new FfeRequest(settings, this.transport);
+        try {
+          await request.login(options.signal);
+        } catch (error) {
+          await request.close();
+          throw ffeFailure(error);
+        }
+        this.cachedRequest = { portal: request, key };
+      }
+      portal = this.cachedRequest.portal;
     }
 
     let authenticationFailed = false;
@@ -104,7 +143,9 @@ export class FfeAdapter implements CarrierAdapter, OnModuleDestroy {
         closed = true;
 
         try {
-          await portal.close();
+          if (options.fetchMode === 'browser') await portal.close();
+          else if (authenticationFailed || options.signal.aborted)
+            await this.invalidateSession();
         } finally {
           this.sessions.delete(session);
         }
@@ -117,7 +158,9 @@ export class FfeAdapter implements CarrierAdapter, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.lifetime.abort();
     await Promise.all([...this.sessions].map((session) => session.close()));
+    await this.invalidateSession();
     await this.limiter.close();
   }
 }

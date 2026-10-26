@@ -66,6 +66,12 @@ export class TrackingRunEntity {
   @Column({ name: 'carrier_id', type: 'integer' })
   carrierId: number;
 
+  @Column({ name: 'session_failure_recorded', type: 'boolean', default: false })
+  sessionFailureRecorded: boolean;
+
+  @Column({ name: 'session_generation', type: 'integer', default: 0 })
+  sessionGeneration: number;
+
   @Column({ name: 'fetch_mode', type: 'varchar', length: 10, nullable: true })
   fetchMode: FetchMode | null;
 

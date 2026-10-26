@@ -161,6 +161,7 @@ export const shipmentRecordSchema = z.strictObject({
   lastAttemptedAt: z.date().nullable(),
   nextCheckAt: z.date().nullable(),
   consecutiveNotFoundCount: z.int().nonnegative(),
+  consecutiveFailureCount: z.int().nonnegative(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

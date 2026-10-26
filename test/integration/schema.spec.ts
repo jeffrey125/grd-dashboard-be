@@ -822,7 +822,7 @@ describe('initial application schema', () => {
       'id external_id created_at updated_at deleted_at created_by_id updated_by_id deleted_by_id';
     const expected = {
       shipping_providers:
-        'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at used_internationally revision updated_by_id',
+        'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at used_internationally revision updated_by_id max_package_weight_lb',
       shipping_accounts:
         'default_refresh id provider_id created_at updated_at last_default',
       shipping_provider_tests:
@@ -834,7 +834,7 @@ describe('initial application schema', () => {
       quote_customs_items:
         'id package_group_id position description quantity unit_value currency country_of_manufacture weight hs_code created_at',
       quote_provider_attempts:
-        'id external_id request_id account_id sender execution_mode status lease_until recovery_count reason_code created_at completed_at lease_owner attempt_number started_at outcome simulated diagnostics conversion_snapshot',
+        'id external_id request_id account_id sender execution_mode status lease_until recovery_count reason_code created_at completed_at lease_owner attempt_number started_at outcome simulated diagnostics conversion_snapshot weight_policy',
       shipping_quotes:
         'id attempt_id carrier service transportation_total currency estimate_method transit_description expires_at retrieved_at option_coverage duty_status tax_status clearance_status created_at group_contributions',
       shipping_quote_items:
@@ -851,15 +851,15 @@ describe('initial application schema', () => {
 
       carriers:
         audit +
-        ' code name is_active not_found_pause_threshold poll_interval_minutes rate_limit_per_minute fetch_mode',
+        ' code name is_active not_found_pause_threshold poll_interval_minutes rate_limit_per_minute fetch_mode failure_pause_enabled failure_pause_threshold session_failure_disable_enabled session_failure_disable_threshold consecutive_session_failures session_generation auto_disabled_reason',
       shipments:
         audit +
-        ' carrier_id tracking_reference notes verification_url monitoring_status monitoring_reason current_tracking_snapshot_id last_attempted_at next_check_at consecutive_not_found_count lock_version sales_rep_id follow_up_on record_updated_at record_updated_by_id',
+        ' carrier_id tracking_reference notes verification_url monitoring_status monitoring_reason current_tracking_snapshot_id last_attempted_at next_check_at consecutive_not_found_count lock_version sales_rep_id follow_up_on record_updated_at record_updated_by_id consecutive_failure_count',
       sales_reps: audit + ' first_name last_name',
       shipment_tracking_snapshots:
         'id shipment_id carrier_status carrier_status_detail picked_up_on estimated_delivery_on delivered_on observed_at external_id',
       tracking_runs:
-        'id external_id carrier_id trigger status reason_code message requested_by_id created_at updated_at started_at completed_at fetch_mode',
+        'id external_id carrier_id trigger status reason_code message requested_by_id created_at updated_at started_at completed_at fetch_mode session_failure_recorded session_generation',
       tracking_attempts:
         'id tracking_run_id shipment_id outcome snapshot_id snapshot_changed source_data retryable reason_code message started_at completed_at',
     };

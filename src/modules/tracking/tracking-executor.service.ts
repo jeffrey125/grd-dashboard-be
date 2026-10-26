@@ -48,6 +48,20 @@ function technicalFailure(
   };
 }
 
+function sessionFailure(result: TrackingResult): boolean {
+  return (
+    result.outcome === 'failed' &&
+    (result.failureScope === 'session' ||
+      [
+        'ECHOSHIP_AUTHENTICATION_FAILED',
+        'ECHOSHIP_ACCOUNT_LOCKED',
+        'FFE_AUTHENTICATION_FAILED',
+        'UPS_AUTHENTICATION_FAILED',
+        'UPS_INVALID_TOKEN_RESPONSE',
+      ].includes(result.reasonCode))
+  );
+}
+
 @Injectable()
 export class TrackingExecutorService {
   constructor(
@@ -127,6 +141,7 @@ export class TrackingExecutorService {
       const opening = Promise.resolve().then(() =>
         adapter.openSession({
           fetchMode: run.fetchMode ?? undefined,
+          sessionGeneration: run.sessionGeneration,
           signal,
           rateLimitPerMinute: carrier.rateLimitPerMinute,
         }),
@@ -155,12 +170,27 @@ export class TrackingExecutorService {
           safeErrorFields(error),
         );
 
+        const disabled = await this.tracking.recordSessionOutcome(
+          run.externalId,
+          false,
+        );
+        if (disabled) {
+          log.warn(
+            'tracking.carrier.auto-disabled',
+            'Carrier disabled after repeated session failures',
+          );
+          await adapter.invalidateSession?.();
+        }
+
         for (const target of targets) {
           signal.throwIfAborted();
           await this.persist(
             run,
             target,
-            technicalFailure('SESSION_OPEN_FAILED'),
+            {
+              ...technicalFailure('SESSION_OPEN_FAILED'),
+              failureScope: 'session',
+            },
             interval,
           );
         }
@@ -169,6 +199,39 @@ export class TrackingExecutorService {
 
         return;
       }
+
+      if (session.healthVerifiedAtOpen !== false)
+        await this.tracking.recordSessionOutcome(run.externalId, true);
+
+      let sharedFailure: TrackingResult | undefined;
+      const observeSession = async (result: TrackingResult) => {
+        const parsed = trackingResultSchema.safeParse(result);
+        if (!parsed.success) return;
+        result = parsed.data;
+
+        if (sessionFailure(result) && !sharedFailure) {
+          sharedFailure = result;
+          const disabled = await this.tracking.recordSessionOutcome(
+            run.externalId,
+            false,
+          );
+          if (disabled) {
+            log.warn(
+              'tracking.carrier.auto-disabled',
+              'Carrier disabled after repeated session failures',
+            );
+            await adapter.invalidateSession?.();
+          }
+        } else if (
+          !sharedFailure &&
+          session!.healthVerifiedAtOpen === false &&
+          (session!.authenticationSucceeded ||
+            result.outcome === 'found' ||
+            result.outcome === 'not_found')
+        ) {
+          await this.tracking.recordSessionOutcome(run.externalId, true);
+        }
+      };
 
       if (session.readMany) {
         let results: ReadonlyMap<string, TrackingResult>;
@@ -198,13 +261,11 @@ export class TrackingExecutorService {
 
         for (const target of targets) {
           signal.throwIfAborted();
-          await this.persist(
-            run,
-            target,
+          const result =
             results.get(target.trackingReference) ??
-              technicalFailure('BATCH_RESULT_MISSING'),
-            interval,
-          );
+            technicalFailure('BATCH_RESULT_MISSING');
+          await observeSession(result);
+          await this.persist(run, target, result, interval);
         }
       } else {
         for (const target of targets) {
@@ -213,10 +274,12 @@ export class TrackingExecutorService {
           let result: TrackingResult;
 
           try {
-            result = await abortable(
-              session.read(target.trackingReference, signal),
-              signal,
-            );
+            result =
+              sharedFailure ??
+              (await abortable(
+                session.read(target.trackingReference, signal),
+                signal,
+              ));
           } catch (error) {
             signal.throwIfAborted();
             log.warn('tracking.lookup.failed', 'Carrier lookup failed', {
@@ -227,6 +290,7 @@ export class TrackingExecutorService {
           }
 
           signal.throwIfAborted();
+          await observeSession(result);
           await this.persist(run, target, result, interval);
         }
       }
@@ -299,6 +363,7 @@ export class TrackingExecutorService {
         await this.tracking.finalizeFailed({
           ...command,
           retryable: result.retryable,
+          sessionFailure: sessionFailure(result),
           reasonCode: result.reasonCode,
           message: result.message,
           sourceData: result.sourceData,

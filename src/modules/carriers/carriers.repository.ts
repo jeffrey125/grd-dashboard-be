@@ -7,6 +7,13 @@ export interface CarrierRecord {
   name: string;
   isActive: boolean;
   fetchMode: FetchMode;
+  failurePauseEnabled: boolean;
+  failurePauseThreshold: number;
+  sessionFailureDisableEnabled: boolean;
+  sessionFailureDisableThreshold: number;
+  consecutiveSessionFailures: number;
+  sessionGeneration: number;
+  autoDisabledReason: 'session_failures' | null;
   notFoundPauseThreshold: number;
   pollIntervalMinutes: number;
   rateLimitPerMinute: number | null;

@@ -687,3 +687,24 @@ A trigger rejects policy changes after an attempt has started or reached a termi
 status. Pre-migration attempts retain null; their historical results are not
 rewritten. No foreign keys are added. The down migration removes both additions
 and the policy trigger/function.
+
+## MON-V1-001: durable monitoring safeguards
+
+Migration `1793318400000-MonitoringSafeguards` persists the approved failure
+thresholds across worker restarts. Carrier columns are `failure_pause_enabled`
+(boolean, true), `failure_pause_threshold` (smallint, 2, range 1–10),
+`session_failure_disable_enabled` (boolean, true),
+`session_failure_disable_threshold` (smallint, 2, range 1–10),
+`consecutive_session_failures` (nonnegative integer, 0), `session_generation`
+(nonnegative integer, 0), and nullable `auto_disabled_reason` (varchar(50), only
+`session_failures` on a disabled Carrier). No existing Carrier is re-enabled.
+
+Shipments gain nonnegative `consecutive_failure_count` (integer, 0) and enum reason
+`failure_threshold`, permitted only while paused. Tracking runs gain
+`session_failure_recorded` (boolean, false) for once-per-run accounting and
+`session_generation` (integer, 0), captured at execution start. No new FK is added.
+Existing attempt outcomes, snapshots and not-found counters remain intact.
+
+The enum is recreated within the migration transaction. Rollback converts the new
+pause reason to `manual` while preserving paused state, then removes new fields.
+See [the lifecycle and concurrency rules](monitoring-safeguards.md).

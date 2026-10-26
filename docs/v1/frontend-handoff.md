@@ -680,3 +680,24 @@ weight_limit_exceeded`. Already-started requests/recoveries retain their policy;
 completed results are unchanged. Apply the migration before running the new API
 or worker. Frontend reads tolerate older responses without the additional fields;
 the backend remains authoritative.
+
+## MON-V1-001 monitoring safeguards
+
+Carrier GET adds `failurePauseEnabled`, `failurePauseThreshold`,
+`sessionFailureDisableEnabled`, `sessionFailureDisableThreshold`,
+`consecutiveSessionFailures`, `autoDisabledReason`, and `sessionGeneration`.
+Only the first four are mutable through the existing Admin PATCH; toggles are
+booleans and thresholds integers 1–10 (defaults true/2). The reason is null or
+`session_failures`. The count and generation are read-only integers.
+
+Shipment responses add `consecutiveFailureCount` and monitoring reason
+`failure_threshold`. Use **Paused: repeated lookup failures** and **Retry now**.
+Refresh permits this pause while the Carrier is enabled. Found reactivates,
+delivered completes, and failed/not-found keeps it paused. Carrier session failures
+never increment Shipment failure counters. Disabled Carriers still return 409 for
+refresh. Render the Carrier's automatic-disable reason and require Admin re-enable.
+
+The existing `run.changed` events accompany automatic session-counter/disable
+changes; frontend Carrier queries now reconcile on those events as well as edits,
+resync and focus. No new SSE event or provider HTTP call is introduced by refresh.
+See [monitoring safeguards](monitoring-safeguards.md) for the approved rules.

@@ -38,6 +38,11 @@ export class CarrierAdapterRegistry {
     }
   }
 
+  async retainSessions(activeCodes: readonly string[]) {
+    for (const [code, adapter] of this.adapters)
+      if (!activeCodes.includes(code)) await adapter.invalidateSession?.();
+  }
+
   require(code: string): CarrierAdapter {
     const adapter = this.adapters.get(code);
 

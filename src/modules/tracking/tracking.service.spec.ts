@@ -7,6 +7,7 @@ import type {
 
 function transaction(): TrackingTransaction {
   return {
+    recordSessionOutcome: vi.fn(),
     lockAvailableCarrier: vi.fn(),
     lockTargetShipments: vi.fn(),
     insertRun: vi.fn(),
@@ -91,6 +92,9 @@ describe('TrackingService', () => {
       monitoringStatus: 'active',
       monitoringReason: null,
       consecutiveNotFoundCount: 0,
+      consecutiveFailureCount: 0,
+      failurePauseEnabled: true,
+      failurePauseThreshold: 2,
       lockVersion: 1,
       deletedAt: null,
       carrierCode: 'ups',

@@ -24,6 +24,9 @@ export function envelope(input: unknown): unknown {
 
   if (!status.success) throw new EchoShipFailure('ECHOSHIP_INVALID_RESPONSE');
 
+  if (status.data.status.code === 401104)
+    throw new EchoShipFailure('ECHOSHIP_ACCOUNT_LOCKED');
+
   if ([401, 403].includes(status.data.status.code))
     throw new EchoShipFailure('ECHOSHIP_AUTHENTICATION_FAILED');
 
