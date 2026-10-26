@@ -1,7 +1,9 @@
+import { QuoteComparisonGuard } from '@config/runtime-features.module.js';
 import {
   BadRequestException,
   Body,
   Controller,
+  UseGuards,
   Get,
   Header,
   Inject,
@@ -21,6 +23,7 @@ import { providerCode } from './quote.schemas.js';
 
 @Controller('admin/shipping-providers')
 @AuthPolicy('admin')
+@UseGuards(QuoteComparisonGuard)
 export class ProviderAdminController {
   constructor(
     @Inject(ProviderAdminRepository)

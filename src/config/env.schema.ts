@@ -26,6 +26,7 @@ const environmentSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
+    QUOTE_COMPARISON_ENABLED: z.enum(['true', 'false']).default('false'),
     QUOTE_DEMO_MODE: z.enum(['true', 'false']).default('false'),
     QUOTE_DEMO_AMAZON: quoteScenario.default('success'),
     QUOTE_DEMO_UNISHIPPERS: quoteScenario.default('validation_failed'),
@@ -54,6 +55,7 @@ const environmentSchema = z
 const guidance: Record<keyof z.infer<typeof environmentSchema>, string> = {
   NODE_ENV: 'must be development, test, or production',
   LOG_LEVEL: 'must be debug, info, warn, error, or silent',
+  QUOTE_COMPARISON_ENABLED: 'must be true or false',
   QUOTE_DEMO_MODE:
     'must be true or false; demo execution is forbidden in production',
   QUOTE_DEMO_AMAZON: 'must be a supported fixture scenario',

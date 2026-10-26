@@ -1,3 +1,4 @@
+import { RuntimeFeaturesModule } from '@config/runtime-features.module.js';
 import { DataSource } from 'typeorm';
 import { ProviderAdminController } from './provider-admin.controller.js';
 import { ProviderAdminRepository } from './provider-admin.repository.js';
@@ -14,7 +15,7 @@ import { QuoteService } from './quote.service.js';
 import { quoteRepositoryProvider } from './typeorm-quote.repository.js';
 
 @Module({
-  imports: [DatabaseModule, EventsModule, AuthModule],
+  imports: [RuntimeFeaturesModule, DatabaseModule, EventsModule, AuthModule],
   controllers: [
     ProviderAdminController,
     QuoteController,

@@ -1,3 +1,4 @@
+import { RuntimeFeatures } from '@config/runtime-features.module.js';
 import {
   Inject,
   Injectable,
@@ -19,8 +20,11 @@ export class SenderDefaultsWorker implements OnModuleInit, OnModuleDestroy {
     private readonly repository: SenderDefaultsRepository,
     @Inject(BrowserSenderDefaults)
     private readonly gateway: Pick<BrowserSenderDefaults, 'read'>,
+    @Inject(RuntimeFeatures)
+    private readonly features: Pick<RuntimeFeatures, 'quoteComparisonEnabled'>,
   ) {}
   onModuleInit() {
+    if (!this.features.quoteComparisonEnabled) return;
     this.schedule();
   }
   private schedule() {
@@ -38,6 +42,7 @@ export class SenderDefaultsWorker implements OnModuleInit, OnModuleDestroy {
     clearTimeout(this.timer);
   }
   async runOnce() {
+    if (!this.features.quoteComparisonEnabled) return;
     const work = await this.repository.claim();
     if (!work) return;
     let address = null;

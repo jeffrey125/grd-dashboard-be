@@ -6,6 +6,7 @@ x-runtime: &runtime
   stop_grace_period: 40s
 
 x-database: &database
+  QUOTE_COMPARISON_ENABLED: ${QUOTE_COMPARISON_ENABLED:-false}
   DB_HOST: db
   DB_PORT: '5432'
   DB_NAME: grd_local

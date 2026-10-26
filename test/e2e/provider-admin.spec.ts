@@ -381,9 +381,13 @@ describe('Provider administration HTTP API', () => {
       staff,
     ).expect(400);
     const defaults = new TypeOrmSenderDefaultsRepository(db.source);
-    const worker = new SenderDefaultsWorker(defaults, {
-      read: async () => address,
-    });
+    const worker = new SenderDefaultsWorker(
+      defaults,
+      {
+        read: async () => address,
+      },
+      { quoteComparisonEnabled: true },
+    );
     await post(
       '/api/v1/quote-comparisons/providers/amazon/default-refresh',
       {},

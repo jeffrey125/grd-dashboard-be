@@ -12,10 +12,12 @@ import { TrackingHttpModule } from '@modules/tracking/tracking-http.module.js';
 import { EventsModule } from '@modules/events/events.module.js';
 import { DashboardModule } from '@modules/dashboard/dashboard.module.js';
 import { SalesRepsModule } from '@modules/sales-reps/sales-reps.module.js';
+import { RuntimeFeaturesHttpModule } from '@runtime/runtime-features-http.module.js';
 
 @Module({
   imports: [
     RuntimeConfigModule,
+    RuntimeFeaturesHttpModule,
     LoggingModule.forRoot('api'),
     ApplicationCacheModule,
     DatabaseModule,

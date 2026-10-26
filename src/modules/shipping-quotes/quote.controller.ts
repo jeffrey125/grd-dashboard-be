@@ -1,7 +1,9 @@
+import { QuoteComparisonGuard } from '@config/runtime-features.module.js';
 import { SenderDefaultsService } from './sender-defaults.service.js';
 import {
   Body,
   Controller,
+  UseGuards,
   Delete,
   Get,
   Header,
@@ -19,6 +21,7 @@ import { QuoteService } from './quote.service.js';
 
 @Controller('quote-comparisons')
 @AuthPolicy('staff')
+@UseGuards(QuoteComparisonGuard)
 export class QuoteController {
   constructor(
     @Inject(QuoteService) private readonly quotes: QuoteService,

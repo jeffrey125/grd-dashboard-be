@@ -20,7 +20,9 @@ describe('Provider readiness worker', () => {
         .mockRejectedValue(new Error('cookie=secret; token=secret')),
       close: vi.fn().mockResolvedValue(undefined),
     };
-    await new ProviderReadinessWorker(repository, () => adapter).runOnce();
+    await new ProviderReadinessWorker(repository, () => adapter, {
+      quoteComparisonEnabled: true,
+    }).runOnce();
     expect(adapter.readiness).toHaveBeenCalledWith('api');
     expect(adapter.close).toHaveBeenCalledOnce();
     expect(finish).toHaveBeenCalledWith(work, 'readiness_failed');
@@ -39,7 +41,9 @@ describe('Provider readiness worker', () => {
       close: vi.fn().mockResolvedValue(undefined),
     };
     try {
-      const worker = new ProviderReadinessWorker(repository, () => adapter);
+      const worker = new ProviderReadinessWorker(repository, () => adapter, {
+        quoteComparisonEnabled: true,
+      });
       const run = worker.runOnce();
       await vi.advanceTimersByTimeAsync(75000);
       await run;

@@ -13,6 +13,7 @@ export function createConfiguration(environment: Record<string, unknown>) {
 
   return {
     environment: env.NODE_ENV,
+    quoteComparisonEnabled: env.QUOTE_COMPARISON_ENABLED === 'true',
     quoteDemo: env.QUOTE_DEMO_MODE === 'true',
     quoteScenarios: {
       amazon: env.QUOTE_DEMO_AMAZON,

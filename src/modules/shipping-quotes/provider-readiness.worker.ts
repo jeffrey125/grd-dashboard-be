@@ -1,3 +1,4 @@
+import { RuntimeFeatures } from '@config/runtime-features.module.js';
 import {
   Inject,
   Injectable,
@@ -30,9 +31,12 @@ export class ProviderReadinessWorker implements OnModuleInit, OnModuleDestroy {
     @Inject(ProviderAdminRepository)
     private readonly repository: ProviderAdminRepository,
     @Inject(READINESS_ADAPTERS) private readonly adapters: ReadinessAdapters,
+    @Inject(RuntimeFeatures)
+    private readonly features: Pick<RuntimeFeatures, 'quoteComparisonEnabled'>,
   ) {}
 
   onModuleInit() {
+    if (!this.features.quoteComparisonEnabled) return;
     this.schedule();
   }
 
@@ -48,6 +52,7 @@ export class ProviderReadinessWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async runOnce() {
+    if (!this.features.quoteComparisonEnabled) return;
     const work = await this.repository.claim();
     if (!work) return;
     const adapter = this.adapters(work.code);

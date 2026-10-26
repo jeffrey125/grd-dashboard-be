@@ -20,6 +20,24 @@ describe('runtime configuration', () => {
         .quoteDemo,
     ).toBe(true);
   });
+  it('validates the quote comparison switch and preserves the disabled default', () => {
+    expect(createConfiguration(testEnvironment).quoteComparisonEnabled).toBe(
+      false,
+    );
+    expect(
+      createConfiguration({
+        ...testEnvironment,
+        QUOTE_COMPARISON_ENABLED: 'false',
+      }).quoteComparisonEnabled,
+    ).toBe(false);
+    expect(() =>
+      createConfiguration({
+        ...testEnvironment,
+        QUOTE_COMPARISON_ENABLED: 'no',
+      }),
+    ).toThrow('QUOTE_COMPARISON_ENABLED must be true or false');
+  });
+
   it('maps DB_* values and preserves literal passwords', () => {
     expect(
       createConfiguration({
@@ -29,6 +47,7 @@ describe('runtime configuration', () => {
       }),
     ).toEqual({
       environment: 'test',
+      quoteComparisonEnabled: false,
       quoteDemo: false,
       quoteScenarios: { amazon: 'success', unishippers: 'validation_failed' },
       logLevel: 'silent',

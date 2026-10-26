@@ -18,6 +18,7 @@ describe('NestLoggerAdapter', () => {
   });
   const productionConfiguration: RuntimeConfiguration = {
     environment: 'production',
+    quoteComparisonEnabled: true,
     quoteDemo: false,
     quoteScenarios: { amazon: 'success', unishippers: 'success' },
     logLevel: 'debug',

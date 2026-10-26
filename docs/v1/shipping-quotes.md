@@ -81,6 +81,13 @@ and installed standards libraries, with the approved provider mappings.
 
 ## Provider execution
 
+SQ-V1-013 adds `QUOTE_COMPARISON_ENABLED` (strict `true|false`, default `false`).
+When false on both API and worker, authenticated quote/provider endpoints return
+404, all quote-related worker loops stay idle, and the frontend hides and blocks
+quote tools using the public, noncached `GET /api/v1/features` flag. This is a
+runtime deployment switch; existing quote data remains intact. See the
+[feature flag ticket](tickets/shipping-quotes/SQ-V1-013-quote-feature-flag.md).
+
 Amazon is fixed to `api` mode. It uses Shipping API v2 through the North America production
 endpoint with environment-only LWA client ID, client secret and refresh token. No
 Amazon email/password login, Playwright page, cookie/session persistence, CAPTCHA

@@ -85,6 +85,7 @@ describe('composition roots', () => {
   it('starts a controller-free worker and releases its scheduler timer on close', async () => {
     for (const [key, value] of Object.entries(testEnvironment))
       vi.stubEnv(key, value);
+    vi.stubEnv('QUOTE_COMPARISON_ENABLED', 'true');
 
     vi.useFakeTimers();
 

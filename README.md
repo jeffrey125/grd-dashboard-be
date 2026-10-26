@@ -280,6 +280,28 @@ rather than contacting providers. Live sample-rate tests belong to SQ-V1-009.
 Stale policy now defaults to one hour (1–168 configurable), including existing quotes
 without provider expiry. Default refresh and mode-test validity are 15 minutes.
 
+### Disable quote comparison
+
+Set `QUOTE_COMPARISON_ENABLED=true` in the API and worker environment to enable
+quote comparison. The default is `false` for a tracking-only deployment; any value
+other than `true` or `false` is rejected at startup. Restart both processes after
+changing it. The frontend reads `GET /api/v1/features` at runtime, so no frontend
+build flag is needed.
+
+When disabled, quote navigation and provider settings are hidden, direct quote
+pages are unavailable, and authenticated quote/provider API requests (including
+SSE) return 404. Quote execution, readiness, and sender-default workers do not
+schedule or claim work. Tracking continues normally; existing quote records and
+queued work are retained for a later re-enable. Database migrations still run.
+The feature endpoint exposes only `quoteComparisonEnabled` and uses `no-store`.
+If the frontend cannot read that endpoint, quote tools remain unavailable while
+tracking remains accessible. No Amazon or myUnishippers quote credentials are
+needed while comparison is disabled; tracking-carrier credentials still apply.
+
+For DigitalOcean, configure this environment value on both the API and worker
+components. Use the existing hosting/TLS/auth/database requirements for the rest
+of the deployment. This flag does not provision DigitalOcean infrastructure.
+
 ### Amazon Shipping API production
 
 Apply migration `1793145600000-AmazonApiMode` before starting the updated API and

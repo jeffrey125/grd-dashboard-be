@@ -626,6 +626,21 @@ all history without provider expiry. Provider expiry remains authoritative. Disa
 blocks new work and queued execution; running quotes may finish. Historical actual
 mode/origin remain unchanged. Frontend settings route: `/admin/shipping-providers`.
 
+### Runtime quote feature flag (SQ-V1-013)
+
+`GET /api/v1/features` is public, returns `{ "quoteComparisonEnabled": boolean }`,
+and sends `Cache-Control: no-store`. It exposes no configuration secrets. The API
+and worker read the strict `QUOTE_COMPARISON_ENABLED=true|false` environment value
+(default `false`) at startup. Set it to `true` to enable quote comparison and
+restart both processes after a change.
+
+The frontend reads the flag at runtime and hides Quote Compare and Quote providers
+when false or unavailable. Direct `/quotes`, descendant quote pages, and
+`/admin/shipping-providers` do not mount their business content when disabled.
+Authenticated `/quote-comparisons` and `/admin/shipping-providers` requests,
+including quote SSE, return 404. All quote-related worker loops remain idle;
+tracking and non-quote administration stay available. Existing quotes are retained.
+
 ### Amazon sandbox presentation
 
 New Amazon attempts use `executionMode: "api"` and `simulated: false`. Historical

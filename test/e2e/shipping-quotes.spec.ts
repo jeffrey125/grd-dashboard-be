@@ -594,6 +594,7 @@ describe('Saved quote comparisons HTTP API', () => {
           return current;
         },
       },
+      { quoteComparisonEnabled: true },
     );
     worker.onModuleInit();
     try {

@@ -1,3 +1,4 @@
+import { RuntimeFeatures } from '@config/runtime-features.module.js';
 import {
   Inject,
   Injectable,
@@ -26,9 +27,12 @@ export class QuoteWorker implements OnModuleInit, OnModuleDestroy {
     private readonly jobs: QuoteExecutionRepository,
     @Inject(QUOTE_ADAPTERS) private readonly adapters: QuoteAdapters,
     @Inject(ProjectLogger) private readonly logger: ProjectLogger,
+    @Inject(RuntimeFeatures)
+    private readonly features: Pick<RuntimeFeatures, 'quoteComparisonEnabled'>,
   ) {}
 
   onModuleInit() {
+    if (!this.features.quoteComparisonEnabled) return;
     this.schedule();
   }
 
@@ -49,6 +53,7 @@ export class QuoteWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async runOnce() {
+    if (!this.features.quoteComparisonEnabled) return;
     while (
       !this.shutdown.signal.aborted &&
       Object.values(this.executions.counts()).reduce(

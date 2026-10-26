@@ -1,5 +1,7 @@
+import { QuoteComparisonGuard } from '@config/runtime-features.module.js';
 import {
   Controller,
+  UseGuards,
   Sse,
   Inject,
   Param,
@@ -17,6 +19,7 @@ import { QuoteService } from './quote.service.js';
 
 @Controller('quote-comparisons')
 @AuthPolicy('staff')
+@UseGuards(QuoteComparisonGuard)
 export class QuoteEventsController {
   constructor(
     @Inject(EventsSource) private readonly events: EventsSource,

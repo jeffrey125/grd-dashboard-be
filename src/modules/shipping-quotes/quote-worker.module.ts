@@ -1,3 +1,4 @@
+import { RuntimeFeaturesModule } from '@config/runtime-features.module.js';
 import {
   ProviderReadinessWorker,
   READINESS_ADAPTERS,
@@ -22,7 +23,7 @@ import { AmazonShippingAdapter } from './amazon-quote.adapter.js';
 import { UnishippersShippingAdapter } from './unishippers-quote.adapter.js';
 
 @Module({
-  imports: [DatabaseModule, RuntimeConfigModule],
+  imports: [RuntimeFeaturesModule, DatabaseModule, RuntimeConfigModule],
   providers: [
     {
       provide: ProviderAdminRepository,
