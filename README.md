@@ -6,6 +6,8 @@ fixture-driven in automated tests.
 
 ## Start here
 
+- [App Platform preparation](docs/v1/app-platform.md): approved domains, CI/CD, required secrets and remaining rollout blockers. Live deployment remains disabled.
+
 - [Frontend handoff](docs/v1/frontend-handoff.md): actual routes, browser auth,
   events, screen behavior and missing response fields.
 - [Release readiness](docs/v1/release-readiness.md): acceptance audit, security

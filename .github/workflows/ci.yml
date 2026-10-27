@@ -1,65 +1,201 @@
-name: CI
+name: CI/CD
 
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   HUSKY: '0'
 
 jobs:
   quality:
+    name: Quality and combined database/browser tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@v3
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          install: false
-          cache: true
-      - name: Frozen install
-        run: pnpm install --frozen-lockfile
-      - name: Format
-        run: pnpm format:check
-      - name: Lint
-        run: pnpm lint
-      - name: Typecheck
-        run: pnpm typecheck
-      - name: Unit tests and V8 coverage
-        run: pnpm test:cov
-      - name: HTTP e2e tests
-        run: pnpm test:e2e
-      - name: Build
-        run: pnpm build
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:cov:all
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 7
 
-  integration:
+  container:
+    name: Production image and disposable database lifecycle
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/setup@v3
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          run_install: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-          install: false
-          cache: true
-      - name: Frozen install
-        run: pnpm install --frozen-lockfile
-      - name: Require Docker runtime
-        run: docker info
-      - name: Install Chromium for intercepted browser fixtures
-        run: pnpm exec playwright install --with-deps chromium
-      - name: PostgreSQL integration tests
-        run: pnpm test:integration
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:container
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install checksum-pinned Gitleaks
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            --output gitleaks.tar.gz
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' | sha256sum --check --strict
+          tar -xzf gitleaks.tar.gz gitleaks
+      - name: Scan all committed history
+        run: '"${{ runner.temp }}/gitleaks" git --redact --no-banner --log-opts="--all" .'
+
+  publish:
+    name: Publish verified image to GHCR
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [quality, container, secrets]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish immutable release
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/jeffrey125/grd-dashboard-be:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=production
+          cache-to: type=gha,mode=max,scope=production
+
+  deploy:
+    name: Deploy App Platform be
+    if: vars.APP_PLATFORM_DEPLOY_ENABLED == 'true'
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://api.globalresourcesdirect.com
+    concurrency:
+      group: app-platform-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Skip superseded releases
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          main_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [[ "$main_sha" == "$GITHUB_SHA" ]]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo 'Deployment skipped: revision superseded on main.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Validate production inputs
+        if: steps.release.outputs.current == 'true'
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          GHCR_CREDENTIALS: ${{ secrets.GHCR_CREDENTIALS }}
+          DIGITALOCEAN_PROJECT_ID: ${{ vars.DIGITALOCEAN_PROJECT_ID }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          UPS_CLIENT_ID: ${{ secrets.UPS_CLIENT_ID }}
+          UPS_CLIENT_SECRET: ${{ secrets.UPS_CLIENT_SECRET }}
+          ECHOSHIP_URL: ${{ secrets.ECHOSHIP_URL }}
+          ECHOSHIP_USERNAME: ${{ secrets.ECHOSHIP_USERNAME }}
+          ECHOSHIP_PASSWORD: ${{ secrets.ECHOSHIP_PASSWORD }}
+          FFE_URL: ${{ secrets.FFE_URL }}
+          FFE_USERNAME: ${{ secrets.FFE_USERNAME }}
+          FFE_PASSWORD: ${{ secrets.FFE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in DIGITALOCEAN_ACCESS_TOKEN GHCR_CREDENTIALS DIGITALOCEAN_PROJECT_ID AUTH_SECRET UPS_CLIENT_ID UPS_CLIENT_SECRET ECHOSHIP_URL ECHOSHIP_USERNAME ECHOSHIP_PASSWORD FFE_URL FFE_USERNAME FFE_PASSWORD; do
+            [[ -n "${!key}" ]] || { echo "::error::Missing production setting: $key"; exit 1; }
+          done
+      - name: Deploy the verified digest and wait for completion
+        id: deploy
+        if: steps.release.outputs.current == 'true'
+        uses: digitalocean/app_action/deploy@cc55bc9b848d25f9c1c9f831cf843fbab3fbfb15 # v2
+        env:
+          RELEASE_DIGEST: ${{ needs.publish.outputs.digest }}
+          GHCR_CREDENTIALS: ${{ secrets.GHCR_CREDENTIALS }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          UPS_CLIENT_ID: ${{ secrets.UPS_CLIENT_ID }}
+          UPS_CLIENT_SECRET: ${{ secrets.UPS_CLIENT_SECRET }}
+          ECHOSHIP_URL: ${{ secrets.ECHOSHIP_URL }}
+          ECHOSHIP_USERNAME: ${{ secrets.ECHOSHIP_USERNAME }}
+          ECHOSHIP_PASSWORD: ${{ secrets.ECHOSHIP_PASSWORD }}
+          FFE_URL: ${{ secrets.FFE_URL }}
+          FFE_USERNAME: ${{ secrets.FFE_USERNAME }}
+          FFE_PASSWORD: ${{ secrets.FFE_PASSWORD }}
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          project_id: ${{ vars.DIGITALOCEAN_PROJECT_ID }}
+          app_spec_location: .do/app.yaml
+          print_build_logs: 'false'
+          print_deploy_logs: 'false'
+      - name: Verify public deployment
+        if: steps.release.outputs.current == 'true'
+        run: bash scripts/check-app-platform.sh https://api.globalresourcesdirect.com
+      - name: Record successful release
+        if: steps.release.outputs.current == 'true'
+        env:
+          RELEASE_DIGEST: ${{ needs.publish.outputs.digest }}
+        run: printf 'Verified %s at %s\n' "$RELEASE_DIGEST" 'https://api.globalresourcesdirect.com' >> "$GITHUB_STEP_SUMMARY"

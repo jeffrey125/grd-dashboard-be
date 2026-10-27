@@ -2,6 +2,11 @@
 
 ## Status and approved boundary
 
+**Later decision (DEPLOY-V1-001):** App Platform configuration and CI/CD preparation
+are approved. See [the deployment guide](app-platform.md) for the current target
+and unresolved rollout gates. This does not authorize live deployment. The
+original V1-018 boundary below is historical.
+
 Local release verification and portable packaging are in scope. Production
 deployment is **not approved or declared ready** by this report. DigitalOcean
 managed PostgreSQL is selected; hosting is undecided. Caddy, production Compose,
