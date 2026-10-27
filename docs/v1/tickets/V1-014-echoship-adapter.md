@@ -73,6 +73,14 @@ failover. The observed private portal endpoints are not a supported public API.
   `createdDate` descending. Never override API values with DOM or location-history
   text, even when the portal's feature-selected panel disagrees. Reject conflicting
   ties on both timestamps and mismatched IDs; require valid ordering timestamps.
+- Approved follow-up on 2026-10-27: if `/tracking` is a valid empty array, use
+  the detail `status` verbatim after whitespace normalization, with no invented
+  status detail or dates. This supports status-only shipments such as `CheckedIn`
+  and keeps scheduled monitoring active. Once events appear, event status/detail
+  take priority. Preserve known dates through the existing persistence merge.
+  Malformed events and failed tracking requests still fail the whole lookup.
+  Include nullable raw `load.status` in successful source data; no new dependency,
+  database migration, location-history request, or DOM mapping is required.
 - Pickup is `pickupDate`; delivered is `deliveryDate`. For undelivered loads,
   estimate prefers the first Delivery stop's `appointmentStart`, then
   `deliveryByDate`, matching the inspected frontend. Treat year-one sentinels as

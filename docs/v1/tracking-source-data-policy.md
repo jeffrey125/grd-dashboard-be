@@ -81,11 +81,15 @@ selected event (modified date descending, then created date descending) is retai
 never the complete history or list. Missing
 optional load values are null; optional event fields may be omitted. IDs are
 canonical strings; original date and status strings remain unconverted.
+The load projection includes the nullable raw detail `status`. When tracking
+history is empty, it supplies the normalized status and `trackingEvent` is null.
+Historical source data may omit `load.status`; no backfill is required.
 
 ```json
 {
   "load": {
     "id": "69451086",
+    "status": "PickedUp",
     "pickupDate": "2026-10-08T16:23:00",
     "deliveryDate": null,
     "deliveryByDate": null,

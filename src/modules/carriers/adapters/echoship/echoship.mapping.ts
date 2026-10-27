@@ -81,6 +81,7 @@ export function mapEchoShip(
   const load = z
     .object({
       id,
+      status: textValue,
       pickupDate: dateValue,
       deliveryByDate: dateValue,
       deliveryDate: dateValue,
@@ -135,6 +136,7 @@ export function mapEchoShip(
   const deliveredOn = date(load.deliveryDate);
   const sourceLoad = {
     id: load.id,
+    status: load.status ?? null,
     pickupDate: load.pickupDate ?? null,
     deliveryDate: load.deliveryDate ?? null,
     deliveryByDate: load.deliveryByDate ?? null,
@@ -144,7 +146,7 @@ export function mapEchoShip(
   return trackingResultSchema.parse({
     outcome: 'found',
     snapshot: {
-      carrierStatus: normalize(latest?.typeName),
+      carrierStatus: normalize(latest ? latest.typeName : load.status),
       carrierStatusDetail: normalize(latest?.notes),
       pickedUpOn: date(load.pickupDate),
       estimatedDeliveryOn: deliveredOn

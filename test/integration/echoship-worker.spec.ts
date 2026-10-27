@@ -37,6 +37,138 @@ describe('EchoShip outcomes persisted through the real executor', () => {
     await db?.close();
   });
 
+  it('keeps status-only shipments scheduled, preserves dates, and records later tracking events', async () => {
+    const carriers = new TypeOrmCarriersRepository(db.source);
+    const carrier = (await carriers.list()).find(
+      (row) => row.code === 'echoship',
+    )!;
+    const shipments = new TypeOrmShipmentsRepository(db.source);
+    const reference = '80000001';
+    const created = await shipments.createMany([
+      {
+        carrierExternalId: carrier.externalId,
+        trackingReference: reference,
+        notes: null,
+      },
+    ]);
+
+    if (created.kind !== 'created') throw new Error('Fixture creation failed');
+
+    const shipment = created.inserted[0]!;
+    const tracking = new TrackingService(
+      new TypeOrmTrackingRepository(db.source),
+    );
+    const stages = [
+      { status: 'CheckedIn', eventStatus: null, pickupDate: null },
+      {
+        status: 'PickedUp',
+        eventStatus: 'Shipment enroute',
+        pickupDate: '2026-10-27T10:00:00',
+      },
+      { status: 'PickedUp', eventStatus: null, pickupDate: null },
+      { status: 'PickedUp', eventStatus: 'Out for delivery', pickupDate: null },
+    ];
+    let stage = stages[0]!;
+    const transport: AxiosAdapter = async (request) => {
+      const data = request.url!.endsWith('signIn')
+        ? {}
+        : request.url!.includes('loadSummaries')
+          ? { results: [{ id: reference }], totalRecordCount: 1 }
+          : request.url!.endsWith('/tracking')
+            ? stage.eventStatus
+              ? [
+                  {
+                    id: reference,
+                    typeName: stage.eventStatus,
+                    notes: null,
+                    createdDate: '2026-10-27T12:00:00',
+                    modifiedDate: '2026-10-27T12:00:00',
+                  },
+                ]
+              : []
+            : {
+                id: reference,
+                status: stage.status,
+                pickupDate: stage.pickupDate,
+                deliveryByDate: stage.pickupDate ? '2026-10-30' : null,
+              };
+
+      return {
+        config: request,
+        status: 200,
+        statusText: 'OK',
+        headers: { 'content-type': 'application/json' },
+        data: { status: { code: 200 }, data },
+      };
+    };
+    const adapter = new EchoShipAdapter(
+      new EchoShipConfiguration({
+        ECHOSHIP_URL: 'https://echoship.com',
+        ECHOSHIP_USERNAME: 'fixture',
+        ECHOSHIP_PASSWORD: 'PRIVATE',
+      }),
+      transport,
+    );
+    const executor = new TrackingExecutorService(
+      tracking,
+      new CarrierAdapterRegistry([adapter]),
+      new SilentLogger(),
+    );
+
+    try {
+      for (const [index, next] of stages.entries()) {
+        stage = next;
+
+        const run = await tracking.createRun({
+          carrierExternalId: carrier.externalId,
+          trigger: 'scheduled',
+          shipmentExternalIds: [shipment.externalId],
+          requestedById: null,
+        });
+
+        await executor.execute(
+          run.externalId,
+          carrier,
+          new AbortController().signal,
+        );
+
+        const [stored] = await db.source.query(
+          `SELECT s.monitoring_status, s.consecutive_failure_count,
+            s.consecutive_not_found_count, s.next_check_at > s.last_attempted_at AS scheduled,
+            snapshot.carrier_status, snapshot.picked_up_on::text AS picked_up_on,
+            snapshot.estimated_delivery_on::text AS estimated_delivery_on,
+            attempt.outcome, attempt.source_data, run.status AS run_status
+          FROM shipments s
+          JOIN shipment_tracking_snapshots snapshot ON snapshot.id=s.current_tracking_snapshot_id
+          JOIN tracking_attempts attempt ON attempt.shipment_id=s.id
+          JOIN tracking_runs run ON run.id=attempt.tracking_run_id
+          WHERE s.external_id=$1 AND run.external_id=$2`,
+          [shipment.externalId, run.externalId],
+        );
+
+        expect(stored).toMatchObject({
+          monitoring_status: 'active',
+          consecutive_failure_count: 0,
+          consecutive_not_found_count: 0,
+          scheduled: true,
+          carrier_status: stage.eventStatus ?? stage.status,
+          picked_up_on: index === 0 ? null : '2026-10-27',
+          estimated_delivery_on: index === 0 ? null : '2026-10-30',
+          outcome: 'found',
+          run_status: 'succeeded',
+          source_data: { load: { status: stage.status } },
+        });
+        expect(stored.source_data.trackingEvent).toEqual(
+          stage.eventStatus
+            ? expect.objectContaining({ typeName: stage.eventStatus })
+            : null,
+        );
+      }
+    } finally {
+      await adapter.onModuleDestroy();
+    }
+  });
+
   it('preserves earlier success and old snapshot/counter when authentication fails after detail', async () => {
     const carriers = new TypeOrmCarriersRepository(db.source);
     const carrier = (await carriers.list()).find(

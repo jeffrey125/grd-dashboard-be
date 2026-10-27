@@ -18,6 +18,7 @@ describe('EchoShip real Chromium with fully intercepted portal fixtures', () => 
       missing?: boolean;
       partial?: boolean;
       unauthorized?: boolean;
+      pending?: boolean;
     } = {},
   ) {
     const calls: string[] = [];
@@ -68,21 +69,28 @@ describe('EchoShip real Chromium with fully intercepted portal fixtures', () => 
                         : 1,
                   };
                 else if (url.pathname.endsWith('/tracking'))
-                  data = [
-                    {
-                      id: 69451086,
-                      typeName: 'Shipment enroute',
-                      notes: 'Arrived at terminal',
-                      createdDate: '2026-10-13T10:00:00',
-                      modifiedDate: '2026-10-13T10:00:00',
-                    },
-                  ];
+                  data = options.pending
+                    ? []
+                    : [
+                        {
+                          id: 69451086,
+                          typeName: 'Shipment enroute',
+                          notes: 'Arrived at terminal',
+                          createdDate: '2026-10-13T10:00:00',
+                          modifiedDate: '2026-10-13T10:00:00',
+                        },
+                      ];
                 else if (url.pathname.includes('/loads/'))
-                  data = {
-                    id: '69451086',
-                    pickupDate: '2026-10-08T23:23:00-07:00',
-                    deliveryByDate: '2026-10-15T08:00:00',
-                  };
+                  data = options.pending
+                    ? {
+                        id: '69451086',
+                        status: 'CheckedIn',
+                      }
+                    : {
+                        id: '69451086',
+                        pickupDate: '2026-10-08T23:23:00-07:00',
+                        deliveryByDate: '2026-10-15T08:00:00',
+                      };
 
                 await route.fulfill({
                   status:
@@ -167,6 +175,29 @@ describe('EchoShip real Chromium with fully intercepted portal fixtures', () => 
       });
     },
   );
+
+  it('uses the observed detail status for empty tracking history without reading DOM status', async () => {
+    const f = await fixture({ pending: true });
+
+    expect(await f.session.read('69451086', signal)).toMatchObject({
+      outcome: 'found',
+      snapshot: {
+        carrierStatus: 'CheckedIn',
+        carrierStatusDetail: null,
+        pickedUpOn: null,
+        estimatedDeliveryOn: null,
+        deliveredOn: null,
+      },
+      sourceData: {
+        load: { status: 'CheckedIn' },
+        trackingEvent: null,
+      },
+    });
+    expect(f.http).not.toHaveBeenCalled();
+    expect(f.calls.some((path) => path.includes('location-history'))).toBe(
+      false,
+    );
+  });
 
   it('does not re-login or make further portal reads after authentication rejection', async () => {
     const f = await fixture({ unauthorized: true });

@@ -142,6 +142,12 @@ They do not enforce limits shared with other applications using the same account
   use descending modified date, then descending created date. Browser mode maps
   JSON responses naturally observed during navigation and does not issue separate
   Axios requests. DOM or location-history text cannot override API values.
+- When `/tracking` returns a valid empty array, use the detail response's raw
+  `status` as the status fallback (for example, `CheckedIn`). Do not translate it
+  to a portal label or infer pickup/delivery dates. Later tracking events take
+  priority again. Missing dates retain previously known values through the shared
+  persistence merge; successful status-only lookups keep normal polling active.
+  Malformed tracking responses still fail rather than using the fallback.
 - Preserve source calendar dates: pickupDate, deliveryDate, and Delivery stop
   appointmentStart followed by deliveryByDate for an undelivered estimate. No
   timezone conversion, broad-list estimate fallback, or event timestamp columns.

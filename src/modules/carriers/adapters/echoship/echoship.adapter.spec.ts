@@ -193,6 +193,95 @@ describe('EchoShip request session', () => {
     }
   });
 
+  it('tracks a status-only shipment and prefers tracking events when they arrive', async () => {
+    const events: unknown[] = [];
+    const f = await fixture({
+      detail: { id: '69451086', status: ' CheckedIn ', secret: 'PRIVATE' },
+      events,
+    });
+
+    try {
+      expect(await f.session.read('69451086', signal)).toEqual({
+        outcome: 'found',
+        snapshot: {
+          carrierStatus: 'CheckedIn',
+          carrierStatusDetail: null,
+          pickedUpOn: null,
+          estimatedDeliveryOn: null,
+          deliveredOn: null,
+        },
+        sourceData: {
+          load: {
+            id: '69451086',
+            status: ' CheckedIn ',
+            pickupDate: null,
+            deliveryDate: null,
+            deliveryByDate: null,
+            deliveryAppointmentStart: null,
+          },
+          trackingEvent: null,
+        },
+      });
+
+      events.push({
+        id: 69451086,
+        typeName: 'Shipment enroute',
+        notes: 'Arrived at terminal',
+        createdDate: '2026-10-27T12:00:00',
+        modifiedDate: '2026-10-27T12:00:00',
+      });
+
+      expect(await f.session.read('69451086', signal)).toMatchObject({
+        outcome: 'found',
+        snapshot: {
+          carrierStatus: 'Shipment enroute',
+          carrierStatusDetail: 'Arrived at terminal',
+        },
+      });
+      expect(f.calls.filter((url) => url.endsWith('signIn'))).toHaveLength(1);
+      expect(f.calls.some((url) => url.includes('location-history'))).toBe(
+        false,
+      );
+    } finally {
+      await f.close();
+    }
+  });
+
+  it.each([undefined, null, '', '   ', 123, 'x'.repeat(256)])(
+    'does not invent tracking data for an unusable detail status: %j',
+    async (status) => {
+      const f = await fixture({
+        detail: { id: '69451086', status },
+        events: [],
+      });
+
+      try {
+        expect(await f.session.read('69451086', signal)).toMatchObject({
+          outcome: 'failed',
+          sourceData: null,
+        });
+      } finally {
+        await f.close();
+      }
+    },
+  );
+
+  it('does not use the detail status to hide malformed tracking events', async () => {
+    const f = await fixture({
+      detail: { id: '69451086', status: 'CheckedIn' },
+      events: [{ id: 69451086, typeName: 'Moving' }],
+    });
+
+    try {
+      expect(await f.session.read('69451086', signal)).toMatchObject({
+        outcome: 'failed',
+        sourceData: null,
+      });
+    } finally {
+      await f.close();
+    }
+  });
+
   it('finds an exact result on a later search page', async () => {
     const f = await fixture({
       search: (offset) => ({
