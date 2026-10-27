@@ -1,6 +1,8 @@
 # DEPLOY-V1-001: deployment remains gated until docs/v1/app-platform.md is satisfied.
 name: grd-dashboard-be
 region: nyc
+vpc:
+  id: d65699ce-4000-4c53-bb2c-ed7fe9e4fd49
 domains:
   - domain: api.globalresourcesdirect.com
     type: PRIMARY
@@ -32,7 +34,7 @@ envs:
   - key: DB_HOST
     scope: RUN_TIME
     type: GENERAL
-    value: ${db.HOSTNAME}
+    value: private-dbaas-db-4718274-do-user-45111792-0.e.db.ondigitalocean.com
   - key: DB_PORT
     scope: RUN_TIME
     type: GENERAL

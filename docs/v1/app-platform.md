@@ -84,14 +84,29 @@ Run `pnpm test:production-env` for fixture-only tests of the sync command.
 ## Runtime and database
 
 The spec attaches the **existing** cluster/database/user; it does not request a new
-database cluster. Database bindings supply host, port, password and CA. Each
+database cluster. Database bindings supply port, password and CA; `DB_HOST`
+selects the existing cluster's private DNS endpoint explicitly. Each
 process writes the CA into a private file under `/tmp` before starting Node, using
 `umask 077`; `DB_SSL_MODE=verify-full` verifies certificate and hostname. The
 separate DB fields preserve literal passwords. The runtime remains non-root.
 
-`db.HOSTNAME` is used as supplied by DigitalOcean. Do not claim private routing:
-VPC selection and endpoint reachability still need verification. Add only the
-approved app as a trusted source; do not disable trusted-source restrictions.
+The spec selects the dedicated NYC1 VPC `d65699ce-4000-4c53-bb2c-ed7fe9e4fd49`
+(`grd-nyc1`, `10.116.16.0/20`) and the cluster's verified private hostname.
+The shared database remains in `default-nyc1`
+(`aa46fc89-0a92-457d-be8f-0d88354918e5`, `10.116.0.0/20`). The approved peering
+`grd-to-default-nyc1` (`c67d272f-8287-45d7-b91a-8f55f2fe6b66`) was verified
+`ACTIVE` on 2026-10-28. Existing database trusted-source rules were preserved.
+Peering enables routing between the networks;
+database trusted-source restrictions still control database access. A separate
+app VPC does not isolate the shared database's compute or connection capacity.
+This uses native
+App Platform configuration without changing application code or parsing a
+connection URL. If the cluster is replaced, update this hostname and the
+database attachment together. Live reachability from App Platform still needs
+verification after app creation. Add only the app's VPC egress private IP to
+the database trusted sources, preserving existing rules; do not disable
+trusted-source restrictions. The egress IP becomes available after app creation;
+the initial migration/deployment may need retrying after that rule is added.
 Use the direct database endpoint, not a transaction pooler, because auth/SSE use
 session connections. Each process has a ten-connection pool; each waiting or active worker also holds
 one dedicated ownership connection. Include migration
@@ -136,7 +151,11 @@ The worker has no HTTP health port; API health does not prove scheduler health.
    running Nest hooks; the API retains Nest signal forwarding.
 3. **Database:** inspect source PostgreSQL version/size/extensions, destination
    permissions and existing contents, cluster CPU/RAM/storage/connection headroom,
-   backups and restore access. This is a shared 1 GiB primary-only cluster; do not
+   backups and restore access. On 2026-10-28, the approved resize completed:
+   2 GiB RAM, 1 vCPU, 30 GiB storage, one node, and 47 non-reserved PostgreSQL
+   connections (50 total minus 3 reserved), verified over TLS. Existing workload
+   held 10 connections, plus one management connection, at verification time.
+   This remains a shared primary-only cluster; do not
    alter other applications' users, databases or settings.
 4. **Migration rehearsal and cutover:** restore a consistent dump to a disposable
    target first; check migrations, row counts, identities and representative
@@ -167,3 +186,5 @@ References: [deployment action](https://github.com/digitalocean/app_action),
 [app specification](https://docs.digitalocean.com/products/app-platform/reference/app-spec/),
 [client IP](https://docs.digitalocean.com/support/where-can-i-find-the-client-ip-address-of-a-request-connecting-to-my-app/),
 [CA delivery](https://docs.digitalocean.com/support/can-i-inject-certificates-or-other-files-into-my-app-at-build-time/).
+
+Private networking: [App Platform VPC configuration and database trusted sources](https://docs.digitalocean.com/products/app-platform/how-to/enable-vpc/).
