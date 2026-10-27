@@ -82,6 +82,7 @@ export interface LockedTrackingRun {
 }
 
 export interface TrackingShipmentCandidate {
+  monitoringWindowOpen: boolean;
   id: number;
   externalId: string;
   monitoringStatus: string;
@@ -96,6 +97,8 @@ export interface TrackingRunTarget extends TrackingShipmentCandidate {
 }
 
 export interface LockedTrackingAttempt {
+  monitoringWindowOpen: boolean;
+  followUpInFuture: boolean;
   runId: string;
   runTrigger: TrackingRunRecord['trigger'];
   runStatus: TrackingRunRecord['status'];
@@ -125,6 +128,7 @@ export interface TrackingAttemptCounts {
 }
 
 export interface TrackingTransaction {
+  reconcileDeliveredMonitoring(shipmentId?: number): Promise<void>;
   recordSessionOutcome(runId: string, healthy: boolean): Promise<boolean>;
   lockAvailableCarrier(externalId: string): Promise<{ id: number } | null>;
   lockTargetShipments(
@@ -158,7 +162,7 @@ export interface TrackingTransaction {
     snapshotId: string;
     verificationUrl: string | null;
     completedAt: Date;
-    delivered: boolean;
+    complete: boolean;
     scheduleNext: boolean;
     reactivate: boolean;
     effectiveIntervalMinutes: number;

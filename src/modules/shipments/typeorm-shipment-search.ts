@@ -77,7 +77,9 @@ function statement(query: ShipmentSearchQuery) {
     );
 
   if (query.undeliveredOnly)
-    filters.push("shipment.monitoring_status <> 'completed'");
+    filters.push(
+      "shipment.monitoring_status <> 'completed' AND snapshot.delivered_on IS NULL",
+    );
 
   const offset = parameter((query.page - 1) * query.pageSize);
   const ordering = orderBy(query);

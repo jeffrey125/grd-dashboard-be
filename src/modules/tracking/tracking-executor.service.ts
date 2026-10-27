@@ -234,6 +234,22 @@ export class TrackingExecutorService {
       };
 
       if (session.readMany) {
+        // A batch starts one logical carrier lookup for all still-eligible targets.
+        for (let index = targets.length - 1; index >= 0; index--)
+          if (
+            !(await this.tracking.prepareLookup(
+              run.externalId,
+              targets[index]!,
+            ))
+          )
+            targets.splice(index, 1);
+
+        if (!targets.length) {
+          await this.tracking.finalizeRun(run.externalId);
+
+          return;
+        }
+
         let results: ReadonlyMap<string, TrackingResult>;
 
         try {
@@ -270,6 +286,12 @@ export class TrackingExecutorService {
       } else {
         for (const target of targets) {
           signal.throwIfAborted();
+
+          if (
+            !sharedFailure &&
+            !(await this.tracking.prepareLookup(run.externalId, target))
+          )
+            continue;
 
           let result: TrackingResult;
 

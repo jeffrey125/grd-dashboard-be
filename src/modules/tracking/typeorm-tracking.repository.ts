@@ -1,3 +1,7 @@
+import {
+  reconcileDeliveredMonitoring,
+  monitoringWindowOpenSql,
+} from '@modules/shipments/typeorm-delivered-monitoring.js';
 import { DataSource, type EntityManager } from 'typeorm';
 import {
   TRACKING_REPOSITORY,
@@ -48,6 +52,10 @@ function lockedRun(row: RunRow): LockedTrackingRun {
 
 export class TypeOrmTrackingTransaction implements TrackingTransaction {
   constructor(private readonly manager: EntityManager) {}
+
+  reconcileDeliveredMonitoring(shipmentId?: number) {
+    return reconcileDeliveredMonitoring(this.manager, shipmentId);
+  }
 
   async recordSessionOutcome(
     runId: string,
@@ -106,10 +114,12 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     const rows: Array<{
       id: number;
       external_id: string;
+      monitoring_window_open: boolean;
       monitoring_status: string;
       monitoring_reason: string | null;
     }> = await this.manager.query(
-      `SELECT id, external_id, monitoring_status, monitoring_reason
+      `SELECT id, external_id, monitoring_status, monitoring_reason,
+              ${monitoringWindowOpenSql('shipments')} AS monitoring_window_open
          FROM shipments
         WHERE external_id = ANY($1::uuid[])
           AND carrier_id = $2
@@ -122,6 +132,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     return rows.map((row) => ({
       id: row.id,
       externalId: row.external_id,
+      monitoringWindowOpen: row.monitoring_window_open,
       monitoringStatus: row.monitoring_status,
       monitoringReason: row.monitoring_reason,
     }));
@@ -187,6 +198,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
       shipment_external_id: string;
       tracking_reference: string;
       lock_version: number;
+      monitoring_window_open: boolean;
       monitoring_status: string;
       monitoring_reason: string | null;
       deleted_at: Date | null;
@@ -197,6 +209,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
               shipment.tracking_reference,
               shipment.lock_version,
               shipment.monitoring_status,
+              ${monitoringWindowOpenSql('shipment')} AS monitoring_window_open,
               shipment.monitoring_reason,
               shipment.deleted_at
          FROM tracking_attempts attempt
@@ -212,6 +225,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
       externalId: row.shipment_external_id,
       trackingReference: row.tracking_reference,
       lockVersion: row.lock_version,
+      monitoringWindowOpen: row.monitoring_window_open,
       monitoringStatus: row.monitoring_status,
       monitoringReason: row.monitoring_reason,
       deletedAt: row.deleted_at,
@@ -231,6 +245,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     shipmentExternalId: string,
   ): Promise<LockedTrackingAttempt | null> {
     const rows: Array<{
+      follow_up_in_future: boolean;
       run_id: string;
       run_trigger: LockedTrackingAttempt['runTrigger'];
       run_status: LockedTrackingAttempt['runStatus'];
@@ -241,6 +256,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
       tracking_reference: string;
       verification_url: string | null;
       current_tracking_snapshot_id: string | null;
+      monitoring_window_open: boolean;
       monitoring_status: string;
       monitoring_reason: string | null;
       consecutive_not_found_count: number;
@@ -261,8 +277,10 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
               shipment.external_id AS shipment_external_id,
               shipment.tracking_reference,
               shipment.verification_url,
+              COALESCE(shipment.follow_up_on > (clock_timestamp() AT TIME ZONE 'America/New_York')::date, false) AS follow_up_in_future,
               shipment.current_tracking_snapshot_id,
               shipment.monitoring_status,
+              ${monitoringWindowOpenSql('shipment')} AS monitoring_window_open,
               shipment.monitoring_reason,
               shipment.consecutive_not_found_count,
               shipment.consecutive_failure_count,
@@ -285,6 +303,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     if (!row) return null;
 
     return {
+      followUpInFuture: row.follow_up_in_future,
       runId: row.run_id,
       runTrigger: row.run_trigger,
       runStatus: row.run_status,
@@ -295,6 +314,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
       trackingReference: row.tracking_reference,
       verificationUrl: row.verification_url,
       currentTrackingSnapshotId: row.current_tracking_snapshot_id,
+      monitoringWindowOpen: row.monitoring_window_open,
       monitoringStatus: row.monitoring_status,
       monitoringReason: row.monitoring_reason,
       consecutiveNotFoundCount: row.consecutive_not_found_count,
@@ -368,7 +388,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     snapshotId: string;
     verificationUrl: string | null;
     completedAt: Date;
-    delivered: boolean;
+    complete: boolean;
     scheduleNext: boolean;
     reactivate: boolean;
     effectiveIntervalMinutes: number;
@@ -407,7 +427,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
         input.snapshotId,
         input.verificationUrl,
         input.completedAt,
-        input.delivered,
+        input.complete,
         input.scheduleNext,
         input.reactivate,
         input.effectiveIntervalMinutes,

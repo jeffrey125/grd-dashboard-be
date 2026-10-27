@@ -149,6 +149,58 @@ describe('Tracking worker with PostgreSQL', () => {
     return module;
   }
 
+  it.each([false, true])(
+    'skips delivered lookups expiring during session setup (batch=%s)',
+    async (batch) => {
+      const item = await shipment('follow-up-session-cutoff');
+      await db.source.query(
+        `WITH snapshot AS (
+      INSERT INTO shipment_tracking_snapshots (shipment_id, carrier_status, delivered_on)
+      SELECT id, 'Delivered', (clock_timestamp() AT TIME ZONE 'America/New_York')::date
+      FROM shipments WHERE external_id = $1 RETURNING id, shipment_id
+    ) UPDATE shipments SET current_tracking_snapshot_id = snapshot.id,
+      monitoring_status = 'completed', monitoring_reason = 'delivered', next_check_at = NULL,
+      follow_up_on = (clock_timestamp() AT TIME ZONE 'America/New_York')::date + 1
+      FROM snapshot WHERE shipments.id = snapshot.shipment_id`,
+        [item.externalId],
+      );
+      const read = vi.fn(async (): Promise<TrackingResult> => ({
+        outcome: 'not_found',
+        sourceData: null,
+      }));
+      const readMany = vi.fn(async () => new Map<string, TrackingResult>());
+      const close = vi.fn(async () => {});
+      const { worker } = await fixture(async () => {
+        await db.source.query(
+          `UPDATE shipments SET follow_up_on = (clock_timestamp() AT TIME ZONE 'America/New_York')::date WHERE external_id = $1`,
+          [item.externalId],
+        );
+        return { read, close, ...(batch ? { readMany } : {}) };
+      });
+      try {
+        await worker.start();
+        await worker.tick();
+        expect(read).not.toHaveBeenCalled();
+        expect(readMany).not.toHaveBeenCalled();
+        expect(close).toHaveBeenCalledOnce();
+        const [stored] = await db.source.query(
+          'SELECT monitoring_status, next_check_at FROM shipments WHERE external_id = $1',
+          [item.externalId],
+        );
+        expect(stored).toEqual({
+          monitoring_status: 'completed',
+          next_check_at: null,
+        });
+        const [attempt] = await db.source.query(
+          'SELECT outcome FROM tracking_attempts',
+        );
+        expect(attempt.outcome).toBe('skipped');
+      } finally {
+        await worker.onModuleDestroy();
+      }
+    },
+  );
+
   it('captures mode at execution, not queue time, and keeps it through later Carrier edits', async () => {
     const item = await shipment('69451086', 'echoship');
     const tracking = new TrackingService(

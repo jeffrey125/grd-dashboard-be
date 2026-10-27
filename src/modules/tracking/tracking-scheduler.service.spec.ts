@@ -91,6 +91,7 @@ async function fixture(
       throw new Error('Unexpected persistence');
     },
   });
+  vi.spyOn(tracking, 'reconcileDeliveredMonitoring').mockResolvedValue();
   const module = await Test.createTestingModule({
     imports: [ScheduleModule.forRoot()],
     providers: [

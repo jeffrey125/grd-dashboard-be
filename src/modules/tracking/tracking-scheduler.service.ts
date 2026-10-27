@@ -119,6 +119,7 @@ export class TrackingSchedulerService implements OnModuleDestroy {
 
   private async round() {
     const signal = this.controller.signal;
+    await this.tracking.reconcileDeliveredMonitoring();
     const carriers = await this.carriers.listActive();
     await this.adapters.retainSessions(carriers.map((carrier) => carrier.code));
 

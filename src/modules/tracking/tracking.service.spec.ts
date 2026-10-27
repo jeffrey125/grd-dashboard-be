@@ -7,6 +7,7 @@ import type {
 
 function transaction(): TrackingTransaction {
   return {
+    reconcileDeliveredMonitoring: vi.fn(),
     recordSessionOutcome: vi.fn(),
     lockAvailableCarrier: vi.fn(),
     lockTargetShipments: vi.fn(),
@@ -89,6 +90,8 @@ describe('TrackingService', () => {
       trackingReference: 'SAFE',
       verificationUrl: null,
       currentTrackingSnapshotId: null,
+      monitoringWindowOpen: true,
+      followUpInFuture: false,
       monitoringStatus: 'active',
       monitoringReason: null,
       consecutiveNotFoundCount: 0,

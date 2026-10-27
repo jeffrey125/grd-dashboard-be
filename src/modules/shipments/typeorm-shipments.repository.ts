@@ -1,4 +1,8 @@
 import { DataSource, IsNull, type EntityManager } from 'typeorm';
+import {
+  reconcileDeliveredMonitoring,
+  monitoringWindowOpenSql,
+} from './typeorm-delivered-monitoring.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import { SalesRepEntity } from '@modules/sales-reps/sales-rep.entity.js';
 import {
@@ -107,6 +111,9 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
 
       await rows.update({ id: shipment.id }, patch);
 
+      if (changes.followUpOn !== undefined)
+        await reconcileDeliveredMonitoring(manager, shipment.id, actorId);
+
       return find(manager, externalId);
     });
   }
@@ -150,6 +157,15 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
             row.monitoringReason === ShipmentMonitoringReason.Manual;
 
       if (!permitted) return { kind: 'conflict' };
+
+      if (command === 'resume') {
+        const [window]: Array<{ open: boolean }> = await manager.query(
+          `SELECT ${monitoringWindowOpenSql('shipment')} AS open FROM shipments shipment WHERE id = $1`,
+          [row.id],
+        );
+
+        if (!window?.open) return { kind: 'conflict' };
+      }
 
       await rows.update(
         { id: row.id, deletedAt: IsNull() },

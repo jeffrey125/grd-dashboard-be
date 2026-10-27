@@ -3,6 +3,9 @@
 **MON-V1-001:** [Monitoring safeguards](monitoring-safeguards.md) supersede the
 original fresh-session and technical-retry rules below.
 
+**MON-V1-002:** [Delivered follow-up monitoring](delivered-follow-up-monitoring.md)
+supersedes terminal delivery when a future follow-up date is populated.
+
 ## Shipment management
 
 - A Shipment belongs to one Carrier and is addressed externally by UUID.
@@ -30,7 +33,7 @@ Manual pause changes only active Shipments to paused/manual and clears the next
 check. Manual resume accepts only paused/manual, returns it to active, clears the
 reason, and schedules it immediately. Neither operation resets the not-found
 counter or tracking history. Invalid/repeated transitions return 409. Threshold
-pause requires a successful manual refresh; delivered remains terminal. Carrier
+pause requires a successful manual refresh; delivered completes monitoring unless its follow-up date is in the future. Carrier
 disablement still prevents the future scheduler from selecting its Shipments.
 
 ## Polling
@@ -214,7 +217,7 @@ Insert a new immutable snapshot only when the complete normalized known state ch
   discovers manual work on its next minute scan.
 - A manual refresh bypasses due-time/minimum-interval eligibility but still uses the rate limiter.
 - It does not shift the existing schedule for an active Shipment.
-- A successful result can reactivate a Shipment paused by not-found threshold; delivered remains terminal.
+- A successful result can reactivate a Shipment paused by not-found threshold; delivered completes monitoring unless its follow-up date is in the future.
 
 By explicit V1-012 decision, refreshing one Shipment does not restart the minimum
 waiting period for its automatic checks. A refresh immediately before a scheduled

@@ -190,7 +190,7 @@ defaults to `createdAt desc`; `trackingReference` and `estimatedDeliveryOn` plus
 `asc` or `desc` are also accepted. Null sortable values always appear last.
 `estimatedDeliveryFrom` and `estimatedDeliveryTo` are optional inclusive ISO
 calendar-date bounds on the current ETA; they reject invalid dates, year zero,
-and reversed ranges. `undeliveredOnly=true` excludes completed Shipments;
+and reversed ranges. `undeliveredOnly=true` excludes completed Shipments and known deliveries (including actively monitored deliveries);
 `false` or omission adds no restriction. These filters support Upcoming deliveries
 drill-down and apply before pagination/counting. Removed lookup-outcome,
 created-date and last-attempted sort parameters remain rejected.
@@ -265,7 +265,7 @@ not delivered-today, on-time performance or analytics metrics.
 
 Upcoming deliveries is restored by the 2026-10-17 frontend interview. Its window
 is New York today through day +6 inclusive, derived from the same `asOf` instant.
-It includes non-completed, nondeleted Shipments whose current ETA is within that
+It includes non-completed, nondeleted Shipments with no known delivery whose current ETA is within that
 window, including disabled Carriers; null ETAs are excluded. The full total and
 at most five rows share the statement snapshot. Order is ETA, creation time and
 internal identity ascending. Recent tracking changes remains absent.
@@ -304,7 +304,7 @@ Creation errors use `{ message, code: 'shipment_validation_failed', details:
 
 `verificationUrl` remains null until a successful lookup populates it. Open
 external links with `noopener noreferrer`. A disabled Carrier prevents creation
-and refresh; existing Shipments remain visible. Delivered is terminal.
+and refresh; existing Shipments remain visible. Delivered Shipments can remain active until a future follow-up date; see [MON-V1-002](delivered-follow-up-monitoring.md).
 Manual pause and threshold pause are distinct: threshold-paused Shipments can
 be refreshed and reactivate on found, but cannot use manual `resume`.
 
@@ -717,3 +717,20 @@ The existing `run.changed` events accompany automatic session-counter/disable
 changes; frontend Carrier queries now reconcile on those events as well as edits,
 resync and focus. No new SSE event or provider HTTP call is introduced by refresh.
 See [monitoring safeguards](monitoring-safeguards.md) for the approved rules.
+
+## Delivered follow-up monitoring (MON-V1-002)
+
+`PATCH /shipments/:externalId` with a future `followUpOn` atomically reactivates a
+completed Shipment. Clearing the date or setting today stops monitoring when
+delivery is known. Manual and safeguard pauses remain paused for future date
+edits. No new response fields or endpoint are introduced. Staff/Admin **Monitor
+again** uses this PATCH and requires a future date, defaulting to tomorrow.
+
+Automatic checks stop at the start of that date in `America/New_York`. Repeated
+delivery results keep the future-dated Shipment active. Existing completed rows
+with future dates reactivate on the first worker scan. Expiry state reconciles
+on a worker scan, with independent pre-lookup guards enforcing the deadline.
+Active rows retain carrier Delivered status; completed rows return to Delivered,
+and due follow-ups also remain in Attention. Undelivered-only and Upcoming
+filters exclude known delivery independently of monitoring state. See the
+[complete rules](delivered-follow-up-monitoring.md).

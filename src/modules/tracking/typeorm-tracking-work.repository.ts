@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { monitoringWindowOpenSql } from '@modules/shipments/typeorm-delivered-monitoring.js';
 import {
   TRACKING_WORK_REPOSITORY,
   type TrackingWorkRepository,
@@ -18,6 +19,7 @@ export class TypeOrmTrackingWorkRepository implements TrackingWorkRepository {
         WHERE carrier.external_id = $1 AND carrier.is_active AND carrier.deleted_at IS NULL
           AND shipment.deleted_at IS NULL AND shipment.monitoring_status = 'active'
           AND shipment.next_check_at <= statement_timestamp()
+          AND ${monitoringWindowOpenSql('shipment')}
           AND NOT EXISTS (
             SELECT 1 FROM tracking_attempts attempt
             JOIN tracking_runs run ON run.id = attempt.tracking_run_id

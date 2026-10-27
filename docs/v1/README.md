@@ -29,6 +29,12 @@ Each ticket is intended for one branch and one implementation agent. A ticket ma
 
 When documents appear to conflict, the narrowest authoritative document wins: database schema over general architecture, cache design over the stack summary, and the assigned ticket over its summary in the ticket index. Surface any unresolved conflict before implementation.
 
+## Approved monitoring extension
+
+[MON-V1-002: delivered follow-up monitoring](delivered-follow-up-monitoring.md)
+permits delivered shipments to remain active until a future follow-up date and
+adds the Staff Monitor again workflow.
+
 ## Fixed v1 scope
 
 - Backend only; the frontend is deferred.

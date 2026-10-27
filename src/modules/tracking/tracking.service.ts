@@ -29,15 +29,20 @@ import {
 
 function shipmentEligible(
   trigger: TrackingRunRecord['trigger'],
-  shipment: { monitoringStatus: string; monitoringReason: string | null },
+  shipment: {
+    monitoringStatus: string;
+    monitoringReason: string | null;
+    monitoringWindowOpen: boolean;
+  },
 ) {
   return (
-    shipment.monitoringStatus === 'active' ||
-    (trigger === 'manual' &&
-      shipment.monitoringStatus === 'paused' &&
-      ['not_found_threshold', 'failure_threshold'].includes(
-        shipment.monitoringReason ?? '',
-      ))
+    shipment.monitoringWindowOpen &&
+    (shipment.monitoringStatus === 'active' ||
+      (trigger === 'manual' &&
+        shipment.monitoringStatus === 'paused' &&
+        ['not_found_threshold', 'failure_threshold'].includes(
+          shipment.monitoringReason ?? '',
+        )))
   );
 }
 
@@ -124,6 +129,48 @@ export class TrackingService {
     @Inject(TrackingNotifications)
     private readonly notifications?: TrackingNotifications,
   ) {}
+
+  reconcileDeliveredMonitoring() {
+    return this.repository.transaction((transaction) =>
+      transaction.reconcileDeliveredMonitoring(),
+    );
+  }
+
+  /** Recheck after session setup and between reads, including midnight in a long run. */
+  prepareLookup(
+    runExternalId: string,
+    target: { shipmentExternalId: string; expectedLockVersion: number },
+  ) {
+    return this.repository.transaction(async (transaction) => {
+      const run = requireRun(await transaction.lockRun(runExternalId));
+      const attempt = requirePendingAttempt(
+        await transaction.lockAttempt(runExternalId, target.shipmentExternalId),
+      );
+      if (
+        run.carrierIsActive &&
+        run.carrierDeletedAt === null &&
+        attempt.deletedAt === null &&
+        attempt.lockVersion === target.expectedLockVersion &&
+        shipmentEligible(run.trigger, attempt)
+      )
+        return true;
+
+      await transaction.finalizeAttempt({
+        attemptId: attempt.attemptId,
+        outcome: 'skipped',
+        snapshotId: null,
+        snapshotChanged: false,
+        sourceData: null,
+        retryable: null,
+        reasonCode: 'SHIPMENT_STATE_CHANGED',
+        message: 'Shipment or Carrier became ineligible before lookup.',
+        completedAt: await transaction.databaseNow(),
+      });
+      await transaction.reconcileDeliveredMonitoring(attempt.shipmentId);
+
+      return false;
+    });
+  }
 
   createRun(input: unknown) {
     const command = createTrackingRunSchema.parse(input);
@@ -289,6 +336,7 @@ export class TrackingService {
           );
 
         const delivered = merged.deliveredOn !== null;
+        const complete = delivered && !attempt.followUpInFuture;
         const reactivate =
           attempt.runTrigger === 'manual' &&
           attempt.monitoringStatus === 'paused' &&
@@ -304,7 +352,7 @@ export class TrackingService {
               attempt.carrierCode,
             ).verificationUrl(attempt.trackingReference),
             completedAt,
-            delivered,
+            complete,
             scheduleNext: attempt.runTrigger === 'scheduled',
             reactivate,
             effectiveIntervalMinutes: command.effectiveIntervalMinutes,
@@ -331,7 +379,7 @@ export class TrackingService {
           initial: previous === null,
           snapshot: merged,
           previous,
-          ...(delivered && attempt.monitoringStatus !== 'completed'
+          ...(complete && attempt.monitoringStatus !== 'completed'
             ? { stopped: 'delivered' as const }
             : {}),
         };
@@ -683,7 +731,10 @@ export class TrackingService {
         };
       }
 
-      return finalize(transaction, attempt, completedAt);
+      const result = await finalize(transaction, attempt, completedAt);
+      await transaction.reconcileDeliveredMonitoring(attempt.shipmentId);
+
+      return result;
     });
   }
 }

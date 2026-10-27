@@ -128,7 +128,7 @@ function overviewStatement(): string {
     LIMIT 5
   ), upcoming AS MATERIALIZED (
     SELECT base.* FROM base CROSS JOIN bounds
-    WHERE monitoring_status <> 'completed'
+    WHERE monitoring_status <> 'completed' AND snapshot_delivered_on IS NULL
       AND snapshot_estimated_delivery_on BETWEEN bounds.date_from AND bounds.date_to
   ), upcoming_rows AS (
     SELECT upcoming.*,

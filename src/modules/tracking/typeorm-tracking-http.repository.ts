@@ -59,13 +59,14 @@ export class TypeOrmTrackingHttpRepository implements TrackingHttpRepository {
       }
 
       if (
-        shipment.monitoringStatus !== 'active' &&
-        !(
-          shipment.monitoringStatus === 'paused' &&
-          ['not_found_threshold', 'failure_threshold'].includes(
-            shipment.monitoringReason ?? '',
-          )
-        )
+        !shipment.monitoringWindowOpen ||
+        (shipment.monitoringStatus !== 'active' &&
+          !(
+            shipment.monitoringStatus === 'paused' &&
+            ['not_found_threshold', 'failure_threshold'].includes(
+              shipment.monitoringReason ?? '',
+            )
+          ))
       )
         return { kind: 'unavailable' as const };
 
