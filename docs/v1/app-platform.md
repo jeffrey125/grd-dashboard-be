@@ -90,6 +90,10 @@ selects the existing cluster's private DNS endpoint explicitly. Each
 process writes the CA into a private file under `/tmp` before starting Node, using
 `umask 077`; `DB_SSL_MODE=verify-full` verifies certificate and hostname. The
 separate DB fields preserve literal passwords. The runtime remains non-root.
+Startup commands use `printenv DB_CA_CERT` and reject blank certificate files
+before starting Node. Do not reference `$DB_CA_CERT` in these commands: the
+deployment action expands shell-style variables while rendering the spec,
+before App Platform supplies runtime bindings, which would erase the value.
 
 The spec selects the dedicated NYC1 VPC `d65699ce-4000-4c53-bb2c-ed7fe9e4fd49`
 (`grd-nyc1`, `10.116.16.0/20`) and the cluster's verified private hostname.

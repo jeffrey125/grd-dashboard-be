@@ -71,7 +71,7 @@ services:
       repository: grd-dashboard-be
       digest: ${RELEASE_DIGEST}
       registry_credentials: ${GHCR_CREDENTIALS}
-    run_command: sh -ec 'umask 077; test -n "$DB_CA_CERT"; printf "%s\n" "$DB_CA_CERT" > /tmp/grd-db-ca.pem; exec node dist/main.js'
+    run_command: sh -ec 'umask 077; printenv DB_CA_CERT > /tmp/grd-db-ca.pem; grep -q "[^[:space:]]" /tmp/grd-db-ca.pem; exec node dist/main.js'
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
     termination:
@@ -111,7 +111,7 @@ workers:
       repository: grd-dashboard-be
       digest: ${RELEASE_DIGEST}
       registry_credentials: ${GHCR_CREDENTIALS}
-    run_command: sh -ec 'umask 077; test -n "$DB_CA_CERT"; printf "%s\n" "$DB_CA_CERT" > /tmp/grd-db-ca.pem; exec node dist/worker.js'
+    run_command: sh -ec 'umask 077; printenv DB_CA_CERT > /tmp/grd-db-ca.pem; grep -q "[^[:space:]]" /tmp/grd-db-ca.pem; exec node dist/worker.js'
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-2gb
     termination:
@@ -161,7 +161,7 @@ jobs:
       repository: grd-dashboard-be
       digest: ${RELEASE_DIGEST}
       registry_credentials: ${GHCR_CREDENTIALS}
-    run_command: sh -ec 'umask 077; test -n "$DB_CA_CERT"; printf "%s\n" "$DB_CA_CERT" > /tmp/grd-db-ca.pem; exec node node_modules/typeorm/cli.js migration:run -d dist/infrastructure/database/data-source.js'
+    run_command: sh -ec 'umask 077; printenv DB_CA_CERT > /tmp/grd-db-ca.pem; grep -q "[^[:space:]]" /tmp/grd-db-ca.pem; exec node node_modules/typeorm/cli.js migration:run -d dist/infrastructure/database/data-source.js'
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
     termination:
