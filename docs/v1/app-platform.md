@@ -16,9 +16,13 @@ changed by this implementation. The existing LAN release remains available.
 `.github/workflows/ci.yml` copies the Tom applications' quality/secret gates,
 immutable releases, serialized deployment, superseded-main check, and external
 HTTP verification. GRD retains its Node/pnpm versions and fixture-based tests.
-The backend runs combined coverage and a separate disposable container lifecycle
+The backend normally runs combined coverage and a separate disposable container lifecycle
 gate before publishing `ghcr.io/jeffrey125/grd-dashboard-be:<commit>`.
 The API, worker and PRE_DEPLOY migration job all use the same image digest.
+During initial deployment troubleshooting, the user approved temporarily skipping
+`pnpm test:cov:all`; the workflow marks that step as skipped and does not upload
+a coverage artifact. Restore the step after setup. Formatting, lint, typecheck,
+container checks and secret scanning remain enabled.
 
 Production deployment is automatic after a successful image publication on
 `main`, including manual workflow runs on `main`. Pull requests and other
