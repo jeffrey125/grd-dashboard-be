@@ -225,10 +225,13 @@ describe.each([
       expect({
         exit: runtime.child.exitCode,
         signal: runtime.child.signalCode,
-      }).toEqual({ exit: null, signal });
+      }).toEqual(
+        entry === 'worker' ? { exit: 0, signal: null } : { exit: null, signal },
+      );
       expect(runtime.output()).toContain('Application stopped');
-      // Nest completes shutdown hooks, removes its listener, then re-sends the signal.
-      expect(runtime.child.signalCode).toBe(signal);
+      // API uses Nest's signal forwarding. Worker owns shutdown so its lock
+      // remains held until a clean process exit, after all application hooks.
+      expect(runtime.child.signalCode).toBe(entry === 'worker' ? null : signal);
       expect(runtime.output()).not.toContain('startup failed');
 
       const records = jsonRecords(runtime);
@@ -286,7 +289,7 @@ describe.each([
     );
   });
 
-  it('exits after three failed connection attempts without leaking credentials', async () => {
+  it('fails unavailable database startup at the runtime boundary without leaking credentials', async () => {
     const runtime = start(entry, {
       ...runtimeEnvironment,
       DB_PORT: await availablePort(),
@@ -302,10 +305,23 @@ describe.each([
 
     expect(
       records.filter((record) => record.event === 'database.connecting'),
-    ).toHaveLength(3);
+    ).toHaveLength(entry === 'main' ? 3 : 0);
     expect(
       records.filter((record) => record.event === 'database.connection.failed'),
-    ).toHaveLength(3);
+    ).toHaveLength(entry === 'main' ? 3 : 0);
+    if (entry === 'worker') {
+      expect(
+        records.filter(
+          (record) => record.event === 'worker.ownership.connecting',
+        ),
+      ).toHaveLength(1);
+      expect(
+        records.some((record) => record.event === 'worker.ownership.acquired'),
+      ).toBe(false);
+      expect(
+        records.some((record) => record.event === 'application.startup.failed'),
+      ).toBe(true);
+    }
     expect(runtime.output()).not.toContain('CANARY_DATABASE_SECRET');
     expect(runtime.output()).not.toContain(`${label} ready`);
   });

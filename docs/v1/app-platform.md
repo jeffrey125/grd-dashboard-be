@@ -93,7 +93,8 @@ separate DB fields preserve literal passwords. The runtime remains non-root.
 VPC selection and endpoint reachability still need verification. Add only the
 approved app as a trusted source; do not disable trusted-source restrictions.
 Use the direct database endpoint, not a transaction pooler, because auth/SSE use
-session connections. Each process has a ten-connection pool; include migration
+session connections. Each process has a ten-connection pool; each waiting or active worker also holds
+one dedicated ownership connection. Include migration
 and replacement processes when assessing the shared cluster's headroom.
 
 The migration job runs the compiled TypeORM CLI with production dependencies;
@@ -114,11 +115,25 @@ The worker has no HTTP health port; API health does not prove scheduler health.
    headers fail closed for login. Fixture HTTP tests cover limits and spoofed
    `X-Forwarded-For`; verify actual ingress header replacement and lack of a
    direct public bypass before accepting live traffic.
-2. **Worker replacement:** prove that the rollout never runs two tracking workers
-   against the same database. `instance_count: 1` is not proof of no deployment
-   overlap. Select a supported stop/start procedure or implement reviewed
-   database-backed singleton ownership before enabling automated backend rollout.
-   Verify browser child-process cleanup and scheduler failure monitoring.
+2. **Worker replacement:** the entrypoint obtains a database-local PostgreSQL
+   session advisory lock before creating the Nest context. A contender waits
+   without starting recovery, quote timers, or tracking. The old process keeps
+   ownership through shutdown and releases it by exiting; total shutdown is
+   bounded at 40 seconds. Connection errors/end or failed heartbeats terminate
+   the holder immediately; a failed tracking scheduler also exits for restart.
+   Logs distinguish `worker.ownership.waiting`, `.acquired`, `.lost`, and
+   `worker.scheduler.failed`. Do not use a transaction pooler. Test actual App
+   Platform replacement and restart behavior before enabling automatic rollout.
+   The existing LAN image predates this lock and must be stopped at cutover.
+   This prevents cooperative deployment overlap; it is not exactly-once delivery
+   or database fencing. A partition/stalled event loop can delay loss detection
+   (heartbeat every 2 seconds, query timeout 5 seconds), and already-sent carrier
+   requests cannot be recalled. Never start workers via a different entrypoint
+   that bypasses ownership. API composition does not acquire this lock. The
+   ownership connection fails startup immediately if unavailable; platform
+   restart handles retry. Once owned, the existing application pool keeps its
+   three connection attempts. Graceful worker shutdown exits with code 0 after
+   running Nest hooks; the API retains Nest signal forwarding.
 3. **Database:** inspect source PostgreSQL version/size/extensions, destination
    permissions and existing contents, cluster CPU/RAM/storage/connection headroom,
    backups and restore access. This is a shared 1 GiB primary-only cluster; do not

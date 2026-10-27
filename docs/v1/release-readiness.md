@@ -139,3 +139,13 @@ Best-effort ntfy alerts can be lost after commit or ambiguously delivered on
 network failure; there is no durable retry/outbox. SSE has no replay and requires
 HTTP resync. Auth throttles and provider quotas are process-local. These are
 approved v1 limits, not guarantees added by packaging.
+
+### DEPLOY-V1-001 worker ownership and ingress follow-up
+
+The worker entrypoint now acquires a dedicated PostgreSQL advisory lock before
+Nest initialization, holds it through process exit, and exits on ownership loss
+or scheduler failure. Waiting replacements do not start background work. The
+App Platform spec enables validated `do-connecting-ip` login tracking while
+retaining false Express proxy trust. See [App Platform guide](app-platform.md)
+for trust assumptions, lock limitations, and the remaining live acceptance gates.
+These changes do not authorize deployment or live database migration.

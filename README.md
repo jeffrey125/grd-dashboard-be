@@ -77,7 +77,10 @@ that local database and is not a normal shutdown command.
 The image defaults to production, but local Compose explicitly uses development
 for HTTP browser cookies. It is **not production deployment configuration**.
 The worker has no HTTP listener: observe `application.ready`, scheduler state and
-safe logs. Never scale it beyond one replica.
+safe logs. Keep one configured replica. The worker entrypoint acquires a dedicated
+PostgreSQL advisory lock before initializing any background services; a replacement
+logs `worker.ownership.waiting` until the old process exits. Lock loss or a failed
+tracking scheduler exits nonzero so the platform can restart it.
 
 ## Native development
 
@@ -154,8 +157,11 @@ Run migrations once before API/worker rollout, never simultaneously in each
 replica. The image contains production dependencies, matching Chromium and built
 code, runs as non-root `node`, and excludes dotenv, source, tests and local
 artifacts. It has no embedded credentials or default production settings. Use an
-init process and at least 40 seconds stop grace; the worker allows 30 seconds for
-cleanup. Chromium needs adequate shared memory (local Compose gives the worker
+init process and at least 60 seconds stop grace; tracking cleanup allows 30 seconds
+and the worker process has a 40-second total shutdown deadline. Ownership stays
+held until process exit, including shutdown. Use a direct database connection,
+not transaction pooling; ownership uses one extra connection per worker process.
+Chromium needs adequate shared memory (local Compose gives the worker
 1 GiB); actual production resource sizing remains unmeasured.
 
 ## Verification and coverage
