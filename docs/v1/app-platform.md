@@ -20,11 +20,13 @@ The backend runs combined coverage and a separate disposable container lifecycle
 gate before publishing `ghcr.io/jeffrey125/grd-dashboard-be:<commit>`.
 The API, worker and PRE_DEPLOY migration job all use the same image digest.
 
-The production deployment job additionally requires the **repository variable**
-`APP_PLATFORM_DEPLOY_ENABLED=true`. Leave it unset until the rollout blockers
-below have been resolved. Defining it only as an environment variable is too late
-for the job-level condition. Publishing an image on main does not deploy it.
-Do not enable App Platform's independent source/image autodeploy.
+Production deployment is automatic after a successful image publication on
+`main`, including manual workflow runs on `main`. Pull requests and other
+branches do not deploy. No deployment-enable repository variable is required.
+Quality, container and secret checks, serialized deployments, and the
+superseded-main check remain in place. Do not enable App Platform's independent
+source/image autodeploy. A successful deployment does not replace the live
+acceptance and data-cutover checks below.
 
 Deployment uses the official `digitalocean/app_action/deploy` action. Its spec
 substitution injects GitHub settings; database bindings resolve in App Platform.
@@ -39,7 +41,6 @@ restriction to `main` and keep any environment approval rules explicit.
 
 | Location            | Name                                                     | Value / purpose                                                                                                                       |
 | ------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Repository variable | `APP_PLATFORM_DEPLOY_ENABLED`                            | Initially unset; `true` only after rollout approval and blockers are resolved.                                                        |
 | Production variable | `DIGITALOCEAN_PROJECT_ID`                                | Intended GRD project UUID. The database may remain in its existing project.                                                           |
 | Production secret   | `DIGITALOCEAN_ACCESS_TOKEN`                              | Token authorized to manage the intended App Platform app and attach its existing database. Confirm required scopes before creation.   |
 | Production secret   | `GHCR_CREDENTIALS`                                       | Backend only: `username:read-package-token` for persistent private-image pulls. Do not use the expiring workflow `GITHUB_TOKEN` here. |
@@ -70,8 +71,8 @@ secrets, and oversized values fail before uploading.
 `DIGITALOCEAN_ACCESS_TOKEN` and `GHCR_CREDENTIALS` are optional in this file:
 blank or absent entries preserve their existing GitHub secrets. GitHub cannot
 return existing secret values; paste those two tokens locally if you want this
-file to contain all secrets. Project ID and deployment enablement remain GitHub
-variables and are not synced by this command. Database bindings remain in the
+file to contain all secrets. Project ID remains a GitHub environment variable
+and is not synced by this command. Database bindings remain in the
 App Platform spec, not this file.
 
 Requires an authenticated `gh` CLI with access to this repository. Uploads target
@@ -122,7 +123,7 @@ The provisional API/migration size is 1 GiB; worker size is 2 GiB for Chromium.
 These are preparation defaults, not measured capacity or spending approval.
 The worker has no HTTP health port; API health does not prove scheduler health.
 
-## Required before enabling deployment
+## Required before accepting live traffic
 
 1. **Ingress client IP:** the spec selects `AUTH_TRUST_PROXY=digitalocean`.
    Login limits use a validated `do-connecting-ip`, retaining Nest's IPv6 grouping.

@@ -1,4 +1,4 @@
-# DEPLOY-V1-001: deployment remains gated until docs/v1/app-platform.md is satisfied.
+# DEPLOY-V1-001: see docs/v1/app-platform.md for deployment and acceptance checks.
 name: grd-dashboard-be
 region: nyc
 vpc:
