@@ -108,10 +108,12 @@ The worker has no HTTP health port; API health does not prove scheduler health.
 
 ## Required before enabling deployment
 
-1. **Ingress client IP:** adapt and verify login rate limiting for App Platform's
-   `do-connecting-ip` header. Current `AUTH_TRUST_PROXY=false` is retained rather
-   than trusting arbitrary forwarded headers. Public rollout is blocked until
-   the ingress trust boundary is implemented and tested.
+1. **Ingress client IP:** the spec selects `AUTH_TRUST_PROXY=digitalocean`.
+   Login limits use a validated `do-connecting-ip`, retaining Nest's IPv6 grouping.
+   Other forwarded headers cannot select that counter. Missing/malformed client
+   headers fail closed for login. Fixture HTTP tests cover limits and spoofed
+   `X-Forwarded-For`; verify actual ingress header replacement and lack of a
+   direct public bypass before accepting live traffic.
 2. **Worker replacement:** prove that the rollout never runs two tracking workers
    against the same database. `instance_count: 1` is not proof of no deployment
    overlap. Select a supported stop/start procedure or implement reviewed

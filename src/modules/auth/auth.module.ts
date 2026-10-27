@@ -6,7 +6,7 @@ import {
   type OnApplicationBootstrap,
 } from '@nestjs/common';
 import { APP_GUARD, HttpAdapterHost } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { createHash } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { DatabaseModule } from '@infrastructure/database/database.module.js';
@@ -24,6 +24,7 @@ import { AuthController } from './auth.controller.js';
 import { AccountsController } from './accounts.controller.js';
 import { AuthBrowserMiddleware } from './auth-browser.middleware.js';
 import { AUTH_RATE_SCOPE } from './auth.policy.js';
+import { AuthThrottlerGuard } from './auth-throttler.guard.js';
 
 const digest = (value: string) =>
   createHash('sha256').update(value).digest('hex');
@@ -85,7 +86,7 @@ const digest = (value: string) =>
     AuthService,
     AuthBrowserMiddleware,
     { provide: APP_GUARD, useClass: AuthGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AuthThrottlerGuard },
   ],
   exports: [AuthService],
 })
@@ -111,6 +112,9 @@ export class AuthModule implements NestModule, OnApplicationBootstrap {
     // An application context (e.g. bootstrap CLI) has no HTTP adapter.
     this.adapter.httpAdapter
       ?.getInstance()
-      .set('trust proxy', this.config.trustProxy);
+      .set(
+        'trust proxy',
+        this.config.trustProxy === 'loopback' ? 'loopback' : false,
+      );
   }
 }

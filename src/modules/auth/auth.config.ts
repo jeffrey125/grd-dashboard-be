@@ -25,7 +25,9 @@ export function authConfiguration(environment: Record<string, unknown>) {
         .string()
         .transform((value) => value.split(',').map((item) => item.trim()))
         .pipe(z.array(origin).min(1)),
-      AUTH_TRUST_PROXY: z.enum(['false', 'loopback']).default('false'),
+      AUTH_TRUST_PROXY: z
+        .enum(['false', 'loopback', 'digitalocean'])
+        .default('false'),
     })
     .safeParse(environment);
 
@@ -39,9 +41,9 @@ export function authConfiguration(environment: Record<string, unknown>) {
     ),
     secure: environment.NODE_ENV === 'production',
     trustProxy:
-      parsed.data.AUTH_TRUST_PROXY === 'loopback'
-        ? ('loopback' as const)
-        : (false as const),
+      parsed.data.AUTH_TRUST_PROXY === 'false'
+        ? (false as const)
+        : parsed.data.AUTH_TRUST_PROXY,
   };
 }
 

@@ -100,7 +100,7 @@ services:
       - key: AUTH_TRUST_PROXY
         scope: RUN_TIME
         type: GENERAL
-        value: 'false'
+        value: digitalocean
 workers:
   - name: worker
     image:

@@ -107,5 +107,23 @@ multiple replicas require shared storage first. Raw email is hashed in keys.
 
 The commands accept no credential arguments or piped password input. Limit local
 shell/database access to trusted operators. `AUTH_TRUST_PROXY=loopback` is available
-only for a trusted local proxy; otherwise retain `false`. Expired sessions are
+only for a trusted local proxy. Use `digitalocean` only as described below;
+otherwise retain `false`. Expired sessions are
 rejected on every request; expiration indexes support later operational cleanup.
+
+## App Platform client IP mode
+
+Set `AUTH_TRUST_PROXY=digitalocean` only when requests reach the API through
+DigitalOcean App Platform ingress. Login throttling reads a single valid
+`do-connecting-ip`; missing, malformed, comma-separated or scoped addresses return
+400 before credential verification. `X-Forwarded-For` does not select the login
+counter in this mode. The installed Nest throttler still normalizes addresses
+and groups IPv6 by /64. Email and password-change counters retain their existing
+rules. Health endpoints do not require the ingress header.
+
+Express proxy trust remains false in this mode; this setting changes login IP
+tracking, not other forwarded-header behavior. `false` and `loopback` retain their
+previous behavior and ignore `do-connecting-ip`. This trusts the managed ingress,
+not arbitrary direct clients: do not expose a bypass route to the API container.
+Verify header replacement/spoof resistance through the actual deployed ingress
+before enabling public traffic. No auth response schema or frontend change.
