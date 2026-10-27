@@ -1,0 +1,35 @@
+{
+  "grd-api": {
+    "index_patterns": ["grd-api-*"],
+    "priority": 100,
+    "template": {
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "plugins.index_state_management.rollover_alias": "grd-api"
+      }
+    }
+  },
+  "grd-worker": {
+    "index_patterns": ["grd-worker-*"],
+    "priority": 100,
+    "template": {
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "plugins.index_state_management.rollover_alias": "grd-worker"
+      }
+    }
+  },
+  "grd-migrate": {
+    "index_patterns": ["grd-migrate-*"],
+    "priority": 100,
+    "template": {
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "plugins.index_state_management.rollover_alias": "grd-migrate"
+      }
+    }
+  }
+}

@@ -176,6 +176,68 @@ The worker has no HTTP health port; API health does not prove scheduler health.
    and SSE, all enabled carriers, worker scheduling, image security and resource
    usage. Public smoke scripts are necessary but do not replace these checks.
 
+## Managed log forwarding
+
+The approved logging cluster is `grd-logs-nyc1` in project
+`global-resources-direct`, NYC1, VPC `grd-nyc1`. It uses one shared 1-vCPU,
+2-GiB node with 10 GiB SSD, priced at $12.15/month before tax in the control
+panel on 2026-10-28. Storage autoscaling is disabled. This is a single-node
+logging service without a standby; it is not an audit archive. Monitor disk
+usage: retention limits age, not ingestion volume, and cannot guarantee that
+10 GiB never fills.
+
+`.do/app.yaml` forwards API, worker and migration runtime output to the managed
+cluster through the write aliases `grd-api`, `grd-worker` and `grd-migrate`.
+App Platform resolves the managed-cluster credentials; no OpenSearch password
+belongs in the repository, GitHub Actions or frontend bundle. DigitalOcean's
+forwarder requires this cluster to have no trusted-source IP restrictions.
+TLS and authentication remain required. PostgreSQL restrictions are unchanged.
+
+Apply `.do/opensearch-retention.json` as policy `grd-logs-seven-days` through
+`PUT /_plugins/_ism/policies/grd-logs-seven-days`. Apply each entry in
+`.do/opensearch-index-templates.json` with `PUT /_index_template/<alias>`.
+For each alias, bootstrap `<alias>-000001` with
+`{"aliases":{"<alias>":{"is_write_index":true}}}` before enabling forwarding.
+Do not recreate an existing write index or overwrite an existing alias blindly.
+These policies are cluster configuration, not database migrations or deployment
+jobs; app releases do not re-bootstrap indexes.
+
+Indexes roll over after one day or 256 MiB, whichever is reached first, and are
+deleted seven days after rollover. Individual log records are therefore retained
+for approximately 7–8 days plus the ISM scheduling delay, rather than deleted at
+exactly seven days old. The policy only matches the three GRD component index
+prefixes. One primary shard and zero replicas are appropriate to this approved
+single-node setup. Verify attachment and failures using
+`GET /_plugins/_ism/explain/grd-*?show_policy=true`.
+
+To inspect logs, open DigitalOcean → Databases → `grd-logs-nyc1` → OpenSearch
+Dashboard, sign in using the cluster's connection credentials, then use Discover.
+Create an index pattern `grd-*` using `@timestamp`, or a separate pattern per
+component. Select a recent time range and expand a log record to see its `log`
+message. Filter `do_component_name` to `api`, `worker` or `migrate`.
+Keep credentials out of URLs, screenshots and support messages.
+
+Live verification on 2026-10-28: cluster
+`014bb398-40c2-476a-8317-9ed1b848ef4d` accepted the retention policy and all three
+templates; rollover dry-runs passed. Forwarding deployment
+`9dc96a5f-8dea-402b-b78e-89dfd7412725` became active. API, worker and migration
+records arrived, including fresh worker ownership and readiness events after a
+worker-only restart. The public API smoke check passed. Deletion is configured
+and enabled, but a seven-day expiry has not yet elapsed for live verification.
+GRD indexes are green with zero replicas; the cluster can show yellow because
+OpenSearch's own ISM history index requests a replica on this single node.
+
+The frontend is a static site and has no server runtime log stream or supported
+`static_sites.log_destinations` field. Its build/deploy logs remain available in
+App Platform. Browser exceptions require a separately approved browser telemetry
+integration and authenticated ingestion design; do not expose cluster credentials
+in `VITE_*` variables. Frontend forwarding is not implemented by this backend
+configuration.
+
+References: [forwarding](https://docs.digitalocean.com/products/app-platform/how-to/forward-logs/),
+[OpenSearch ISM](https://docs.opensearch.org/2.19/im-plugin/ism/policies/),
+[dashboard access](https://docs.digitalocean.com/products/databases/opensearch/how-to/connect/).
+
 ## Rollback and evidence
 
 The action waits for deployment completion; `scripts/check-app-platform.sh` then

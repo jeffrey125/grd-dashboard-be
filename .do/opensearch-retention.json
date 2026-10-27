@@ -1,0 +1,41 @@
+{
+  "policy": {
+    "description": "Roll GRD log indexes daily or at 256 MiB; delete seven days after rollover.",
+    "default_state": "write",
+    "states": [
+      {
+        "name": "write",
+        "actions": [
+          {
+            "rollover": {
+              "min_index_age": "1d",
+              "min_size": "256mb"
+            }
+          }
+        ],
+        "transitions": [{ "state_name": "retain" }]
+      },
+      {
+        "name": "retain",
+        "actions": [],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": { "min_rollover_age": "7d" }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [{ "delete": {} }],
+        "transitions": []
+      }
+    ],
+    "ism_template": [
+      {
+        "index_patterns": ["grd-api-*", "grd-worker-*", "grd-migrate-*"],
+        "priority": 100
+      }
+    ]
+  }
+}

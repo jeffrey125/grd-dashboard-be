@@ -65,6 +65,11 @@ envs:
     value: /tmp/grd-db-ca.pem
 services:
   - name: api
+    log_destinations:
+      - name: grd-api-opensearch
+        open_search:
+          cluster_name: grd-logs-nyc1
+          index_name: grd-api
     image:
       registry_type: GHCR
       registry: jeffrey125
@@ -105,6 +110,11 @@ services:
         value: digitalocean
 workers:
   - name: worker
+    log_destinations:
+      - name: grd-worker-opensearch
+        open_search:
+          cluster_name: grd-logs-nyc1
+          index_name: grd-worker
     image:
       registry_type: GHCR
       registry: jeffrey125
@@ -155,6 +165,11 @@ workers:
         value: ${FFE_PASSWORD}
 jobs:
   - name: migrate
+    log_destinations:
+      - name: grd-migrate-opensearch
+        open_search:
+          cluster_name: grd-logs-nyc1
+          index_name: grd-migrate
     image:
       registry_type: GHCR
       registry: jeffrey125
