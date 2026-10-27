@@ -34,7 +34,7 @@ envs:
   - key: DB_HOST
     scope: RUN_TIME
     type: GENERAL
-    value: private-dbaas-db-4718274-do-user-45111792-0.e.db.ondigitalocean.com
+    value: ${db.HOSTNAME}
   - key: DB_PORT
     scope: RUN_TIME
     type: GENERAL

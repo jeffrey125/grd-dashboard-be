@@ -85,8 +85,8 @@ Run `pnpm test:production-env` for fixture-only tests of the sync command.
 ## Runtime and database
 
 The spec attaches the **existing** cluster/database/user; it does not request a new
-database cluster. Database bindings supply port, password and CA; `DB_HOST`
-selects the existing cluster's private DNS endpoint explicitly. Each
+database cluster. Database bindings supply host (`${db.HOSTNAME}`), port,
+password and CA. Each
 process writes the CA into a private file under `/tmp` before starting Node, using
 `umask 077`; `DB_SSL_MODE=verify-full` verifies certificate and hostname. The
 separate DB fields preserve literal passwords. The runtime remains non-root.
@@ -96,7 +96,7 @@ deployment action expands shell-style variables while rendering the spec,
 before App Platform supplies runtime bindings, which would erase the value.
 
 The spec selects the dedicated NYC1 VPC `d65699ce-4000-4c53-bb2c-ed7fe9e4fd49`
-(`grd-nyc1`, `10.116.16.0/20`) and the cluster's verified private hostname.
+(`grd-nyc1`, `10.116.16.0/20`).
 The shared database remains in `default-nyc1`
 (`aa46fc89-0a92-457d-be8f-0d88354918e5`, `10.116.0.0/20`). The approved peering
 `grd-to-default-nyc1` (`c67d272f-8287-45d7-b91a-8f55f2fe6b66`) was verified
@@ -104,14 +104,17 @@ The shared database remains in `default-nyc1`
 Peering enables routing between the networks;
 database trusted-source restrictions still control database access. A separate
 app VPC does not isolate the shared database's compute or connection capacity.
-This uses native
-App Platform configuration without changing application code or parsing a
-connection URL. If the cluster is replaced, update this hostname and the
-database attachment together. Live reachability from App Platform still needs
-verification after app creation. Add only the app's VPC egress private IP to
-the database trusted sources, preserving existing rules; do not disable
-trusted-source restrictions. The egress IP becomes available after app creation;
-the initial migration/deployment may need retrying after that rule is added.
+On 2026-10-28, a read-only probe in the migration container resolved the private
+hostname to `10.116.0.5`, but its connection timed out even after the app's
+private egress IP `10.116.16.4` was allowed. The standard database hostname
+resolved to `100.126.254.35` inside App Platform and completed a verified-TLS
+PostgreSQL connection and `SELECT 1` as `grdadmin`. The underlying private-path
+failure remains unconfirmed. The approved spec therefore uses `${db.HOSTNAME}`;
+do not claim that this repairs or verifies the peered private route.
+The database trusted sources include the app and its observed private egress IP;
+existing Droplet rules remain. Keep trusted-source restrictions and verified TLS
+enabled. The diagnostic changed no database data and its temporary command was
+restored. Normal migrations and service startup still require live verification.
 Use the direct database endpoint, not a transaction pooler, because auth/SSE use
 session connections. Each process has a ten-connection pool; each waiting or active worker also holds
 one dedicated ownership connection. Include migration
