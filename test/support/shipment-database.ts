@@ -34,7 +34,12 @@ import {
 
 export async function shipmentDatabase() {
   const container = await startPostgresqlContainer();
-  const environment = postgresqlEnvironment(container);
+  // Feature integration fixtures exercise quote routes/workers. Production still
+  // defaults to tracking-only; explicit disabled-mode tests override this value.
+  const environment = {
+    ...postgresqlEnvironment(container),
+    QUOTE_COMPARISON_ENABLED: 'true',
+  };
   const source = new DataSource({
     ...createDatabaseOptions(createConfiguration(environment)),
     entities: [

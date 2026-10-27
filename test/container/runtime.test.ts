@@ -6,10 +6,13 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
+import { readdirSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const execute = promisify(execFile);
-const migrationCount = 15;
+const migrationCount = readdirSync(
+  resolve('src/infrastructure/database/migrations'),
+).filter((name) => /^\d+-.*\.ts$/.test(name)).length;
 
 // Opt-in release check. Its uniquely named project owns only disposable data.
 test(
