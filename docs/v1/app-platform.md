@@ -53,6 +53,34 @@ No quote-provider credentials are needed while comparison is disabled. Optional
 ntfy alerts are not enabled by this spec; add the approved destination if required.
 The frontend has its own settings documented in its App Platform guide.
 
+## Sync production secrets from a local file
+
+Run `pnpm sync:production-env --dry-run`, then `pnpm sync:production-env`.
+The default source is `.env.production` in the repository root; use `--file PATH`
+for another file. This local file is excluded from Git and Docker builds. Keep
+its permissions at `0600` and never paste its contents into logs or chat.
+
+Include the nine authentication/carrier secret names in the table above.
+Use `AUTH_SECRET` (the LAN Compose environment calls its source `GRD_AUTH_SECRET`).
+Quote values containing spaces or `#`. The script uses Node's built-in dotenv
+parser, does not expand shell expressions, and sends each value to GitHub CLI
+through standard input. Unknown names, missing required values, short auth
+secrets, and oversized values fail before uploading.
+
+`DIGITALOCEAN_ACCESS_TOKEN` and `GHCR_CREDENTIALS` are optional in this file:
+blank or absent entries preserve their existing GitHub secrets. GitHub cannot
+return existing secret values; paste those two tokens locally if you want this
+file to contain all secrets. Project ID and deployment enablement remain GitHub
+variables and are not synced by this command. Database bindings remain in the
+App Platform spec, not this file.
+
+Requires an authenticated `gh` CLI with access to this repository. Uploads target
+only `jeffrey125/grd-dashboard-be` / `production`. Uploads are sequential, not
+transactional; on failure, earlier settings may have been updated. Rerun after
+correcting access. Syncing does not deploy or enable deployment.
+
+Run `pnpm test:production-env` for fixture-only tests of the sync command.
+
 ## Runtime and database
 
 The spec attaches the **existing** cluster/database/user; it does not request a new
