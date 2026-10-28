@@ -1,5 +1,6 @@
-import { Controller, Get, Header, Inject } from '@nestjs/common';
-import { AuthPolicy } from '@modules/auth/auth.policy.js';
+import { Controller, Get, Header, Inject, Query } from '@nestjs/common';
+import type { Principal } from '@modules/auth/auth.repository.js';
+import { AuthPolicy, CurrentPrincipal } from '@modules/auth/auth.policy.js';
 import { DashboardService } from './dashboard.service.js';
 
 @Controller('dashboard')
@@ -11,7 +12,7 @@ export class DashboardController {
 
   @Get('overview')
   @Header('Cache-Control', 'no-store')
-  overview() {
-    return this.dashboard.overview();
+  overview(@Query() query: unknown, @CurrentPrincipal() principal: Principal) {
+    return this.dashboard.overview(query, principal.id);
   }
 }

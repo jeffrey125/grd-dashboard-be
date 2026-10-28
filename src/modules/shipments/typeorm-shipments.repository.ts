@@ -38,8 +38,11 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
     return readShipments(this.source.manager);
   }
 
-  search(query: Parameters<ShipmentsRepository['search']>[0]) {
-    return searchShipments(this.source.manager, query);
+  search(
+    query: Parameters<ShipmentsRepository['search']>[0],
+    createdById?: number,
+  ) {
+    return searchShipments(this.source.manager, query, createdById);
   }
 
   history(

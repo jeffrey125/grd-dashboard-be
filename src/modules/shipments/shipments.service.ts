@@ -60,9 +60,15 @@ export class ShipmentsService {
     return this.repository.list();
   }
 
-  search(query: unknown) {
+  search(query: unknown, actorId?: number) {
+    const parsed = parseShipmentInput(shipmentSearchQuerySchema, query);
+
+    if (parsed.scope === 'mine' && actorId === undefined)
+      throw new BadRequestException('Mine requires an authenticated account');
+
     return this.repository.search(
-      parseShipmentInput(shipmentSearchQuerySchema, query),
+      parsed,
+      parsed.scope === 'mine' ? actorId : undefined,
     );
   }
 

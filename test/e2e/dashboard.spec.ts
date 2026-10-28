@@ -145,4 +145,148 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
       );
     }
   });
+
+  it('filters Mine by authenticated creator across search, counts and overview without restricting shared access', async () => {
+    const server = app.getHttpServer() as Server;
+    const auth = app.get(AuthService);
+    const adminPrincipal = await auth.authenticate(
+      new Headers({ cookie: administrator }),
+    );
+    const carrier = await db.source
+      .getRepository(CarrierEntity)
+      .findOneByOrFail({ code: 'ups' });
+    const own = await request(server)
+      .post('/api/v1/shipments')
+      .set('Cookie', staff)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({
+        carrierExternalId: carrier.externalId,
+        trackingReference: 'staff-owned',
+      })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/shipments/${own.body.shipment.externalId}/pause`)
+      .set('Cookie', staff)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({})
+      .expect(200);
+    await db.source.query(
+      `INSERT INTO shipment_tracking_snapshots (shipment_id, carrier_status, estimated_delivery_on, observed_at)
+       SELECT id, 'Moving', (now() AT TIME ZONE 'America/New_York')::date, now()
+       FROM shipments WHERE external_id = $1`,
+      [own.body.shipment.externalId],
+    );
+    await db.source.query(
+      `UPDATE shipments SET current_tracking_snapshot_id = snapshot.id
+       FROM shipment_tracking_snapshots snapshot
+       WHERE shipments.id = snapshot.shipment_id AND shipments.external_id = $1`,
+      [own.body.shipment.externalId],
+    );
+    await db.source.query(
+      `INSERT INTO shipments (carrier_id, tracking_reference, created_by_id)
+       SELECT $1, 'admin-scope-' || n, $2 FROM generate_series(1, 27) n`,
+      [carrier.id, adminPrincipal.id],
+    );
+    await db.source.query(
+      `INSERT INTO shipments (carrier_id, tracking_reference) VALUES ($1, 'unknown-creator')`,
+      [carrier.id],
+    );
+
+    const read = (path: string, cookie: string) =>
+      request(server).get(path).set('Cookie', cookie).expect(200);
+    const mine = await read(
+      '/api/v1/shipments/search?scope=mine&tab=all',
+      staff,
+    );
+    expect(mine.body.total).toBe(1);
+    expect(
+      mine.body.items.map((row: { externalId: string }) => row.externalId),
+    ).toEqual([own.body.shipment.externalId]);
+    expect(mine.body.tabCounts).toMatchObject({
+      all: 1,
+      active: 0,
+      attention: 1,
+      paused: 1,
+    });
+    const page = await read(
+      '/api/v1/shipments/search?scope=mine&tab=all&page=2',
+      administrator,
+    );
+    expect(page.body.total).toBe(28);
+    expect(page.body.items).toHaveLength(3);
+    expect(
+      page.body.items.every(
+        (row: { createdBy: { externalId: string } }) =>
+          row.createdBy.externalId === adminPrincipal.externalId,
+      ),
+    ).toBe(true);
+    const everyone = await read(
+      '/api/v1/shipments/search?scope=everyone&tab=all',
+      staff,
+    );
+    expect(everyone.body.total).toBe(30);
+    const filtered = await read(
+      '/api/v1/shipments/search?scope=mine&tab=all&q=admin-scope',
+      staff,
+    );
+    expect(filtered.body.total).toBe(0);
+    expect(filtered.body.tabCounts.all).toBe(0);
+
+    const overview = await read('/api/v1/dashboard/overview?scope=mine', staff);
+    expect(overview.body.counts).toEqual(mine.body.tabCounts);
+    expect(overview.body.attention.total).toBe(1);
+    expect(overview.body.upcomingDeliveries.total).toBe(1);
+    expect(overview.body.upcomingDeliveries.items[0].externalId).toBe(
+      own.body.shipment.externalId,
+    );
+    expect(
+      (await read('/api/v1/dashboard/overview?scope=everyone', staff)).body
+        .counts.all,
+    ).toBe(30);
+    expect(
+      (await read('/api/v1/dashboard/overview?scope=mine', administrator)).body
+        .counts.all,
+    ).toBe(28);
+
+    const duplicate = await request(server)
+      .post('/api/v1/shipments')
+      .set('Cookie', staff)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({
+        carrierExternalId: carrier.externalId,
+        trackingReference: 'dashboard-http',
+      })
+      .expect(200);
+    expect(duplicate.body.outcome).toBe('existing');
+    expect(duplicate.body.shipment.createdBy.externalId).toBe(
+      adminPrincipal.externalId,
+    );
+    await read(
+      `/api/v1/shipments/${duplicate.body.shipment.externalId}`,
+      staff,
+    );
+    await request(server)
+      .patch(`/api/v1/shipments/${duplicate.body.shipment.externalId}`)
+      .set('Cookie', staff)
+      .set('Origin', 'http://dashboard.example.test')
+      .send({ notes: 'Shared editing remains available' })
+      .expect(200);
+    expect(
+      (await read('/api/v1/shipments/search?scope=mine&tab=all', staff)).body
+        .total,
+    ).toBe(1);
+
+    for (const endpoint of ['/shipments/search', '/dashboard/overview']) {
+      for (const query of [
+        'scope=invalid',
+        'scope=mine&scope=everyone',
+        'scope=mine&createdById=1',
+      ])
+        await request(server)
+          .get(`/api/v1${endpoint}?${query}`)
+          .set('Cookie', staff)
+          .expect(400);
+      await request(server).get(`/api/v1${endpoint}?scope=mine`).expect(401);
+    }
+  });
 });

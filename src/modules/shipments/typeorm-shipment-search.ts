@@ -36,7 +36,7 @@ function orderBy(query: ShipmentSearchQuery): string {
   }
 }
 
-function statement(query: ShipmentSearchQuery) {
+function statement(query: ShipmentSearchQuery, createdById?: number) {
   const parameters: unknown[] = [];
   const parameter = (value: unknown) => {
     parameters.push(value);
@@ -44,6 +44,9 @@ function statement(query: ShipmentSearchQuery) {
     return `$${parameters.length}`;
   };
   const filters = ['shipment.deleted_at IS NULL'];
+
+  if (createdById !== undefined)
+    filters.push(`shipment.created_by_id = ${parameter(createdById)}`);
 
   if (query.q) {
     const search = parameter(query.q);
@@ -242,8 +245,9 @@ function statement(query: ShipmentSearchQuery) {
 export async function searchShipments(
   manager: EntityManager,
   query: ShipmentSearchQuery,
+  createdById?: number,
 ): Promise<ShipmentSearchResponse> {
-  const { sql, parameters } = statement(query);
+  const { sql, parameters } = statement(query, createdById);
   const [row]: SearchEnvelopeRow[] = await manager.query(sql, parameters);
 
   return shipmentSearchResponseSchema.parse({

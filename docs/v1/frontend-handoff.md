@@ -762,3 +762,24 @@ Admin `PATCH /carriers/:externalId` accepts only `isActive` for Other. Disabled
 Other blocks creation, not edits or attention. Refresh and pause/resume return 409. No provider adapter, run or lookup is created. Manual history reuses snapshots;
 recordUpdatedAt/recordUpdatedBy identify the latest manual edit. UI creation fields
 appear only for Other, and the detail Save changes form edits the manual fields.
+
+## Monitoring creator scope (FILTER-V1-002)
+
+`GET /shipments/search` and `GET /dashboard/overview` accept optional
+`scope=mine|everyone`. Omission preserves the existing Everyone behavior for API
+compatibility. Mine is resolved from the authenticated principal, never a
+client-supplied creator ID. Invalid, repeated, and unknown fields return 400.
+Filtering is applied before pagination, tab counts, overview counts, attention
+and upcoming-delivery panels. All existing search filters remain conjunctive.
+Records without a creator are included only in Everyone. No migration is needed;
+this uses the existing indexed `shipments.created_by_id` foreign key.
+
+The frontend defaults to Mine when the account has no saved preference. Its
+Zustand persist store saves only account UUID-to-scope preferences in localStorage,
+retaining each account's choice across navigation, reload, browser restart and
+sign-in. Auth data and server responses are not stored there. Unavailable storage
+falls back to in-memory selection. Switching scope preserves other filters and
+resets pagination; scope/account are part of query cache keys. Both Overview and
+Shipments expose the same Mine/Everyone toggle. Shared detail/edit permissions
+and duplicate detection are unchanged; the existing-record notification opens
+the original record without reassigning its creator.

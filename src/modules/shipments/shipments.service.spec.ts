@@ -86,24 +86,32 @@ describe('Shipment search', () => {
       sortDirection: 'asc',
     });
 
-    expect(repository.search).toHaveBeenNthCalledWith(1, {
-      tab: 'active',
-      q: undefined,
-      carrierExternalId: undefined,
-      page: 1,
-      pageSize: 25,
-      sortBy: 'createdAt',
-      sortDirection: 'desc',
-    });
-    expect(repository.search).toHaveBeenNthCalledWith(2, {
-      tab: 'all',
-      q: '001Ab',
-      carrierExternalId,
-      page: 2,
-      pageSize: 100,
-      sortBy: 'estimatedDeliveryOn',
-      sortDirection: 'asc',
-    });
+    expect(repository.search).toHaveBeenNthCalledWith(
+      1,
+      {
+        tab: 'active',
+        q: undefined,
+        carrierExternalId: undefined,
+        page: 1,
+        pageSize: 25,
+        sortBy: 'createdAt',
+        sortDirection: 'desc',
+      },
+      undefined,
+    );
+    expect(repository.search).toHaveBeenNthCalledWith(
+      2,
+      {
+        tab: 'all',
+        q: '001Ab',
+        carrierExternalId,
+        page: 2,
+        pageSize: 100,
+        sortBy: 'estimatedDeliveryOn',
+        sortDirection: 'asc',
+      },
+      undefined,
+    );
   });
 
   it.each([

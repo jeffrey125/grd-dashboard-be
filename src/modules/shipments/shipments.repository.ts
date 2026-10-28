@@ -35,7 +35,10 @@ export type MonitoringResult =
 
 export interface ShipmentsRepository {
   list(): Promise<ShipmentRecord[]>;
-  search(query: ShipmentSearchQuery): Promise<ShipmentSearchResponse>;
+  search(
+    query: ShipmentSearchQuery,
+    createdById?: number,
+  ): Promise<ShipmentSearchResponse>;
   history(
     externalId: string,
     query: ShipmentHistoryQuery,

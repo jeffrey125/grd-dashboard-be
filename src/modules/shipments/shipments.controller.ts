@@ -33,8 +33,8 @@ export class ShipmentsController {
 
   @Get('search')
   @Header('Cache-Control', 'no-store')
-  search(@Query() query: unknown) {
-    return this.shipments.search(query);
+  search(@Query() query: unknown, @CurrentPrincipal() principal: Principal) {
+    return this.shipments.search(query, principal.id);
   }
 
   @Get(':externalId/history')

@@ -4,6 +4,10 @@ import {
   shipmentTabCountsSchema,
 } from '@modules/shipments/shipments.schemas.js';
 
+export const dashboardOverviewQuerySchema = z.strictObject({
+  scope: z.enum(['mine', 'everyone']).optional(),
+});
+
 export const dashboardOverviewResponseSchema = z.strictObject({
   asOf: z.date(),
   timezone: z.literal('America/New_York'),

@@ -111,6 +111,7 @@ function overviewStatement(): string {
       LIMIT 1
     ) lookup ON TRUE
     WHERE shipment.deleted_at IS NULL
+      AND ($2::integer IS NULL OR shipment.created_by_id = $2::integer)
   ), counts AS (
     SELECT
       count(*)::integer AS all_count,
@@ -211,11 +212,11 @@ export class TypeOrmDashboardRepository implements DashboardRepository {
     private readonly clock: () => Date = () => new Date(),
   ) {}
 
-  async overview(): Promise<DashboardOverview> {
+  async overview(createdById?: number): Promise<DashboardOverview> {
     const asOf = this.clock();
     const [row]: OverviewEnvelopeRow[] = await this.source.manager.query(
       overviewStatement(),
-      [asOf],
+      [asOf, createdById ?? null],
     );
 
     return dashboardOverviewResponseSchema.parse({
