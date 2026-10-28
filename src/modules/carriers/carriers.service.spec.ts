@@ -33,7 +33,7 @@ async function setup() {
   const repository = {
     list: vi.fn<CarriersRepository['list']>(),
     listActive: vi.fn<CarriersRepository['listActive']>(),
-    find: vi.fn<CarriersRepository['find']>(),
+    find: vi.fn<CarriersRepository['find']>().mockResolvedValue(carrier),
     update: vi.fn<CarriersRepository['update']>(),
   };
   const module = await Test.createTestingModule({

@@ -708,3 +708,20 @@ Existing attempt outcomes, snapshots and not-found counters remain intact.
 The enum is recreated within the migration transaction. Rollback converts the new
 pause reason to `manual` while preserving paused state, then removes new fields.
 See [the lifecycle and concurrency rules](monitoring-safeguards.md).
+
+## MON-V1-004: manual Other carrier
+
+`ManualOtherCarrier1793491200000` seeds `carriers.code = 'other'`, name `Other`,
+enabled by default, with automatic failure/session safeguards off. It adds no
+columns, tables or foreign keys. The existing polling interval placeholder (30)
+is unused for this manual carrier. Only enable/disable is configurable.
+
+Manual tracking changes append existing immutable `shipment_tracking_snapshots`
+and update the owning Shipment's current snapshot, monitoring state and editor
+attribution transactionally. Other always has `next_check_at = NULL`; Delivered
+sets internal `delivered_on` to the current New York business date, and reopening
+clears it in a new snapshot. Existing history remains unchanged.
+
+The down migration deletes the seeded carrier only if existing foreign keys permit
+it; it does not remove or cascade shipment/history data. See
+[manual Other behavior](manual-other-carrier.md).

@@ -27,18 +27,31 @@ const followUpOnSchema = z.iso
   .refine((value) => !value.startsWith('0000'))
   .nullable();
 
+export const manualTrackingSchema = z.strictObject({
+  carrierStatus: z.enum([
+    'Pending Pickup',
+    'Pickedup',
+    'Out for delivery',
+    'Delivered',
+  ]),
+  pickedUpOn: followUpOnSchema,
+  estimatedDeliveryOn: followUpOnSchema,
+});
+
 export const createShipmentSchema = z.strictObject({
   carrierExternalId: shipmentExternalIdSchema,
   trackingReference: trackingReferenceSchema,
   notes: notesSchema.optional().transform((value) => value ?? null),
   salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
   followUpOn: followUpOnSchema.optional(),
+  manualTracking: manualTrackingSchema.optional(),
 });
 export const updateShipmentSchema = z
   .strictObject({
     notes: notesSchema.optional(),
     salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
     followUpOn: followUpOnSchema.optional(),
+    manualTracking: manualTrackingSchema.optional(),
   })
   .refine((value) => Object.values(value).some((item) => item !== undefined), {
     message: 'At least one Shipment field is required',
@@ -55,7 +68,7 @@ const positiveIntegerQuerySchema = z
 export const shipmentSearchQuerySchema = z
   .strictObject({
     tab: z
-      .enum(['all', 'active', 'paused', 'delivered', 'attention'])
+      .enum(['all', 'active', 'paused', 'delivered', 'attention', 'other'])
       .default('active'),
     q: z
       .string()
@@ -171,6 +184,7 @@ export const shipmentRecordSchema = z.strictObject({
   updatedAt: z.date(),
 });
 export const shipmentTabCountsSchema = z.strictObject({
+  other: z.int().nonnegative(),
   all: z.int().nonnegative(),
   active: z.int().nonnegative(),
   paused: z.int().nonnegative(),

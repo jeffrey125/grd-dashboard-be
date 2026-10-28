@@ -14,6 +14,7 @@ import type { NewShipment } from './shipments.schemas.js';
 import { readShipmentHistory } from './typeorm-shipment-history.js';
 import { readShipments } from './typeorm-shipment-read.js';
 import { searchShipments } from './typeorm-shipment-search.js';
+import { saveManualTracking } from './typeorm-manual-tracking.js';
 import {
   SHIPMENTS_REPOSITORY,
   type MonitoringCommand,
@@ -111,6 +112,14 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
 
       await rows.update({ id: shipment.id }, patch);
 
+      if (changes.manualTracking)
+        await saveManualTracking(
+          manager,
+          shipment.id,
+          changes.manualTracking,
+          actorId,
+        );
+
       if (changes.followUpOn !== undefined)
         await reconcileDeliveredMonitoring(manager, shipment.id, actorId);
 
@@ -149,6 +158,10 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
         .getOne();
 
       if (!row) return { kind: 'missing' };
+      const carrier = await manager
+        .getRepository(CarrierEntity)
+        .findOneByOrFail({ id: row.carrierId });
+      if (carrier.code === 'other') return { kind: 'conflict' };
 
       const permitted =
         command === 'pause'
@@ -264,7 +277,8 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
       );
 
       for (const item of ordered) {
-        const carrierId = available.get(item.carrierExternalId)!.id;
+        const carrier = available.get(item.carrierExternalId)!;
+        const carrierId = carrier.id;
         let externalId: string | undefined;
         let inserted = false;
 
@@ -273,7 +287,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
             `INSERT INTO shipments
               (carrier_id, tracking_reference, notes, sales_rep_id, follow_up_on,
                next_check_at, created_by_id, updated_by_id)
-             VALUES ($1, $2, $3, $4, $5, clock_timestamp(), $6, $6)
+             VALUES ($1, $2, $3, $4, $5, CASE WHEN $7 THEN NULL ELSE clock_timestamp() END, $6, $6)
              ON CONFLICT (carrier_id, tracking_reference) WHERE deleted_at IS NULL DO NOTHING
              RETURNING external_id`,
             [
@@ -285,6 +299,7 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
                 : null,
               item.followUpOn,
               actorId,
+              carrier.code === 'other',
             ],
           );
 
@@ -304,6 +319,22 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
 
             externalId = existing[0]?.external_id;
           }
+        }
+
+        if (inserted && carrier.code === 'other') {
+          const row = await manager
+            .getRepository(ShipmentEntity)
+            .findOneByOrFail({ externalId });
+          await saveManualTracking(
+            manager,
+            row.id,
+            item.manualTracking ?? {
+              carrierStatus: 'Pending Pickup',
+              pickedUpOn: null,
+              estimatedDeliveryOn: null,
+            },
+            actorId,
+          );
         }
 
         results.set(item, {

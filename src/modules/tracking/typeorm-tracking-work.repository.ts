@@ -16,7 +16,7 @@ export class TypeOrmTrackingWorkRepository implements TrackingWorkRepository {
       `SELECT shipment.external_id
          FROM shipments shipment
          JOIN carriers carrier ON carrier.id = shipment.carrier_id
-        WHERE carrier.external_id = $1 AND carrier.is_active AND carrier.deleted_at IS NULL
+        WHERE carrier.external_id = $1 AND carrier.code <> 'other' AND carrier.is_active AND carrier.deleted_at IS NULL
           AND shipment.deleted_at IS NULL AND shipment.monitoring_status = 'active'
           AND shipment.next_check_at <= statement_timestamp()
           AND ${monitoringWindowOpenSql('shipment')}

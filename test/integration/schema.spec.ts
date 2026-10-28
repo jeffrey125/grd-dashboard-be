@@ -65,7 +65,7 @@ describe('initial application schema', () => {
     await container?.stop();
   });
 
-  it('seeds exactly the three approved Carriers with their polling configuration', async () => {
+  it('seeds automated carriers and the manual Other carrier', async () => {
     expect(
       await source.query(`SELECT code, name, is_active, poll_interval_minutes,
       not_found_pause_threshold, rate_limit_per_minute FROM carriers ORDER BY code`),
@@ -83,6 +83,14 @@ describe('initial application schema', () => {
         name: 'FFE',
         is_active: true,
         poll_interval_minutes: 5,
+        not_found_pause_threshold: 5,
+        rate_limit_per_minute: null,
+      },
+      {
+        code: 'other',
+        name: 'Other',
+        is_active: true,
+        poll_interval_minutes: 30,
         not_found_pause_threshold: 5,
         rate_limit_per_minute: null,
       },

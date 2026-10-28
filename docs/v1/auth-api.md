@@ -138,3 +138,8 @@ including restricted sessions. It returns 204 and is limited to 20 reports per
 minute per account. See [frontend-debugging.md](frontend-debugging.md) for strict
 fields and privacy boundaries. CORS exposes the server-generated `X-Request-Id`
 for correlating a failed API response with its backend request log.
+
+Other manual carrier shipment creation, edits and history require unrestricted
+Staff or Admin, including edits while Other is disabled. Only Admin can enable or
+disable Other through the existing Carrier PATCH route. Manual tracking fields are
+rejected for automated carriers; Other refresh/pause/resume requests conflict.

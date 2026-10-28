@@ -12,6 +12,7 @@ export async function reconcileDeliveredMonitoring(
             next_check_at = clock_timestamp(), updated_at = clock_timestamp(),
             updated_by_id = $2, lock_version = lock_version + 1
       WHERE shipment.deleted_at IS NULL AND shipment.monitoring_status = 'completed'
+        AND shipment.carrier_id NOT IN (SELECT id FROM carriers WHERE code = 'other')
         AND ($1::integer IS NULL OR shipment.id = $1)
         AND shipment.follow_up_on > (clock_timestamp() AT TIME ZONE 'America/New_York')::date`,
     [shipmentId, actorId],
@@ -26,6 +27,7 @@ export async function reconcileDeliveredMonitoring(
       WHERE snapshot.id = shipment.current_tracking_snapshot_id
         AND snapshot.shipment_id = shipment.id AND snapshot.delivered_on IS NOT NULL
         AND shipment.deleted_at IS NULL AND shipment.monitoring_status <> 'completed'
+        AND shipment.carrier_id NOT IN (SELECT id FROM carriers WHERE code = 'other')
         AND ($1::integer IS NULL OR shipment.id = $1)
         AND (shipment.follow_up_on IS NULL
           OR shipment.follow_up_on <= (clock_timestamp() AT TIME ZONE 'America/New_York')::date)`,

@@ -177,7 +177,7 @@ type ShipmentSearchResponse = {
 ```
 
 Search query fields are strict: unknown fields return 400. `tab` is `all`,
-`active` (default), `paused`, `delivered`, or `attention`. `q` is a trimmed,
+`active` (default), `paused`, `delivered`, `attention`, or `other`. `q` is a trimmed,
 case-insensitive literal substring of reference or notes, up to 255 code units;
 `%`, `_`, and `\\` have no wildcard meaning. `carrierExternalId` is one UUIDv4.
 `salesRepExternalIds` is a comma-separated string of UUIDv4 values and/or the
@@ -747,3 +747,18 @@ filters exclude known delivery independently of monitoring state. See the
 OBS-V1-001 adds `POST /api/v1/telemetry/frontend` and exposes `X-Request-Id` through
 CORS. See [frontend-debugging.md](frontend-debugging.md) for the exact event fields,
 rate limits, private source-map workflow and deployment boundary.
+
+## MON-V1-004: manual Other shipments
+
+See [manual Other carrier](manual-other-carrier.md) for the complete contract.
+`tab=other`, `tabCounts.other`, and overview `counts.other` are added. Other and
+Needs attention overlap when follow-up is due; Active/Delivered exclude Other.
+Staff create/update requests may include `manualTracking: { carrierStatus,
+pickedUpOn, estimatedDeliveryOn }` for carrier code `other` only. Status is one of
+`Pending Pickup`, `Pickedup`, `Out for delivery`, `Delivered`; dates are nullable
+ISO calendar dates. Omission on create defaults to Pending Pickup/blank dates.
+
+Admin `PATCH /carriers/:externalId` accepts only `isActive` for Other. Disabled
+Other blocks creation, not edits or attention. Refresh and pause/resume return 409. No provider adapter, run or lookup is created. Manual history reuses snapshots;
+recordUpdatedAt/recordUpdatedBy identify the latest manual edit. UI creation fields
+appear only for Other, and the detail Save changes form edits the manual fields.

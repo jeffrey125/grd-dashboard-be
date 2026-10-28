@@ -415,6 +415,7 @@ describe('Durable quote execution', () => {
     );
     await db.source.query("UPDATE quote_requests SET status='saved'");
 
+    await db.source.undoLastMigration(); // Manual Other carrier.
     await db.source.undoLastMigration(); // Monitoring safeguards migration.
     await db.source.undoLastMigration(); // Provider weight limits migration.
     await db.source.undoLastMigration(); // Amazon API mode migration.

@@ -99,7 +99,7 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     const rows: Array<{ id: number }> = await this.manager.query(
       `SELECT id
          FROM carriers
-        WHERE external_id = $1 AND deleted_at IS NULL AND is_active = TRUE
+        WHERE external_id = $1 AND deleted_at IS NULL AND is_active = TRUE AND code <> 'other'
         FOR SHARE`,
       [externalId],
     );

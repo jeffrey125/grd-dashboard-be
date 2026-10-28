@@ -47,10 +47,17 @@ export class CarriersService {
     const id = parseCarrierInput(carrierExternalIdSchema, externalId);
     const changes = parseCarrierInput(updateCarrierSchema, input);
 
-    if (changes.fetchMode) {
-      const current = await this.find(id);
+    const carrierBefore = await this.find(id);
+    if (
+      carrierBefore.code === 'other' &&
+      Object.keys(changes).some((key) => key !== 'isActive')
+    )
+      throw new BadRequestException(
+        'Other only supports enabling or disabling manual entries',
+      );
 
-      if (!supportsFetchMode(current.code, changes.fetchMode))
+    if (changes.fetchMode) {
+      if (!supportsFetchMode(carrierBefore.code, changes.fetchMode))
         throw new BadRequestException(
           'Fetch mode is not supported by this Carrier',
         );

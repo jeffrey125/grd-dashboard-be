@@ -166,6 +166,7 @@ describe('Dashboard overview PostgreSQL repository', () => {
       shipmentSearchQuerySchema.parse({ tab: 'attention' }),
     );
     expect(overview.counts).toEqual({
+      other: 0,
       all: 6,
       active: 2,
       paused: 2,
@@ -308,13 +309,27 @@ describe('Dashboard overview PostgreSQL repository', () => {
       );
 
       await expect(repository.overview()).resolves.toMatchObject({
-        counts: { all: 1, active: 1, paused: 0, delivered: 0, attention: 0 },
+        counts: {
+          other: 0,
+          all: 1,
+          active: 1,
+          paused: 0,
+          delivered: 0,
+          attention: 0,
+        },
       });
 
       await runner.commitTransaction();
 
       await expect(repository.overview()).resolves.toMatchObject({
-        counts: { all: 1, active: 0, paused: 1, delivered: 0, attention: 1 },
+        counts: {
+          other: 0,
+          all: 1,
+          active: 0,
+          paused: 1,
+          delivered: 0,
+          attention: 1,
+        },
       });
     } finally {
       if (runner.isTransactionActive) await runner.rollbackTransaction();
@@ -374,6 +389,7 @@ describe('Dashboard overview PostgreSQL repository', () => {
       ).overview();
 
       expect(overview.counts).toEqual({
+        other: 0,
         all: 10000,
         active: 0,
         paused: 0,

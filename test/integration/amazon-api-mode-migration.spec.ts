@@ -12,6 +12,7 @@ afterAll(async () => {
 });
 
 it('migrates populated Amazon state to API mode without rewriting history', async () => {
+  await db.source.undoLastMigration(); // Manual Other carrier.
   await db.source.undoLastMigration(); // Monitoring safeguards migration.
   await db.source.undoLastMigration(); // Provider weight limits migration.
   await db.source.undoLastMigration(); // Amazon API mode migration.

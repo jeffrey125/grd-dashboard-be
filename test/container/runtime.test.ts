@@ -120,7 +120,7 @@ test(
             await sql('SELECT count(*) FROM migrations'),
             String(migrationCount),
           );
-          assert.equal(await sql('SELECT count(*) FROM carriers'), '3');
+          assert.equal(await sql('SELECT count(*) FROM carriers'), '4');
 
           const address = (await compose('port', 'api', '3000')).stdout.trim();
           const response = await fetch(

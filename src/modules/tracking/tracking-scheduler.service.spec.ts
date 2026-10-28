@@ -52,6 +52,7 @@ async function fixture(
   options: {
     work?: Partial<TrackingWorkRepository>;
     missingAdapter?: boolean;
+    manualOnly?: boolean;
   } = {},
 ) {
   vi.useFakeTimers();
@@ -66,7 +67,8 @@ async function fixture(
   };
   const carriers: CarriersRepository = {
     list: async () => [carrier],
-    listActive: async () => [carrier],
+    listActive: async () =>
+      options.manualOnly ? [{ ...carrier, code: 'other' }] : [carrier],
     find: async () => carrier,
     update: async () => carrier,
   };
@@ -113,6 +115,18 @@ async function fixture(
 afterEach(() => vi.useRealTimers());
 
 describe('Worker scheduling with fake time', () => {
+  it('starts and scans safely with an enabled manual carrier and no adapter', async () => {
+    const f = await fixture({ manualOnly: true, missingAdapter: true });
+    try {
+      await f.worker.start();
+      await f.worker.tick();
+      expect(f.worker.status().state).toBe('ready');
+      expect(f.work.findDue).not.toHaveBeenCalled();
+    } finally {
+      await f.module.close();
+    }
+  });
+
   it('starts immediately, scans every 60 seconds, and stops scheduling on shutdown', async () => {
     const f = await fixture();
 

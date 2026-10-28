@@ -131,6 +131,7 @@ describe('Dashboard HTTP API with PostgreSQL', () => {
         },
         upcomingDeliveries: { total: 0, items: [] },
         counts: {
+          other: 0,
           all: 1,
           active: 1,
           paused: 0,

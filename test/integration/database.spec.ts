@@ -1,3 +1,4 @@
+import { ManualOtherCarrier1793491200000 } from '@infrastructure/database/migrations/1793491200000-ManualOtherCarrier.js';
 import { MonitoringSafeguards1793318400000 } from '@infrastructure/database/migrations/1793318400000-MonitoringSafeguards.js';
 import { ProviderWeightLimits1793232000000 } from '@infrastructure/database/migrations/1793232000000-ProviderWeightLimits.js';
 import { ProviderAdministration1793059200000 } from '@infrastructure/database/migrations/1793059200000-ProviderAdministration.js';
@@ -110,6 +111,7 @@ describe('production migrations and repository foundation', () => {
         AmazonApiMode1793145600000,
         ProviderWeightLimits1793232000000,
         MonitoringSafeguards1793318400000,
+        ManualOtherCarrier1793491200000,
       ],
     });
     await source.initialize();
@@ -385,6 +387,7 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Manual Other carrier.
     await source.undoLastMigration(); // Monitoring safeguards migration.
     await source.undoLastMigration(); // Provider weight limits migration.
     await source.undoLastMigration(); // Amazon API mode migration.
@@ -482,7 +485,7 @@ describe('production migrations and repository foundation', () => {
         ),
       ).resolves.toMatchObject({ name: 'After second migration' });
 
-      expect(await source.getRepository(CarrierEntity).count()).toBe(4);
+      expect(await source.getRepository(CarrierEntity).count()).toBe(5);
 
       await cli('migration:generate', [join(directory, 'Check'), '--check']);
     } finally {

@@ -1,3 +1,4 @@
+import { ManualOtherCarrier1793491200000 } from '@infrastructure/database/migrations/1793491200000-ManualOtherCarrier.js';
 import { MonitoringSafeguards1793318400000 } from '@infrastructure/database/migrations/1793318400000-MonitoringSafeguards.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
@@ -74,6 +75,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         TrackingChangeEvents1792368000000,
         SalesRepsAndShipmentFollowUp1792454400000,
         MonitoringSafeguards1793318400000,
+        ManualOtherCarrier1793491200000,
       ],
     });
     await source.initialize();
@@ -113,6 +115,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
     expect(response.body.map((row: { code: string }) => row.code)).toEqual([
       'echoship',
       'ffe',
+      'other',
       'ups',
     ]);
 
@@ -382,7 +385,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
 
     const list = await http().get('/api/v1/carriers').expect(200);
 
-    expect(list.body).toHaveLength(3);
+    expect(list.body).toHaveLength(4);
   });
 
   it('has no creation, deletion, or restoration endpoints', async () => {

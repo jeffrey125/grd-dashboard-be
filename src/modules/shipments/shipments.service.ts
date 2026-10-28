@@ -124,6 +124,11 @@ export class ShipmentsService {
         },
       ]);
 
+    if (carrier.code !== 'other' && parsed.data.manualTracking)
+      invalidShipmentFields([
+        { field: 'shipment', message: 'Manual tracking requires Other' },
+      ]);
+
     const normalized: NewShipment = {
       ...parsed.data,
       salesRepExternalId: parsed.data.salesRepExternalId ?? null,
@@ -193,6 +198,12 @@ export class ShipmentsService {
   ) {
     const id = parseShipmentInput(shipmentExternalIdSchema, externalId);
     const changes = parseShipmentInput(updateShipmentSchema, input);
+
+    if (changes.manualTracking) {
+      const current = await this.find(id);
+      if (current.carrier.code !== 'other')
+        throw new BadRequestException('Manual tracking requires Other');
+    }
 
     if (changes.followUpOn && changes.followUpOn < businessToday()) {
       const current = await this.repository.find(id);

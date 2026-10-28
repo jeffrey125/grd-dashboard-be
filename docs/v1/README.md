@@ -58,3 +58,9 @@ gates, [frontend-handoff.md](frontend-handoff.md) for current API integration an
 [../../README.md](../../README.md) for executable setup/verification commands.
 
 V1 is complete only when Ticket V1-018 passes: migrations work on an empty PostgreSQL database, the API and worker start independently, authenticated Shipment workflows pass, all three Carrier adapters pass mocked integration coverage, scheduled and manual tracking persist correct run/attempt/snapshot state, structured logs redact sensitive values, and every CI gate succeeds.
+
+## Approved manual carrier extension
+
+[MON-V1-004: manual Other carrier](manual-other-carrier.md) adds Staff-maintained
+status/dates, Admin enablement, the Other view and due-follow-up attention without
+provider polling.

@@ -13,6 +13,7 @@ import { shipmentJsonSql, shipmentRecord } from './typeorm-shipment-record.js';
 interface SearchEnvelopeRow {
   items: unknown[];
   total: number;
+  other_count: number;
   all_count: number;
   active_count: number;
   paused_count: number;
@@ -170,6 +171,7 @@ function statement(query: ShipmentSearchQuery) {
     ), counts AS (
       SELECT
         count(*)::integer AS all_count,
+        count(*) FILTER (WHERE carrier_code = 'other')::integer AS other_count,
         count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.active})::integer AS active_count,
         count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.paused})::integer AS paused_count,
         count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.delivered})::integer AS delivered_count,
@@ -226,6 +228,7 @@ function statement(query: ShipmentSearchQuery) {
         ) FROM paged
       ), '[]'::jsonb) AS items,
       (SELECT count(*)::integer FROM selected) AS total,
+      counts.other_count,
       counts.all_count,
       counts.active_count,
       counts.paused_count,
@@ -249,6 +252,7 @@ export async function searchShipments(
     pageSize: query.pageSize,
     total: row.total,
     tabCounts: {
+      other: row.other_count,
       all: row.all_count,
       active: row.active_count,
       paused: row.paused_count,

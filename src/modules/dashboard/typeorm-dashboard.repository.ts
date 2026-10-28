@@ -16,6 +16,7 @@ import {
 
 interface OverviewEnvelopeRow {
   as_of: Date | string;
+  other_count: number;
   all_count: number;
   active_count: number;
   paused_count: number;
@@ -113,7 +114,8 @@ function overviewStatement(): string {
   ), counts AS (
     SELECT
       count(*)::integer AS all_count,
-        count(*) FILTER (WHERE ${shipmentTabPredicateAt('active', 'business_date')})::integer AS active_count,
+      count(*) FILTER (WHERE carrier_code = 'other')::integer AS other_count,
+      count(*) FILTER (WHERE ${shipmentTabPredicateAt('active', 'business_date')})::integer AS active_count,
       count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.paused})::integer AS paused_count,
       count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.delivered})::integer AS delivered_count,
         count(*) FILTER (WHERE ${shipmentTabPredicateAt('attention', 'business_date')})::integer AS attention_count
@@ -186,6 +188,7 @@ function overviewStatement(): string {
         ORDER BY panel_projected.panel_position
       ) FROM panel_projected WHERE panel = 'upcoming'
     ), '[]'::jsonb) AS upcoming_items,
+    counts.other_count,
     counts.all_count,
     counts.active_count,
     counts.paused_count,
@@ -224,6 +227,7 @@ export class TypeOrmDashboardRepository implements DashboardRepository {
         items: row.upcoming_items.map(shipmentRecord),
       },
       counts: {
+        other: row.other_count,
         all: row.all_count,
         active: row.active_count,
         paused: row.paused_count,
