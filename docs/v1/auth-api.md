@@ -24,7 +24,10 @@ are never returned. Dates serialize to ISO timestamps. Responses use no-store.
 
 GET Carrier routes, every Shipment route including search and history, and
 `GET /api/v1/dashboard/overview` require unrestricted Staff or Admin; Carrier PATCH
-requires Admin. Minimal health GETs and `GET /api/v1/features` are public. The feature endpoint
+requires Admin. `GET /api/v1/sales-reps` and
+`GET /api/v1/sales-reps/filter-options` require unrestricted Staff or Admin; the
+filter endpoint includes inactive reps but only exposes UUID, names, and active
+state. Sales Rep administration remains Admin-only. Minimal health GETs and `GET /api/v1/features` are public. The feature endpoint
 returns only `{ quoteComparisonEnabled: boolean }` with `Cache-Control: no-store`. Other controller handlers require
 an explicit policy; absence denies access. Manual refresh and live events require
 unrestricted Staff/Admin; diagnostic source-data access requires Admin. No machine

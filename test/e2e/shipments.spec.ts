@@ -268,6 +268,106 @@ describe('Shipment HTTP API with PostgreSQL', () => {
       .expect(403);
   });
 
+  it('exposes safe inactive filter options to staff and accepts only the new multi-rep query', async () => {
+    const rep = (
+      await http()
+        .post('/api/v1/admin/sales-reps')
+        .send({ firstName: 'Filter', lastName: 'Inactive' })
+        .expect(201)
+    ).body;
+    const assigned = await create({
+      ...item('multi-rep-http'),
+      salesRepExternalId: rep.externalId,
+    }).expect(201);
+    await http()
+      .delete(`/api/v1/admin/sales-reps/${rep.externalId}`)
+      .expect(204);
+    const auth = app.get(AuthService);
+    const admin = await auth.authenticate(new Headers({ cookie }));
+    await auth.createAccount(admin, {
+      firstName: 'Filter',
+      lastName: 'Staff',
+      role: 'staff',
+      email: 'rep-filter@example.test',
+      password: 'issued filter password',
+    });
+    const cookieValue = (cookies: string[]) =>
+      cookies.map((value) => value.split(';')[0]).join('; ');
+    const restricted = cookieValue(
+      (
+        await auth.signIn({
+          email: 'rep-filter@example.test',
+          password: 'issued filter password',
+        })
+      ).cookies,
+    );
+    await request(app.getHttpServer() as Server)
+      .get('/api/v1/sales-reps/filter-options')
+      .set('Cookie', restricted)
+      .expect(403);
+    await auth.changePassword(
+      await auth.authenticate(new Headers({ cookie: restricted })),
+      {
+        currentPassword: 'issued filter password',
+        newPassword: 'chosen filter password',
+      },
+    );
+    const staffCookie = cookieValue(
+      (
+        await auth.signIn({
+          email: 'rep-filter@example.test',
+          password: 'chosen filter password',
+        })
+      ).cookies,
+    );
+    await http()
+      .post('/api/v1/admin/sales-reps')
+      .send({ firstName: 'Active', lastName: 'Filter' })
+      .expect(201);
+    const options = await request(app.getHttpServer() as Server)
+      .get('/api/v1/sales-reps/filter-options')
+      .set('Cookie', staffCookie)
+      .expect(200);
+
+    expect(options.body[0].active).toBe(true);
+    expect(options.body.at(-1).active).toBe(false);
+    expect(options.body).toContainEqual({
+      externalId: rep.externalId,
+      firstName: 'Filter',
+      lastName: 'Inactive',
+      active: false,
+    });
+    expect(
+      (await http().get('/api/v1/sales-reps').expect(200)).body.map(
+        (row: { externalId: string }) => row.externalId,
+      ),
+    ).not.toContain(rep.externalId);
+    const result = await http()
+      .get('/api/v1/shipments/search')
+      .query({
+        q: 'multi-rep-http',
+        salesRepExternalIds: `${rep.externalId},unassigned`,
+      })
+      .expect(200);
+    expect(
+      result.body.items.map((row: { externalId: string }) => row.externalId),
+    ).toEqual([assigned.body.shipment.externalId]);
+    for (const query of [
+      { salesRepExternalId: rep.externalId },
+      { salesRepExternalIds: 'bad' },
+      { salesRepExternalIds: `${rep.externalId},` },
+      { salesRepExternalIds: [rep.externalId, 'unassigned'] },
+    ])
+      await http().get('/api/v1/shipments/search').query(query).expect(400);
+    await request(app.getHttpServer() as Server)
+      .get('/api/v1/sales-reps/filter-options')
+      .expect(401);
+    await create({
+      ...item('inactive-assignment-denied'),
+      salesRepExternalId: rep.externalId,
+    }).expect(400);
+  });
+
   it('serves the static search route with strict query validation and legacy compatibility', async () => {
     const created = await create(
       item('search-http-001', 'Literal %_ search note'),

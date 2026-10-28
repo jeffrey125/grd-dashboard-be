@@ -180,7 +180,12 @@ Search query fields are strict: unknown fields return 400. `tab` is `all`,
 `active` (default), `paused`, `delivered`, or `attention`. `q` is a trimmed,
 case-insensitive literal substring of reference or notes, up to 255 code units;
 `%`, `_`, and `\\` have no wildcard meaning. `carrierExternalId` is one UUIDv4.
-`salesRepExternalId` is one UUIDv4 or the literal `unassigned`. Sorting also
+`salesRepExternalIds` is a comma-separated string of UUIDv4 values and/or the
+literal `unassigned`, matching any selected option. Omission or an empty string
+adds no rep restriction. Duplicates are collapsed; invalid entries, empty entries
+within a list, and the removed singular search parameter are rejected with 400.
+Inactive reps remain searchable. All filters combine with AND, with the rep
+alternatives grouped together before pagination and tab counts. Sorting also
 accepts `followUpOn`; null follow-up dates sort last. `followUpOn` is an optional
 date-only value. New or changed dates cannot be before today in
 `America/New_York`; an existing overdue date may remain unchanged until staff
@@ -308,6 +313,8 @@ and refresh; existing Shipments remain visible. Delivered Shipments can remain a
 Manual pause and threshold pause are distinct: threshold-paused Shipments can
 be refreshed and reactivate on found, but cannot use manual `resume`.
 
+`GET /api/v1/sales-reps/filter-options` returns active and inactive reps to Staff
+as `{ externalId, firstName, lastName, active }`, active first, for filtering only.
 `GET /api/v1/sales-reps` returns active Sales Reps for Staff assignment. Admins
 use `GET/POST /api/v1/admin/sales-reps`, `GET/PATCH/DELETE
 /api/v1/admin/sales-reps/:externalId`, and `POST

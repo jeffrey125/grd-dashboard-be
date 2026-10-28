@@ -30,6 +30,19 @@ export class SalesRepsService {
     return this.repository.listAll();
   }
 
+  async filterOptions() {
+    const reps = await this.repository.listAll();
+
+    return reps
+      .sort((a, b) => Number(b.active) - Number(a.active))
+      .map(({ externalId, firstName, lastName, active }) => ({
+        externalId,
+        firstName,
+        lastName,
+        active,
+      }));
+  }
+
   async find(externalId: string) {
     const id = parseSalesRepInput(salesRepExternalIdSchema, externalId);
     const row = await this.repository.find(id, true);

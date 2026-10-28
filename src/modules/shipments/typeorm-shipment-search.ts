@@ -58,12 +58,19 @@ function statement(query: ShipmentSearchQuery) {
       `carrier.external_id = ${parameter(query.carrierExternalId)}::uuid`,
     );
 
-  if (query.salesRepExternalId === 'unassigned')
-    filters.push('shipment.sales_rep_id IS NULL');
-  else if (query.salesRepExternalId)
-    filters.push(
-      `sales_rep.external_id = ${parameter(query.salesRepExternalId)}::uuid`,
-    );
+  if (query.salesRepExternalIds?.length) {
+    const ids = query.salesRepExternalIds.filter((id) => id !== 'unassigned');
+    const alternatives: string[] = [];
+
+    if (ids.length)
+      alternatives.push(
+        `sales_rep.external_id = ANY(${parameter(ids)}::uuid[])`,
+      );
+    if (query.salesRepExternalIds.includes('unassigned'))
+      alternatives.push('shipment.sales_rep_id IS NULL');
+
+    filters.push(`(${alternatives.join(' OR ')})`);
+  }
 
   const limit = parameter(query.pageSize);
   if (query.estimatedDeliveryFrom)

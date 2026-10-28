@@ -65,8 +65,13 @@ export const shipmentSearchQuerySchema = z
       .transform((value) => value || undefined)
       .optional(),
     carrierExternalId: shipmentExternalIdSchema.optional(),
-    salesRepExternalId: z
-      .union([shipmentExternalIdSchema, z.literal('unassigned')])
+    salesRepExternalIds: z
+      .string()
+      .transform((value) => (value === '' ? [] : value.split(',')))
+      .pipe(
+        z.array(z.union([shipmentExternalIdSchema, z.literal('unassigned')])),
+      )
+      .transform((values) => [...new Set(values)])
       .optional(),
     estimatedDeliveryFrom: z.iso
       .date()

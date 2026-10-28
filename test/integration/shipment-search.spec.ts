@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { SalesRepEntity } from '@modules/sales-reps/sales-rep.entity.js';
 import { CarrierEntity } from '@modules/carriers/carrier.entity.js';
 import {
   ShipmentEntity,
@@ -108,6 +109,102 @@ describe('Shipment search PostgreSQL repository', () => {
       ],
     );
   }
+
+  it('matches multiple active/inactive reps and unassigned with consistent counts and pagination', async () => {
+    const group = `multi-reps-${sequence + 1}`;
+    const reps = await db.source.getRepository(SalesRepEntity).save([
+      { firstName: 'Alice', lastName: 'Multi' },
+      { firstName: 'Bob', lastName: 'Multi', deletedAt: new Date() },
+      { firstName: 'Other', lastName: 'Multi' },
+    ]);
+    const assigned = await create(`${group}-alice`);
+    const inactive = await create(`${group}-bob`);
+    const unassigned = await create(`${group}-unassigned`);
+    const excluded = await create(`${group}-other`);
+    const outside = await create('outside-multi-rep-group');
+    for (const [shipment, rep] of [
+      [assigned, reps[0]!],
+      [inactive, reps[1]!],
+      [excluded, reps[2]!],
+      [outside, reps[0]!],
+    ] as const)
+      await db.source
+        .getRepository(ShipmentEntity)
+        .update(shipment.id, { salesRepId: rep.id });
+    await db.source.getRepository(ShipmentEntity).update(inactive.id, {
+      monitoringStatus: ShipmentMonitoringStatus.Completed,
+      monitoringReason: ShipmentMonitoringReason.Delivered,
+      nextCheckAt: null,
+    });
+
+    const selected = `${reps[0]!.externalId},${reps[1]!.externalId},unassigned`;
+    const result = await search({
+      q: group,
+      tab: 'all',
+      salesRepExternalIds: selected,
+    });
+
+    expect(result.total).toBe(3);
+    expect(result.items.map((row) => row.externalId).sort()).toEqual(
+      [assigned.externalId, inactive.externalId, unassigned.externalId].sort(),
+    );
+    expect(result.tabCounts).toMatchObject({ all: 3, active: 2, delivered: 1 });
+    expect(
+      result.items.find((row) => row.externalId === inactive.externalId)
+        ?.salesRep?.active,
+    ).toBe(false);
+    expect(
+      (await search({ q: group, salesRepExternalIds: selected })).total,
+    ).toBe(2);
+    expect(
+      (
+        await search({
+          q: group,
+          tab: 'all',
+          salesRepExternalIds: selected,
+          page: '2',
+        })
+      ).items,
+    ).toEqual([]);
+    expect(
+      (
+        await search({
+          q: group,
+          tab: 'all',
+          salesRepExternalIds: selected,
+          page: '2',
+        })
+      ).total,
+    ).toBe(3);
+    expect(
+      (await search({ q: group, salesRepExternalIds: 'unassigned' })).items.map(
+        (row) => row.externalId,
+      ),
+    ).toEqual([unassigned.externalId]);
+    expect(
+      (await search({ q: group, salesRepExternalIds: reps[0]!.externalId }))
+        .total,
+    ).toBe(1);
+    expect(
+      (
+        await search({
+          q: group,
+          salesRepExternalIds: `${reps[0]!.externalId},${reps[0]!.externalId}`,
+        })
+      ).total,
+    ).toBe(1);
+    expect(
+      (await search({ q: group, tab: 'all', salesRepExternalIds: '' })).total,
+    ).toBe(4);
+    expect(
+      (
+        await search({
+          q: group,
+          salesRepExternalIds: '00000000-0000-4000-8000-000000000099',
+        })
+      ).total,
+    ).toBe(0);
+  });
 
   it('defaults to Active and returns overlapping tab counts from all matching rows', async () => {
     const group = `states-${sequence + 1}`;

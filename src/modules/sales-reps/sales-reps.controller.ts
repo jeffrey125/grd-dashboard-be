@@ -24,6 +24,12 @@ export class SalesRepsController {
   listActive() {
     return this.salesReps.listActive();
   }
+
+  @Get('filter-options')
+  @Header('Cache-Control', 'no-store')
+  filterOptions() {
+    return this.salesReps.filterOptions();
+  }
 }
 
 @Controller('admin/sales-reps')
