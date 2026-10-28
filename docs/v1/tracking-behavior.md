@@ -194,6 +194,32 @@ the approved rule is that provider API detail/tracking data remains authoritativ
 
 The normalized snapshot contains Carrier status, status detail, pickup date, estimated-delivery date, and delivered date. Calendar dates are stored as PostgreSQL `date`. Missing Carrier fields retain the previous known value before change comparison.
 
+**MON-V1-003: explicit delivery reversals.** A recognized current non-delivered
+status overrides both an old retained delivery date and a contradictory delivery
+date returned in the same successful response. Clear `deliveredOn` before snapshot
+comparison and monitoring decisions. Match the mapped status exactly after
+normalizing casing and whitespace; never infer from free-text notes or substrings:
+
+| Carrier  | Recognized non-delivered statuses                                            |
+| -------- | ---------------------------------------------------------------------------- |
+| FFE      | Scheduled, In Route, Out for Delivery                                        |
+| UPS      | In Transit, Moving, On the Way, Loaded on Delivery Vehicle, Out for Delivery |
+| EchoShip | Shipment enroute, Moving, Out for Delivery, CheckedIn, PickedUp, Picked Up   |
+
+The additional labels In Route, On the Way, Loaded on Delivery Vehicle and
+Picked Up were verified in stored production observations. UPS also describes
+[On the Way as movement before final delivery](https://www.ups.com/ca/en/support/tracking-support/where-is-my-package/understanding-tracking-status).
+
+EchoShip retains its existing latest-tracking-event precedence, using detail status
+only for a valid empty tracking array. Unknown or missing statuses, incomplete
+delivery dates, lookup failures and not-found results do not revoke delivery.
+Other known dates keep the existing preservation behavior. A reversal inserts a
+new immutable snapshot and allows normal monitoring even when follow-up is due;
+historical delivery observations remain intact. A later confirmed delivery can
+complete monitoring again. This does not reopen completed shipments automatically:
+they cannot discover changes without Monitor again or a separately approved,
+evidence-based repair. See the [implementation summary](implementation-summary/MON-V1-003-implementation-summary.md).
+
 Insert a new immutable snapshot only when the complete normalized known state changes. A `found` attempt references the current snapshot whether it was newly inserted or unchanged.
 
 ## Outcome rules

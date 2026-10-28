@@ -4,6 +4,7 @@ import {
   type TrackingNotice,
 } from '@modules/notifications/tracking-notifications.js';
 import { carrierReferencePolicy } from '@modules/carriers/carrier-reference-policy.js';
+import { isExplicitlyUndelivered } from '@modules/carriers/carrier-delivery-policy.js';
 import {
   createTrackingRunSchema,
   finalizeFailedSchema,
@@ -49,8 +50,18 @@ function shipmentEligible(
 function mergeTrackingState(
   current: NormalizedTrackingState,
   previous: NormalizedTrackingState | null,
+  carrierCode: string,
 ): NormalizedTrackingState {
-  if (!previous) return current;
+  // A recognized current non-delivered status corrects both a retained date
+  // and a contradictory date in the same response. Missing data alone does not.
+  const deliveredOn = isExplicitlyUndelivered(
+    carrierCode,
+    current.carrierStatus,
+  )
+    ? null
+    : (current.deliveredOn ?? previous?.deliveredOn ?? null);
+
+  if (!previous) return { ...current, deliveredOn };
 
   return {
     carrierStatus: current.carrierStatus ?? previous.carrierStatus,
@@ -59,7 +70,7 @@ function mergeTrackingState(
     pickedUpOn: current.pickedUpOn ?? previous.pickedUpOn,
     estimatedDeliveryOn:
       current.estimatedDeliveryOn ?? previous.estimatedDeliveryOn,
-    deliveredOn: current.deliveredOn ?? previous.deliveredOn,
+    deliveredOn,
   };
 }
 
@@ -311,7 +322,11 @@ export class TrackingService {
             );
         }
 
-        const merged = mergeTrackingState(command.snapshot, previous);
+        const merged = mergeTrackingState(
+          command.snapshot,
+          previous,
+          attempt.carrierCode,
+        );
 
         if (Object.values(merged).every((value) => value === null))
           throw new TrackingOperationError(

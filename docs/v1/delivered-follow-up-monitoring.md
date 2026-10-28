@@ -10,6 +10,10 @@ manual pauses, immutable snapshots and single-worker architecture still apply.
   matching the existing tracking contract. Delivery and monitoring are separate:
   a delivered Shipment remains active while `followUpOn` is strictly after today
   in `America/New_York`.
+- MON-V1-003 clears that current delivery date when a successful lookup explicitly
+  reverses delivery using a recognized carrier status. The shipment then follows
+  undelivered monitoring rules, including after the follow-up cutoff. Missing or
+  unknown statuses alone preserve known delivery. See [tracking behavior](tracking-behavior.md#normalized-tracking-state).
 - Repeated delivered results keep monitoring active until the date arrives. Carrier
   status and delivery history remain visible; no snapshot is rewritten to resume.
 - At the start of the follow-up date, stop new lookups. Today, overdue and null
