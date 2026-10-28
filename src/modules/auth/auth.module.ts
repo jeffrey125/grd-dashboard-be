@@ -34,6 +34,16 @@ const digest = (value: string) =>
     DatabaseModule,
     ThrottlerModule.forRoot([
       {
+        name: 'telemetry',
+        ttl: 60000,
+        limit: 20,
+        skipIf: (context) =>
+          Reflect.getMetadata(AUTH_RATE_SCOPE, context.getHandler()) !==
+          'telemetry',
+        getTracker: (request) => String(request.principal.id),
+        generateKey: (_context, tracker) => digest(`telemetry:${tracker}`),
+      },
+      {
         name: 'login-ip',
         ttl: 60000,
         limit: 60,
@@ -102,6 +112,7 @@ export class AuthModule implements NestModule, OnApplicationBootstrap {
       credentials: true,
       methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type'],
+      exposedHeaders: ['X-Request-Id'],
       // The origin policy must still validate preflight requests.
       preflightContinue: true,
     });

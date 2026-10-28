@@ -127,3 +127,11 @@ previous behavior and ignore `do-connecting-ip`. This trusts the managed ingress
 not arbitrary direct clients: do not expose a bypass route to the API container.
 Verify header replacement/spoof resistance through the actual deployed ingress
 before enabling public traffic. No auth response schema or frontend change.
+
+## Frontend diagnostics (OBS-V1-001)
+
+`POST /api/v1/telemetry/frontend` requires an active session and trusted Origin,
+including restricted sessions. It returns 204 and is limited to 20 reports per
+minute per account. See [frontend-debugging.md](frontend-debugging.md) for strict
+fields and privacy boundaries. CORS exposes the server-generated `X-Request-Id`
+for correlating a failed API response with its backend request log.

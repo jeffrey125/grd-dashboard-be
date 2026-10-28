@@ -5,6 +5,11 @@ export type LogRuntime = 'api' | 'worker';
 export type LogEvent = `${string}.${string}`;
 
 export interface LogFields {
+  kind?: string;
+  page?: string;
+  release?: string;
+  frames?: string[];
+  failedRequestId?: string;
   actorExternalId?: string;
   accountExternalId?: string;
   component?: string;

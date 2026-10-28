@@ -13,7 +13,7 @@ export type RoutePolicy = 'public' | 'session' | 'staff' | 'admin';
 
 export const AuthPolicy = (policy: RoutePolicy) =>
   SetMetadata(AUTH_POLICY, policy);
-export const AuthRateLimit = (scope: 'login' | 'password') =>
+export const AuthRateLimit = (scope: 'login' | 'password' | 'telemetry') =>
   SetMetadata(AUTH_RATE_SCOPE, scope);
 
 export type AuthenticatedRequest = Request & { principal: Principal };

@@ -734,3 +734,9 @@ Active rows retain carrier Delivered status; completed rows return to Delivered,
 and due follow-ups also remain in Attention. Undelivered-only and Upcoming
 filters exclude known delivery independently of monitoring state. See the
 [complete rules](delivered-follow-up-monitoring.md).
+
+## Authenticated frontend diagnostics
+
+OBS-V1-001 adds `POST /api/v1/telemetry/frontend` and exposes `X-Request-Id` through
+CORS. See [frontend-debugging.md](frontend-debugging.md) for the exact event fields,
+rate limits, private source-map workflow and deployment boundary.
