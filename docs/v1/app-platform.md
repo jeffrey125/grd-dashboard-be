@@ -258,3 +258,13 @@ References: [deployment action](https://github.com/digitalocean/app_action),
 [CA delivery](https://docs.digitalocean.com/support/can-i-inject-certificates-or-other-files-into-my-app-at-build-time/).
 
 Private networking: [App Platform VPC configuration and database trusted sources](https://docs.digitalocean.com/products/app-platform/how-to/enable-vpc/).
+
+## Debugging dashboards (OBS-V1-001)
+
+The live GRD indexes now use `grd-debug-v1` to parse new structured log records.
+Bootstrap the pipeline from `.do/opensearch-debug-pipeline.json` **before** applying
+index templates, which reference it. Import `.do/opensearch-debug-dashboards.ndjson`
+into the Global tenant to create the shared frontend/backend dashboards. See
+[frontend-debugging.md](frontend-debugging.md) for mappings, rollback, private maps,
+limits and the separate application deployment requirement. Historical records
+are not backfilled by this configuration.

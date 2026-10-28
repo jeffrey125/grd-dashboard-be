@@ -1,0 +1,19 @@
+{
+  "description": "OBS-V1-001 Parse GRD structured logs without rejecting plain runtime output",
+  "processors": [
+    {
+      "json": {
+        "field": "log",
+        "target_field": "grd",
+        "ignore_failure": true
+      }
+    },
+    {
+      "remove": {
+        "field": "grd",
+        "if": "ctx.grd != null && !(ctx.grd instanceof Map)",
+        "ignore_missing": true
+      }
+    }
+  ]
+}

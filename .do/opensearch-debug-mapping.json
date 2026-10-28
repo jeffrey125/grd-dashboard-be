@@ -1,0 +1,101 @@
+{
+  "properties": {
+    "grd": {
+      "type": "object",
+      "dynamic": false,
+      "properties": {
+        "level": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "runtime": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "component": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "event": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "requestId": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "failedRequestId": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "route": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "method": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "page": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "release": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "kind": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "errorName": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "errorCode": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "reasonCode": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "carrierCode": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "outcome": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "runExternalId": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "shipmentExternalId": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "frames": {
+          "type": "keyword",
+          "ignore_above": 256
+        },
+        "status": {
+          "type": "long"
+        },
+        "durationMs": {
+          "type": "long"
+        },
+        "errorStatus": {
+          "type": "long"
+        },
+        "failedCount": {
+          "type": "long"
+        },
+        "succeededCount": {
+          "type": "long"
+        }
+      }
+    }
+  }
+}
