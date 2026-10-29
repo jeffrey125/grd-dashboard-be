@@ -82,6 +82,11 @@ const positiveIntegerQuerySchema = z
 export const shipmentSearchQuerySchema = z
   .strictObject({
     scope: z.enum(['mine', 'everyone']).optional(),
+    priorityShipmentIds: z
+      .array(shipmentExternalIdSchema)
+      .max(10_000)
+      .transform((ids) => [...new Set(ids)])
+      .optional(),
     tab: z
       .enum(['all', 'active', 'paused', 'delivered', 'attention', 'other'])
       .default('active'),

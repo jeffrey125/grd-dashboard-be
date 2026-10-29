@@ -200,6 +200,23 @@ and reversed ranges. `undeliveredOnly=true` excludes completed Shipments and kno
 drill-down and apply before pagination/counting. Removed lookup-outcome,
 created-date and last-attempted sort parameters remain rejected.
 
+### Temporary priority for unseen tracking updates (FE-V1-011)
+
+`POST /api/v1/shipments/search` accepts the same search fields as JSON, retaining
+query-string value types (page/pageSize/boolean values are strings), plus optional
+`priorityShipmentIds`, an array of up to 10,000 UUIDv4 shipment IDs. Duplicates are
+collapsed. It requires an unrestricted Staff/Admin session and trusted Origin,
+returns 200 with the same response as GET, and is read-only/no-store. JSON request
+parsing is bounded to 512 KiB to accommodate the existing review-store limit.
+
+The frontend sends IDs from its existing account/browser unseen tracking state.
+Matching rows sort ahead of other rows before pagination; both groups retain the
+selected sort and stable ID tie-breaker. Filters, scope, totals and tab counts
+remain unchanged. Acknowledgment removes the priority, restoring normal order.
+The URL/default sort remains `createdAt desc`; priority is not stored in URLs or
+shared between accounts/devices. GET remains available when no priority is needed.
+Current pagination stays selected; priority rows occupy the earliest result pages.
+
 `total` includes the selected tab and all filters. `tabCounts` applies every
 non-tab filter and ignores the selected tab. Attention means any paused Shipment,
 a non-completed Shipment whose latest completed lookup failed, or a Shipment

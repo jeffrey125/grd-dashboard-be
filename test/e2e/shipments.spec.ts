@@ -392,6 +392,79 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     }).expect(400);
   });
 
+  it('prioritizes unseen shipments before pagination and restores selected ordering', async () => {
+    const ids: string[] = [];
+    for (let index = 0; index < 26; index += 1) {
+      const response = await create(
+        item(`priority-${String(index).padStart(2, '0')}`),
+      ).expect(201);
+      ids.push(response.body.shipment.externalId);
+    }
+    const query = {
+      tab: 'all',
+      q: 'priority-',
+      pageSize: '25',
+      sortBy: 'trackingReference',
+      sortDirection: 'asc',
+    };
+    const search = (extra: Record<string, unknown> = {}) =>
+      http()
+        .post('/api/v1/shipments/search')
+        .send({ ...query, ...extra })
+        .expect(200);
+    const baseline = (await search()).body;
+    expect(baseline.items[0].externalId).toBe(ids[0]);
+    expect(baseline.items).toHaveLength(25);
+    const promoted = (await search({ priorityShipmentIds: [ids[25], ids[25]] }))
+      .body;
+    expect(
+      promoted.items.map((row: { externalId: string }) => row.externalId),
+    ).toEqual([ids[25], ...ids.slice(0, 24)]);
+    expect(promoted.tabCounts).toEqual(baseline.tabCounts);
+    expect(promoted.total).toBe(26);
+    expect(
+      (await search({ page: '2', priorityShipmentIds: [ids[25]] })).body
+        .items[0].externalId,
+    ).toBe(ids[24]);
+    expect(
+      (await search({ priorityShipmentIds: [], page: '2' })).body.items[0]
+        .externalId,
+    ).toBe(ids[25]);
+    expect(
+      (
+        await search({ q: 'priority-00', priorityShipmentIds: [ids[25]] })
+      ).body.items.map((row: { externalId: string }) => row.externalId),
+    ).toEqual([ids[0]]);
+    expect(
+      (await search({ tab: 'delivered', priorityShipmentIds: ids })).body.total,
+    ).toBe(0);
+    expect(
+      (
+        await search({
+          priorityShipmentIds: [ids[0], ids[25]],
+          sortDirection: 'desc',
+        })
+      ).body.items
+        .slice(0, 2)
+        .map((row: { externalId: string }) => row.externalId),
+    ).toEqual([ids[25], ids[0]]);
+    // Full bounded review state must fit the JSON transport, without URL truncation.
+    expect(
+      (await search({ priorityShipmentIds: Array(10_000).fill(ids[25]) })).body
+        .items[0].externalId,
+    ).toBe(ids[25]);
+    for (const priorityShipmentIds of [['invalid'], Array(10_001).fill(ids[0])])
+      await http()
+        .post('/api/v1/shipments/search')
+        .send({ ...query, priorityShipmentIds })
+        .expect(400);
+    await request(app.getHttpServer() as Server)
+      .post('/api/v1/shipments/search')
+      .set('Origin', 'http://dashboard.example.test')
+      .send(query)
+      .expect(401);
+  });
+
   it('serves the static search route with strict query validation and legacy compatibility', async () => {
     const created = await create(
       item('search-http-001', 'Literal %_ search note'),

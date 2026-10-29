@@ -37,6 +37,16 @@ export class ShipmentsController {
     return this.shipments.search(query, principal.id);
   }
 
+  @Post('search')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  searchWithPriority(
+    @Body() query: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    return this.shipments.search(query, principal.id);
+  }
+
   @Get(':externalId/history')
   @Header('Cache-Control', 'no-store')
   history(

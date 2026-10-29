@@ -143,3 +143,11 @@ Other manual carrier shipment creation, edits and history require unrestricted
 Staff or Admin, including edits while Other is disabled. Only Admin can enable or
 disable Other through the existing Carrier PATCH route. Manual tracking fields are
 rejected for automated carriers; Other refresh/pause/resume requests conflict.
+
+## Review-prioritized shipment search (FE-V1-011)
+
+`POST /api/v1/shipments/search` is a read-only, no-store alternative to GET search
+for a bounded JSON review list. It uses the existing unrestricted Staff/Admin
+policy and requires trusted Origin like other POST routes. Client-supplied
+priority IDs affect ordering only; existing scope and filters still apply. See
+[frontend-handoff.md](frontend-handoff.md) for request and pagination semantics.

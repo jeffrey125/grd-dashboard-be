@@ -102,7 +102,9 @@ function statement(query: ShipmentSearchQuery, createdById?: number) {
     );
 
   const offset = parameter((query.page - 1) * query.pageSize);
-  const ordering = orderBy(query);
+  const ordering = query.priorityShipmentIds?.length
+    ? `(selected.shipment_external_id = ANY(${parameter(query.priorityShipmentIds)}::uuid[])) DESC, ${orderBy(query)}`
+    : orderBy(query);
 
   return {
     parameters,
