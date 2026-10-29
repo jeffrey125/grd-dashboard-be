@@ -201,6 +201,13 @@ soft delete so existing Shipment assignments remain historically accurate.
 | `first_name`          | `varchar(100)` | No   | Trimmed display first name.                                                                        |
 | `last_name`           | `varchar(100)` | No   | Trimmed display last name.                                                                         |
 
+`email` is `varchar(254) NOT NULL`, lowercase/trimmed/nonempty under
+`ck_sales_reps_email`. Migration `1793577600000-SalesRepEmails` backfills unique
+full-name account matches or the nine approved initial addresses. Other unmatched
+rows block migration rather than receive invented addresses. Email is unique across
+active and inactive reps under `uq_sales_reps_email`.
+It has no default or foreign key; it is not synchronized with account changes.
+
 Names are intentionally not unique. Active rows are offered for new assignments;
 an inactive row remains visible on a Shipment that already references it. The
 `1792454400000-SalesRepsAndShipmentFollowUp` migration seeds the nine approved

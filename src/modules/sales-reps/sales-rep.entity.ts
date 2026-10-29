@@ -1,7 +1,12 @@
-import { Check, Column, Entity, ForeignKey, Index } from 'typeorm';
+import { Check, Column, Entity, ForeignKey, Index, Unique } from 'typeorm';
 import { ExternallyIdentifiedEntity } from '@infrastructure/database/entities/externally-identified.entity.js';
 
 @Entity('sales_reps')
+@Unique('uq_sales_reps_email', ['email'])
+@Check(
+  'ck_sales_reps_email',
+  'email = lower(btrim(email)) AND length(email) > 0',
+)
 @Check(
   'ck_sales_reps_names',
   'length(btrim(first_name)) > 0 AND length(btrim(last_name)) > 0',
@@ -28,4 +33,7 @@ export class SalesRepEntity extends ExternallyIdentifiedEntity {
 
   @Column({ name: 'last_name', type: 'varchar', length: 100 })
   lastName: string;
+
+  @Column({ type: 'varchar', length: 254 })
+  email: string;
 }

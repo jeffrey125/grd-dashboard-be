@@ -783,3 +783,18 @@ resets pagination; scope/account are part of query cache keys. Both Overview and
 Shipments expose the same Mine/Everyone toggle. Shared detail/edit permissions
 and duplicate detection are unchanged; the existing-record notification opens
 the original record without reassigning its creator.
+
+## Sales Rep email (SALES-V1-001)
+
+Sales Rep records now include required `email`. Admin creation requires a valid
+unique email; PATCH accepts an optional email update. Duplicates (including
+inactive reps) return 409 with `Sales Rep email already exists`. Inputs are trimmed, lowercased and
+limited to 254 characters using Zod. The filter-options endpoint remains unchanged
+and does not expose email. Deploy the updated Sales Reps form with the API because
+older create requests without email now return 400.
+
+Migration `1793577600000-SalesRepEmails` adds the non-null column, copies emails
+from unambiguous full-name account matches and backfills the nine approved seed
+addresses (including Brendan Laird). Unknown unmatched rows abort the migration
+transaction. This stores a contact email, not a foreign key or automatic account
+synchronization; accounts/passwords/roles are not modified by the migration.

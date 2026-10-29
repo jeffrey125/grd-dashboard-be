@@ -41,10 +41,17 @@ describe('Sales Rep configuration', () => {
     vi.mocked(repository.create).mockResolvedValue(created as never);
 
     await expect(
-      service.create({ firstName: ' Jake ', lastName: ' Wald ' }, 7),
+      service.create(
+        {
+          firstName: ' Jake ',
+          lastName: ' Wald ',
+          email: ' JAKE@Example.test ',
+        },
+        7,
+      ),
     ).resolves.toBe(created);
     expect(repository.create).toHaveBeenCalledWith(
-      { firstName: 'Jake', lastName: 'Wald' },
+      { firstName: 'Jake', lastName: 'Wald', email: 'jake@example.test' },
       7,
     );
   });
@@ -62,6 +69,43 @@ describe('Sales Rep configuration', () => {
       BadRequestException,
     );
     expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    undefined,
+    null,
+    '',
+    'bad',
+    'person@',
+    'a'.repeat(255) + '@example.test',
+  ])('rejects missing or invalid email: %j', async (email) => {
+    const { service, repository } = await setup();
+
+    await expect(
+      service.create({ firstName: 'Jake', lastName: 'Wald', email }, 7),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('normalizes an email-only update and preserves name-only updates', async () => {
+    const { service, repository } = await setup();
+    vi.mocked(repository.update).mockResolvedValue({ externalId } as never);
+
+    await service.update(externalId, { email: ' NEW@Example.test ' }, 7);
+    expect(repository.update).toHaveBeenCalledWith(
+      externalId,
+      { email: 'new@example.test' },
+      7,
+    );
+    await service.update(externalId, { lastName: 'Updated' }, 7);
+    expect(repository.update).toHaveBeenLastCalledWith(
+      externalId,
+      { lastName: 'Updated' },
+      7,
+    );
+    await expect(
+      service.update(externalId, { email: null }, 7),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('soft-deletes active reps and reports missing rows', async () => {

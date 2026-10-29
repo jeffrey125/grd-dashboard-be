@@ -4,6 +4,7 @@ export interface SalesRepRecord {
   externalId: string;
   firstName: string;
   lastName: string;
+  email: string;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -11,7 +12,7 @@ export interface SalesRepRecord {
 }
 
 export type SalesRepChanges = Partial<
-  Pick<SalesRepEntity, 'firstName' | 'lastName'>
+  Pick<SalesRepEntity, 'firstName' | 'lastName' | 'email'>
 >;
 
 export interface SalesRepsRepository {
@@ -23,7 +24,7 @@ export interface SalesRepsRepository {
     includeDeleted?: boolean,
   ): Promise<SalesRepRecord | null>;
   create(
-    input: Pick<SalesRepEntity, 'firstName' | 'lastName'>,
+    input: Pick<SalesRepEntity, 'firstName' | 'lastName' | 'email'>,
     actorId: number | null,
   ): Promise<SalesRepRecord>;
   update(

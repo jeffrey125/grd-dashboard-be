@@ -1,4 +1,5 @@
-import { DataSource, IsNull } from 'typeorm';
+import { ConflictException } from '@nestjs/common';
+import { DataSource, IsNull, QueryFailedError } from 'typeorm';
 import { SalesRepEntity } from './sales-rep.entity.js';
 import {
   SALES_REPS_REPOSITORY,
@@ -7,11 +8,23 @@ import {
   type SalesRepChanges,
 } from './sales-reps.repository.js';
 
+function rethrowEmailConflict(error: unknown): never {
+  if (
+    error instanceof QueryFailedError &&
+    error.driverError.code === '23505' &&
+    error.driverError.constraint === 'uq_sales_reps_email'
+  )
+    throw new ConflictException('Sales Rep email already exists');
+
+  throw error;
+}
+
 function record(row: SalesRepEntity): SalesRepRecord {
   return {
     externalId: row.externalId,
     firstName: row.firstName,
     lastName: row.lastName,
+    email: row.email,
     active: !row.deletedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -53,14 +66,17 @@ export class TypeOrmSalesRepsRepository implements SalesRepsRepository {
   }
 
   async create(
-    input: Pick<SalesRepEntity, 'firstName' | 'lastName'>,
+    input: Pick<SalesRepEntity, 'firstName' | 'lastName' | 'email'>,
     actorId: number | null,
   ) {
-    const row = await this.source.getRepository(SalesRepEntity).save({
-      ...input,
-      createdById: actorId,
-      updatedById: actorId,
-    });
+    const row = await this.source
+      .getRepository(SalesRepEntity)
+      .save({
+        ...input,
+        createdById: actorId,
+        updatedById: actorId,
+      })
+      .catch(rethrowEmailConflict);
 
     return record(row);
   }
@@ -70,21 +86,23 @@ export class TypeOrmSalesRepsRepository implements SalesRepsRepository {
     changes: SalesRepChanges,
     actorId: number | null,
   ) {
-    return this.source.transaction(async (manager) => {
-      const rows = manager.getRepository(SalesRepEntity);
-      const result = await rows.update(
-        { externalId, deletedAt: IsNull() },
-        {
-          ...changes,
-          updatedById: actorId,
-          updatedAt: () => 'clock_timestamp()',
-        },
-      );
+    return this.source
+      .transaction(async (manager) => {
+        const rows = manager.getRepository(SalesRepEntity);
+        const result = await rows.update(
+          { externalId, deletedAt: IsNull() },
+          {
+            ...changes,
+            updatedById: actorId,
+            updatedAt: () => 'clock_timestamp()',
+          },
+        );
 
-      if (!result.affected) return null;
+        if (!result.affected) return null;
 
-      return record(await rows.findOneByOrFail({ externalId }));
-    });
+        return record(await rows.findOneByOrFail({ externalId }));
+      })
+      .catch(rethrowEmailConflict);
   }
 
   async remove(externalId: string, actorId: number | null) {

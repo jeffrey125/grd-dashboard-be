@@ -1,3 +1,4 @@
+import { SalesRepEmails1793577600000 } from '@infrastructure/database/migrations/1793577600000-SalesRepEmails.js';
 import { MonitoringSafeguards1793318400000 } from '@infrastructure/database/migrations/1793318400000-MonitoringSafeguards.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
 import { TrackingChangeEvents1792368000000 } from '@infrastructure/database/migrations/1792368000000-TrackingChangeEvents.js';
@@ -81,6 +82,7 @@ beforeAll(async () => {
       TrackingReadProjection1792281600000,
       TrackingChangeEvents1792368000000,
       SalesRepsAndShipmentFollowUp1792454400000,
+      SalesRepEmails1793577600000,
       MonitoringSafeguards1793318400000,
     ],
   });

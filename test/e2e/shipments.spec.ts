@@ -272,7 +272,11 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     const rep = (
       await http()
         .post('/api/v1/admin/sales-reps')
-        .send({ firstName: 'Filter', lastName: 'Inactive' })
+        .send({
+          firstName: 'Filter',
+          lastName: 'Inactive',
+          email: 'filter@example.test',
+        })
         .expect(201)
     ).body;
     const assigned = await create({
@@ -322,7 +326,11 @@ describe('Shipment HTTP API with PostgreSQL', () => {
     );
     await http()
       .post('/api/v1/admin/sales-reps')
-      .send({ firstName: 'Active', lastName: 'Filter' })
+      .send({
+        firstName: 'Active',
+        lastName: 'Filter',
+        email: 'active@example.test',
+      })
       .expect(201);
     const options = await request(app.getHttpServer() as Server)
       .get('/api/v1/sales-reps/filter-options')

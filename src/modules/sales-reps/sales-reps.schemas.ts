@@ -5,6 +5,8 @@ export const salesRepExternalIdSchema = z
   .uuidv4()
   .transform((id) => id.toLowerCase());
 
+const emailSchema = z.string().trim().toLowerCase().pipe(z.email().max(254));
+
 const nameSchema = z
   .string()
   .trim()
@@ -15,15 +17,17 @@ const nameSchema = z
 export const createSalesRepSchema = z.strictObject({
   firstName: nameSchema,
   lastName: nameSchema,
+  email: emailSchema,
 });
 
 export const updateSalesRepSchema = z
   .strictObject({
     firstName: nameSchema.optional(),
     lastName: nameSchema.optional(),
+    email: emailSchema.optional(),
   })
   .refine((value) => Object.values(value).some((item) => item !== undefined), {
-    message: 'At least one name is required',
+    message: 'At least one field is required',
   });
 
 export type NewSalesRep = z.infer<typeof createSalesRepSchema>;
@@ -33,6 +37,7 @@ export const salesRepRecordSchema = z.strictObject({
   externalId: z.uuidv4(),
   firstName: z.string(),
   lastName: z.string(),
+  email: emailSchema,
   active: z.boolean(),
   createdAt: z.date(),
   updatedAt: z.date(),

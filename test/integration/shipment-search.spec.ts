@@ -113,9 +113,14 @@ describe('Shipment search PostgreSQL repository', () => {
   it('matches multiple active/inactive reps and unassigned with consistent counts and pagination', async () => {
     const group = `multi-reps-${sequence + 1}`;
     const reps = await db.source.getRepository(SalesRepEntity).save([
-      { firstName: 'Alice', lastName: 'Multi' },
-      { firstName: 'Bob', lastName: 'Multi', deletedAt: new Date() },
-      { firstName: 'Other', lastName: 'Multi' },
+      { firstName: 'Alice', lastName: 'Multi', email: 'alice@example.test' },
+      {
+        firstName: 'Bob',
+        lastName: 'Multi',
+        email: 'bob@example.test',
+        deletedAt: new Date(),
+      },
+      { firstName: 'Other', lastName: 'Multi', email: 'other@example.test' },
     ]);
     const assigned = await create(`${group}-alice`);
     const inactive = await create(`${group}-bob`);

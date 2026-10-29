@@ -1,3 +1,4 @@
+import { SalesRepEmails1793577600000 } from '@infrastructure/database/migrations/1793577600000-SalesRepEmails.js';
 import { ManualOtherCarrier1793491200000 } from '@infrastructure/database/migrations/1793491200000-ManualOtherCarrier.js';
 import { MonitoringSafeguards1793318400000 } from '@infrastructure/database/migrations/1793318400000-MonitoringSafeguards.js';
 import { TrackingReadProjection1792281600000 } from '@infrastructure/database/migrations/1792281600000-TrackingReadProjection.js';
@@ -74,6 +75,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
         TrackingReadProjection1792281600000,
         TrackingChangeEvents1792368000000,
         SalesRepsAndShipmentFollowUp1792454400000,
+        SalesRepEmails1793577600000,
         MonitoringSafeguards1793318400000,
         ManualOtherCarrier1793491200000,
       ],
@@ -199,9 +201,14 @@ describe('Carrier HTTP API with PostgreSQL', () => {
     );
     expect(active.body).toHaveLength(9);
 
+    await http()
+      .post('/api/v1/admin/sales-reps')
+      .send({ firstName: 'No', lastName: 'Email' })
+      .expect(400);
+
     const created = await http()
       .post('/api/v1/admin/sales-reps')
-      .send({ firstName: 'Test', lastName: 'Rep' })
+      .send({ firstName: 'Test', lastName: 'Rep', email: 'test@example.test' })
       .expect(201);
 
     expect(created.body).toMatchObject({
@@ -213,13 +220,36 @@ describe('Carrier HTTP API with PostgreSQL', () => {
 
     const updated = await http()
       .patch(`/api/v1/admin/sales-reps/${created.body.externalId}`)
-      .send({ lastName: 'Updated' })
+      .send({ lastName: 'Updated', email: ' UPDATED@Example.test ' })
       .expect(200);
 
     expect(updated.body).toMatchObject({
       firstName: 'Test',
       lastName: 'Updated',
+      email: 'updated@example.test',
     });
+
+    const duplicate = await http()
+      .post('/api/v1/admin/sales-reps')
+      .send({
+        firstName: 'Duplicate',
+        lastName: 'Rep',
+        email: ' UPDATED@Example.test ',
+      })
+      .expect(409);
+    expect(duplicate.body.message).toBe('Sales Rep email already exists');
+
+    await http()
+      .patch(`/api/v1/admin/sales-reps/${created.body.externalId}`)
+      .send({ email: ' JAKE@GlobalResourcesDirect.com ' })
+      .expect(409);
+    expect(
+      (
+        await http()
+          .get(`/api/v1/admin/sales-reps/${created.body.externalId}`)
+          .expect(200)
+      ).body.email,
+    ).toBe('updated@example.test');
 
     await http()
       .delete(`/api/v1/admin/sales-reps/${created.body.externalId}`)
@@ -239,6 +269,15 @@ describe('Carrier HTTP API with PostgreSQL', () => {
       ),
     ).toBe(false);
 
+    await http()
+      .post('/api/v1/admin/sales-reps')
+      .send({
+        firstName: 'Inactive',
+        lastName: 'Duplicate',
+        email: 'updated@example.test',
+      })
+      .expect(409);
+
     const restored = await http()
       .post(`/api/v1/admin/sales-reps/${created.body.externalId}/restore`)
       .send({})
@@ -247,6 +286,7 @@ describe('Carrier HTTP API with PostgreSQL', () => {
     expect(restored.body).toMatchObject({
       firstName: 'Test',
       lastName: 'Updated',
+      email: 'updated@example.test',
       active: true,
       deletedAt: null,
     });
