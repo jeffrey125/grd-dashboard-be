@@ -60,6 +60,25 @@ another ticket. Apply this format to proposed messages and actual commits.
 
 # Completion evidence
 
+## Keep Help current
+
+For every backend or frontend change, assess whether the Help page needs updating.
+Propose a Help update whenever the change affects how users use or
+understand the app, including features, fixes, workflows, navigation, permissions,
+validation, statuses, or visible behavior. Before modifying Help, explain which
+guides, screenshots or markers need changing and why, then ask for the user's
+confirmation. Wait for approval before making those Help changes; existing explicit
+approval for the same Help changes remains valid. After approval, update the affected category,
+guides, instructions, screenshots and numbered markers to match the final behavior.
+Preserve role-based visibility, including Admin-only administration guidance.
+Verify affected guides and screenshot markers before declaring the task complete,
+and report the Help changes and verification in the handoff. If approval is pending,
+report the proposed Help update as pending rather than silently modifying it.
+When no Help update
+is needed, briefly explain why in the handoff.
+
+## Verification and handoff
+
 Run the applicable commands from `README.md`; release/container changes also need
 the combined coverage and opt-in container checks. Report exact results, skipped
 checks and unresolved rollout blockers. A unit-only coverage report is not a
