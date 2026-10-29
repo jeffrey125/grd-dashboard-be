@@ -87,6 +87,15 @@ export class ShipmentEntity extends ExternallyIdentifiedEntity {
   @Column({ type: 'varchar', length: 500, nullable: true })
   notes: string | null;
 
+  @Column({ name: 'po_number', type: 'varchar', length: 255, nullable: true })
+  poNumber: string | null;
+
+  @Column({ name: 'customer', type: 'varchar', length: 255, nullable: true })
+  customer: string | null;
+
+  @Column({ name: 'vendor', type: 'varchar', length: 255, nullable: true })
+  vendor: string | null;
+
   @Column({ name: 'sales_rep_id', type: 'integer', nullable: true })
   salesRepId: number | null;
 

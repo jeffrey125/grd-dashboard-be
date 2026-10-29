@@ -798,3 +798,24 @@ from unambiguous full-name account matches and backfills the nine approved seed
 addresses (including Brendan Laird). Unknown unmatched rows abort the migration
 transaction. This stores a contact email, not a foreign key or automatic account
 synchronization; accounts/passwords/roles are not modified by the migration.
+
+## SHIP-V1-001: shipment business fields
+
+Migration `1793664000000-ShipmentBusinessFields` adds nullable `varchar(255)`
+columns `po_number`, `customer`, and `vendor` to shipments. Existing rows remain
+NULL; there is no PO uniqueness constraint or directory foreign key. This stores
+manually entered business references before the future Airtable migration.
+
+Shipment responses include `poNumber`, `customer`, and `vendor` as string or null.
+POST and PATCH accept these optional fields, trim surrounding whitespace, reject
+NUL characters and values exceeding 255 characters, and turn blank text into null.
+PATCH omission preserves the saved field; null clears it. Staff and Admin retain
+existing shipment permissions. Duplicate carrier/reference creation returns the
+existing shipment without overwriting metadata. Changed metadata updates record
+edit attribution; carrier tracking updates preserve it.
+
+Global search includes literal case-insensitive partial matches on all three
+fields. `sortBy` accepts each API field name; both directions use NULLS LAST and
+a stable shipment-ID tie-breaker. Sorting is lexical, not natural-number sorting.
+Desktop columns begin Sales Rep, PO#, Customer, Vendor, Tracking Number. Mobile
+cards show populated PO#, Customer, Vendor values in that order.

@@ -22,6 +22,14 @@ const notesSchema = z
   .refine((value) => !value.includes('\u0000'))
   .nullable();
 
+const shipmentTextSchema = z
+  .string()
+  .trim()
+  .max(255)
+  .refine((value) => !value.includes('\u0000'))
+  .transform((value) => value || null)
+  .nullable();
+
 const followUpOnSchema = z.iso
   .date()
   .refine((value) => !value.startsWith('0000'))
@@ -41,6 +49,9 @@ export const manualTrackingSchema = z.strictObject({
 export const createShipmentSchema = z.strictObject({
   carrierExternalId: shipmentExternalIdSchema,
   trackingReference: trackingReferenceSchema,
+  poNumber: shipmentTextSchema.optional(),
+  customer: shipmentTextSchema.optional(),
+  vendor: shipmentTextSchema.optional(),
   notes: notesSchema.optional().transform((value) => value ?? null),
   salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
   followUpOn: followUpOnSchema.optional(),
@@ -48,6 +59,9 @@ export const createShipmentSchema = z.strictObject({
 });
 export const updateShipmentSchema = z
   .strictObject({
+    poNumber: shipmentTextSchema.optional(),
+    customer: shipmentTextSchema.optional(),
+    vendor: shipmentTextSchema.optional(),
     notes: notesSchema.optional(),
     salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
     followUpOn: followUpOnSchema.optional(),
@@ -105,6 +119,9 @@ export const shipmentSearchQuerySchema = z
       .enum([
         'createdAt',
         'trackingReference',
+        'poNumber',
+        'customer',
+        'vendor',
         'estimatedDeliveryOn',
         'followUpOn',
       ])
@@ -164,6 +181,9 @@ export const shipmentRecordSchema = z.strictObject({
     isActive: z.boolean(),
   }),
   trackingReference: z.string(),
+  poNumber: z.string().nullable(),
+  customer: z.string().nullable(),
+  vendor: z.string().nullable(),
   notes: z.string().nullable(),
   salesRep: salesRepSummarySchema.nullable(),
   followUpOn: z.iso.date().nullable(),
@@ -210,6 +230,9 @@ export interface ShipmentValidationDetail {
   field:
     | 'carrierExternalId'
     | 'trackingReference'
+    | 'poNumber'
+    | 'customer'
+    | 'vendor'
     | 'notes'
     | 'salesRepExternalId'
     | 'followUpOn'

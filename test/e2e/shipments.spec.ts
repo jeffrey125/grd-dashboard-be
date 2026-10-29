@@ -64,7 +64,12 @@ describe('Shipment HTTP API with PostgreSQL', () => {
   });
 
   it('returns the same safe tracking projection from every Shipment response for Admin and Staff', async () => {
-    const created = await create(item('projection-http')).expect(201);
+    const created = await create({
+      ...item('projection-http'),
+      poNumber: '000A',
+      customer: 'Test customer',
+      vendor: 'Test vendor',
+    }).expect(201);
     const id = created.body.shipment.externalId;
     const path = `/api/v1/shipments/${id}`;
     const queued = await http().post(`${path}/refresh`).expect(202);
@@ -99,6 +104,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
 
     const known = (await http().get(path).expect(200)).body;
     const projection = {
+      poNumber: '000A',
+      customer: 'Test customer',
+      vendor: 'Test vendor',
       currentTracking: known.currentTracking,
       latestLookup: known.latestLookup,
       latestRun: known.latestRun,
@@ -136,6 +144,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
         'externalId',
         'carrier',
         'trackingReference',
+        'poNumber',
+        'customer',
+        'vendor',
         'notes',
         'salesRep',
         'followUpOn',
@@ -256,7 +267,12 @@ describe('Shipment HTTP API with PostgreSQL', () => {
           .patch(path)
           .set('Cookie', staff)
           .set('Origin', 'http://dashboard.example.test')
-          .send({ notes: 'Staff notes' })
+          .send({
+            notes: 'Staff notes',
+            poNumber: ' 000A ',
+            customer: 'Test customer',
+            vendor: 'Test vendor',
+          })
           .expect(200)
       ).body,
     ).toMatchObject(projection);
@@ -506,7 +522,12 @@ describe('Shipment HTTP API with PostgreSQL', () => {
   });
 
   it('creates, reads, edits, pauses, resumes and deletes by external UUID', async () => {
-    const response = await create(item(' 000Ab ', ' Initial '))
+    const response = await create({
+      ...item(' 000Ab ', ' Initial '),
+      poNumber: ' 0001-a ',
+      customer: ' Customer Inc ',
+      vendor: ' Vendor Inc ',
+    })
       .expect(201)
       .expect('Cache-Control', 'no-store');
     expect(response.body.outcome).toBe('created');
@@ -522,6 +543,9 @@ describe('Shipment HTTP API with PostgreSQL', () => {
         isActive: true,
       },
       trackingReference: '000Ab',
+      poNumber: '0001-a',
+      customer: 'Customer Inc',
+      vendor: 'Vendor Inc',
       notes: 'Initial',
       salesRep: null,
       followUpOn: null,

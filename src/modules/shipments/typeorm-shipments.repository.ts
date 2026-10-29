@@ -108,7 +108,16 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
         patch.salesRepId = salesRepId;
       if (changes.followUpOn !== undefined)
         patch.followUpOn = changes.followUpOn;
-      if (salesRepChanged || followUpChanged) {
+      const metadataChanged = (
+        ['poNumber', 'customer', 'vendor'] as const
+      ).some(
+        (field) =>
+          changes[field] !== undefined && changes[field] !== shipment[field],
+      );
+      for (const field of ['poNumber', 'customer', 'vendor'] as const)
+        if (changes[field] !== undefined) patch[field] = changes[field];
+
+      if (salesRepChanged || followUpChanged || metadataChanged) {
         patch.recordUpdatedAt = () => 'clock_timestamp()';
         patch.recordUpdatedById = actorId;
       }
@@ -289,8 +298,8 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
           const created: Array<{ external_id: string }> = await manager.query(
             `INSERT INTO shipments
               (carrier_id, tracking_reference, notes, sales_rep_id, follow_up_on,
-               next_check_at, created_by_id, updated_by_id)
-             VALUES ($1, $2, $3, $4, $5, CASE WHEN $7 THEN NULL ELSE clock_timestamp() END, $6, $6)
+               next_check_at, created_by_id, updated_by_id, po_number, customer, vendor)
+             VALUES ($1, $2, $3, $4, $5, CASE WHEN $7 THEN NULL ELSE clock_timestamp() END, $6, $6, $8, $9, $10)
              ON CONFLICT (carrier_id, tracking_reference) WHERE deleted_at IS NULL DO NOTHING
              RETURNING external_id`,
             [
@@ -303,6 +312,9 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
               item.followUpOn,
               actorId,
               carrier.code === 'other',
+              item.poNumber ?? null,
+              item.customer ?? null,
+              item.vendor ?? null,
             ],
           );
 

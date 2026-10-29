@@ -41,6 +41,9 @@ function record(row: JoinedShipment, extras: ReadExtras): ShipmentRecord {
     },
     trackingReference: row.trackingReference,
     notes: row.notes,
+    poNumber: row.poNumber,
+    customer: row.customer,
+    vendor: row.vendor,
     salesRep: row.salesRep
       ? {
           externalId: row.salesRep.externalId,

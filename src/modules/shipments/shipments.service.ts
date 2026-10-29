@@ -94,7 +94,10 @@ export class ShipmentsService {
             field:
               field === 'carrierExternalId' ||
               field === 'trackingReference' ||
-              field === 'notes'
+              field === 'notes' ||
+              field === 'poNumber' ||
+              field === 'customer' ||
+              field === 'vendor'
                 ? field
                 : field === 'salesRepExternalId' || field === 'followUpOn'
                   ? field

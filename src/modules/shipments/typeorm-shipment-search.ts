@@ -31,6 +31,12 @@ function orderBy(query: ShipmentSearchQuery): string {
       return `selected.snapshot_estimated_delivery_on ${direction} NULLS LAST, selected.shipment_id ${direction}`;
     case 'followUpOn':
       return `selected.follow_up_on ${direction} NULLS LAST, selected.shipment_id ${direction}`;
+    case 'poNumber':
+      return `selected.po_number ${direction} NULLS LAST, selected.shipment_id ${direction}`;
+    case 'customer':
+      return `selected.customer ${direction} NULLS LAST, selected.shipment_id ${direction}`;
+    case 'vendor':
+      return `selected.vendor ${direction} NULLS LAST, selected.shipment_id ${direction}`;
     case 'createdAt':
       return `selected.created_at ${direction}, selected.shipment_id ${direction}`;
   }
@@ -53,7 +59,10 @@ function statement(query: ShipmentSearchQuery, createdById?: number) {
 
     filters.push(
       `(strpos(lower(shipment.tracking_reference), lower(${search})) > 0
-        OR strpos(lower(coalesce(shipment.notes, '')), lower(${search})) > 0)`,
+        OR strpos(lower(coalesce(shipment.notes, '')), lower(${search})) > 0
+        OR strpos(lower(coalesce(shipment.po_number, '')), lower(${search})) > 0
+        OR strpos(lower(coalesce(shipment.customer, '')), lower(${search})) > 0
+        OR strpos(lower(coalesce(shipment.vendor, '')), lower(${search})) > 0)`,
     );
   }
 
@@ -103,6 +112,9 @@ function statement(query: ShipmentSearchQuery, createdById?: number) {
         shipment.external_id AS shipment_external_id,
         shipment.tracking_reference,
         shipment.notes,
+        shipment.po_number,
+        shipment.customer,
+        shipment.vendor,
         shipment.verification_url,
         shipment.monitoring_status,
         shipment.monitoring_reason,
