@@ -1,3 +1,4 @@
+import { ManualOtherCarrier1793491200000 } from '@infrastructure/database/migrations/1793491200000-ManualOtherCarrier.js';
 import { reconcileDeliveredMonitoring } from '@modules/shipments/typeorm-delivered-monitoring.js';
 import { AuthService } from '@modules/auth/auth.service.js';
 import { TypeOrmTrackingWorkRepository } from '@modules/tracking/typeorm-tracking-work.repository.js';
@@ -270,7 +271,17 @@ describe('Manual Other carrier HTTP workflow', () => {
     await http().patch(path).send({ followUpOn: '2020-01-01' }).expect(400);
   });
   it('refuses to roll back the seeded carrier while manual shipments reference it', async () => {
-    await expect(db.source.undoLastMigration()).rejects.toThrow();
+    const runner = db.source.createQueryRunner();
+    await runner.connect();
+    await runner.startTransaction();
+    try {
+      await expect(
+        new ManualOtherCarrier1793491200000().down(runner),
+      ).rejects.toThrow();
+    } finally {
+      await runner.rollbackTransaction();
+      await runner.release();
+    }
     const [row] = await db.source.query(
       "SELECT count(*)::int AS count FROM shipments s JOIN carriers c ON c.id = s.carrier_id WHERE c.code = 'other'",
     );
