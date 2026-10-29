@@ -20,6 +20,8 @@ describe('Quote persistence contract', () => {
     await db?.close();
   });
   it('migrates down/up and maps all eight tables with only NO ACTION foreign keys', async () => {
+    await db.source.undoLastMigration(); // Shipment business fields.
+    await db.source.undoLastMigration(); // Sales Rep email.
     await db.source.undoLastMigration(); // Manual Other carrier.
     await db.source.undoLastMigration(); // Monitoring safeguards migration.
     await db.source.undoLastMigration(); // Provider weight limits migration.

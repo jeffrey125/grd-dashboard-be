@@ -51,7 +51,8 @@ it('enforces required normalized email without a fabricated default', async () =
 });
 
 it('rolls back unmatched data and safely retries with a unique full-name account match', async () => {
-  await db.source.undoLastMigration();
+  await db.source.undoLastMigration(); // Shipment business fields.
+  await db.source.undoLastMigration(); // Sales Rep email.
   await db.source.query(
     "INSERT INTO sales_reps(first_name,last_name,deleted_at) VALUES ('Extra','Representative',now())",
   );
@@ -72,7 +73,8 @@ it('rolls back unmatched data and safely retries with a unique full-name account
     ),
   ).toEqual([{ email: 'verified@example.test', inactive: true }]);
 
-  await db.source.undoLastMigration();
+  await db.source.undoLastMigration(); // Shipment business fields.
+  await db.source.undoLastMigration(); // Sales Rep email.
   expect(
     await db.source.query('SELECT count(*)::int AS count FROM sales_reps'),
   ).toEqual([{ count: 10 }]);

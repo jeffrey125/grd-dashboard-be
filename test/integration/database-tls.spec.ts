@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -111,9 +111,16 @@ describe('verified PostgreSQL TLS', () => {
     const events = new TypeOrmEventsSource(source, logger);
 
     try {
+      const migrationFiles = await readdir(
+        join(process.cwd(), 'dist/infrastructure/database/migrations'),
+      );
+      const migrationCount = migrationFiles.filter((name) =>
+        /^\d+-.*\.js$/.test(name),
+      ).length;
+      expect(migrationCount).toBeGreaterThan(0);
       expect(
         await source.query('SELECT count(*)::int AS count FROM migrations'),
-      ).toEqual([{ count: 19 }]);
+      ).toEqual([{ count: migrationCount }]);
 
       const ready = firstValueFrom(events.events.pipe(timeout(5000)));
 
