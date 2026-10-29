@@ -752,7 +752,9 @@ rate limits, private source-map workflow and deployment boundary.
 
 See [manual Other carrier](manual-other-carrier.md) for the complete contract.
 `tab=other`, `tabCounts.other`, and overview `counts.other` are added. Other and
-Needs attention overlap when follow-up is due; Active/Delivered exclude Other.
+Needs attention overlap when follow-up is due. Other includes unfinished manual
+shipments; completed manual shipments appear in Delivered and its count instead.
+Reopening returns them to Other. Active continues to exclude Other.
 Staff create/update requests may include `manualTracking: { carrierStatus,
 pickedUpOn, estimatedDeliveryOn }` for carrier code `other` only. Status is one of
 `Pending Pickup`, `Pickedup`, `Out for delivery`, `Delivered`; dates are nullable

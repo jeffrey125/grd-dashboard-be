@@ -22,7 +22,8 @@ storage values and are not presented as configurable settings.
 Reuse Add shipment. Choosing Other reveals status, pickup and delivery controls;
 tracking reference remains required. Notes, Sales Rep and follow-up reuse existing
 fields. Manual controls are removed when another carrier is selected. After adding
-Other, switch to the Other tab while retaining the current filters.
+Other, switch to Other for unfinished shipments or Delivered for completed
+shipments, while retaining the current filters.
 
 `POST /api/v1/shipments` and `PATCH /api/v1/shipments/:externalId` accept an optional
 `manualTracking` object only for Other:
@@ -60,9 +61,10 @@ is permitted. Future dates on delivered Other shipments never restart polling.
 
 ## Lists and overview
 
-- `tab=other` and the Other count include all non-deleted Other shipments,
-  regardless of status or carrier enablement.
-- All Shipments includes Other; Active and Delivered exclude it.
+- `tab=other` and the Other count include non-deleted, unfinished Other shipments,
+  regardless of carrier enablement. Completed Other shipments appear in Delivered
+  and its count instead. Reopening returns them to Other.
+- All Shipments includes Other; Active excludes it.
 - Needs attention includes Other when follow-up is today or earlier in New York,
   even when Delivered or the carrier is disabled. No follow-up means no due alert.
 - `tabCounts.other` and overview `counts.other` are added. Other and Needs attention

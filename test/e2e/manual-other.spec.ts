@@ -157,10 +157,14 @@ describe('Manual Other carrier HTTP workflow', () => {
     expect(delivered.recordUpdatedBy.email).toBeUndefined();
     expect(delivered.recordUpdatedBy.firstName).toBe('Manual');
     expect((await search('attention')).total).toBe(1);
-    expect((await search('delivered')).total).toBe(0);
+    expect((await search('delivered')).total).toBe(1);
+    expect(await search('other')).toMatchObject({
+      total: 0,
+      tabCounts: { other: 0, delivered: 1 },
+    });
     expect(
       (await http().get('/api/v1/dashboard/overview').expect(200)).body.counts,
-    ).toMatchObject({ other: 1, attention: 1, active: 0, delivered: 0 });
+    ).toMatchObject({ other: 0, attention: 1, active: 0, delivered: 1 });
     const [{ tomorrow }] = await db.source.query(
       "SELECT ((clock_timestamp() AT TIME ZONE 'America/New_York')::date + 1)::text AS tomorrow",
     );
@@ -199,6 +203,14 @@ describe('Manual Other carrier HTTP workflow', () => {
     expect((await http().get(`${path}/history`).expect(200)).body.total).toBe(
       3,
     );
+    expect(await search('other')).toMatchObject({
+      total: 1,
+      tabCounts: { other: 1, delivered: 0 },
+    });
+    expect((await search('delivered')).total).toBe(0);
+    expect(
+      (await http().get('/api/v1/dashboard/overview').expect(200)).body.counts,
+    ).toMatchObject({ other: 1, delivered: 0 });
     const work = new TypeOrmTrackingWorkRepository(db.source);
     await db.source.query(
       'UPDATE shipments SET next_check_at = now() WHERE external_id = $1',

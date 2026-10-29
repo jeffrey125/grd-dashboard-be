@@ -186,7 +186,7 @@ function statement(query: ShipmentSearchQuery, createdById?: number) {
     ), counts AS (
       SELECT
         count(*)::integer AS all_count,
-        count(*) FILTER (WHERE carrier_code = 'other')::integer AS other_count,
+        count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.other})::integer AS other_count,
         count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.active})::integer AS active_count,
         count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.paused})::integer AS paused_count,
         count(*) FILTER (WHERE ${SHIPMENT_TAB_PREDICATES.delivered})::integer AS delivered_count,
