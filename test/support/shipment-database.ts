@@ -1,3 +1,6 @@
+import { ShipmentOrderDetails1793750400000 } from '@infrastructure/database/migrations/1793750400000-ShipmentOrderDetails.js';
+import { PurchaseOrderEntity } from '@modules/shipments/purchase-order.entity.js';
+import { ShipmentPurchaseOrderEntity } from '@modules/shipments/shipment-purchase-order.entity.js';
 import { ShipmentBusinessFields1793664000000 } from '@infrastructure/database/migrations/1793664000000-ShipmentBusinessFields.js';
 import { SalesRepEmails1793577600000 } from '@infrastructure/database/migrations/1793577600000-SalesRepEmails.js';
 import { ManualOtherCarrier1793491200000 } from '@infrastructure/database/migrations/1793491200000-ManualOtherCarrier.js';
@@ -51,6 +54,8 @@ export async function shipmentDatabase() {
       CarrierEntity,
       SalesRepEntity,
       ShipmentEntity,
+      PurchaseOrderEntity,
+      ShipmentPurchaseOrderEntity,
       ShipmentTrackingSnapshotEntity,
       TrackingRunEntity,
       TrackingAttemptEntity,
@@ -66,6 +71,7 @@ export async function shipmentDatabase() {
       SalesRepsAndShipmentFollowUp1792454400000,
       SalesRepEmails1793577600000,
       ShipmentBusinessFields1793664000000,
+      ShipmentOrderDetails1793750400000,
       QuoteComparisons1792540800000,
       QuoteExecution1792627200000,
       AmazonQuoteBreakdown1792713600000,

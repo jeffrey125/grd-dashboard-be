@@ -415,6 +415,7 @@ describe('Durable quote execution', () => {
     );
     await db.source.query("UPDATE quote_requests SET status='saved'");
 
+    await db.source.undoLastMigration(); // Shipment order details.
     await db.source.undoLastMigration(); // Shipment business fields.
     await db.source.undoLastMigration(); // Sales Rep email.
     await db.source.undoLastMigration(); // Manual Other carrier.

@@ -8,6 +8,7 @@ import {
   SHIPMENT_TAB_PREDICATES,
   shipmentTabPredicate,
 } from './shipment-read-predicates.js';
+import { purchaseOrderNumbersSql } from './typeorm-purchase-orders.js';
 import { shipmentJsonSql, shipmentRecord } from './typeorm-shipment-record.js';
 
 interface SearchEnvelopeRow {
@@ -115,6 +116,9 @@ function statement(query: ShipmentSearchQuery, createdById?: number) {
         shipment.tracking_reference,
         shipment.notes,
         shipment.po_number,
+        ${purchaseOrderNumbersSql('shipment.id')} AS po_numbers,
+        shipment.so_numbers,
+        shipment.products,
         shipment.customer,
         shipment.vendor,
         shipment.verification_url,

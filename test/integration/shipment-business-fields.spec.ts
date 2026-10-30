@@ -120,4 +120,67 @@ describe('shipment business fields', () => {
       }
     }
   });
+  it('supports many-to-many POs, optional orders, warehouse SOs and multiple products without duplicate shipment writes', async () => {
+    const first = await create('multi-order-a', {
+      poNumbers: ['002', '001', '002'],
+      soNumbers: ['SO-02', 'SO-01'],
+      products: ['Organic oats', 'Cacao, Powder'],
+    });
+    const second = await create('multi-order-b', { poNumbers: ['001'] });
+    const warehouse = await create('warehouse-order', {
+      poNumbers: ['0'],
+      soNumbers: ['00123'],
+    });
+    const noOrder = await create('no-order', { products: ['Sample'] });
+    expect(first).toMatchObject({
+      poNumber: '001, 002',
+      poNumbers: ['001', '002'],
+      soNumbers: ['SO-01', 'SO-02'],
+      products: ['Cacao, Powder', 'Organic oats'],
+    });
+    expect(second.poNumbers).toEqual(['001']);
+    expect(warehouse).toMatchObject({
+      poNumber: '0',
+      poNumbers: ['0'],
+      soNumbers: ['00123'],
+    });
+    expect(noOrder).toMatchObject({
+      poNumber: null,
+      poNumbers: [],
+      soNumbers: [],
+      products: ['Sample'],
+    });
+    expect(
+      await create('multi-order-a', {
+        poNumbers: ['REPLACEMENT'],
+        products: ['Wrong'],
+      }),
+    ).toEqual(first);
+
+    const result = await repository.search(
+      shipmentSearchQuerySchema.parse({ tab: 'all', q: 'multi-order-a' }),
+    );
+    expect(result.total).toBe(1);
+    expect(result.items[0]).toEqual(first);
+    const changed = await repository.update(
+      first.externalId,
+      updateShipmentSchema.parse({ poNumbers: ['003'], products: [] }),
+    );
+    expect(changed).toMatchObject({
+      poNumber: '003',
+      poNumbers: ['003'],
+      products: [],
+      soNumbers: ['SO-01', 'SO-02'],
+    });
+    expect(changed?.recordUpdatedAt).toBeInstanceOf(Date);
+    expect((await repository.find(second.externalId))?.poNumbers).toEqual([
+      '001',
+    ]);
+    expect(
+      await repository.update(
+        first.externalId,
+        updateShipmentSchema.parse({ poNumbers: [], soNumbers: [] }),
+      ),
+    ).toMatchObject({ poNumber: null, poNumbers: [], soNumbers: [] });
+  });
 });

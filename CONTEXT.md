@@ -44,6 +44,20 @@ consecutive confirmed not-found results; completed means delivery is known.
 The number of consecutive confirmed absent results that automatically pauses a
 Shipment. A technical lookup failure is not evidence of absence.
 
+### Shipment order references
+
+**GRD Purchase Order (PO)**:
+A GRD purchase reference that may cover several tracked Shipments; a Shipment may carry several POs or have no PO.
+
+**Sales Order (SO)**:
+A sales reference associated with the goods in a Shipment. It is distinct from the GRD PO and may be shared across tracking references.
+
+**Warehouse Stock**:
+Goods shipped from warehouse inventory, identified in the sales export by GRD PO `0`. The associated SO identifies the sales order.
+
+**Shipment Product**:
+A product carried by a tracked Shipment. A Shipment may contain several products.
+
 ### Employee access
 
 **Employee Account**:

@@ -75,7 +75,7 @@ describe('Tracking worker with PostgreSQL', () => {
   beforeEach(async () => {
     logLines.length = 0;
     await db.source.query(
-      'TRUNCATE TABLE tracking_attempts, shipment_tracking_snapshots, tracking_runs, shipments RESTART IDENTITY',
+      'TRUNCATE TABLE shipment_purchase_orders, tracking_attempts, shipment_tracking_snapshots, tracking_runs, shipments RESTART IDENTITY',
     );
     await db.source.query(
       'UPDATE carriers SET is_active = true, deleted_at = NULL',
