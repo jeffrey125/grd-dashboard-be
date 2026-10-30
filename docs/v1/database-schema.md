@@ -753,3 +753,22 @@ fields. `sortBy` accepts each API field name; both directions use NULLS LAST and
 a stable shipment-ID tie-breaker. Sorting is lexical, not natural-number sorting.
 Desktop columns begin Sales Rep, PO#, Customer, Vendor, Tracking Number. Mobile
 cards show populated PO#, Customer, Vendor values in that order.
+
+## SHIP-V1-002: shipment order details
+
+See [shipment order details](shipment-order-details.md) for the approved contract.
+`1793750400000-ShipmentOrderDetails` adds non-null `varchar(255)[]` columns
+`so_numbers` and `products`, both defaulting to `'{}'`, and widens `po_number` to
+text for the existing display summary. Existing values remain opaque identifiers.
+
+`purchase_orders` has a natural `po_number varchar(255)` primary key.
+`shipment_purchase_orders` has composite primary key `(shipment_id, po_number)`
+and reverse index `ix_shipment_purchase_orders_number`. Its two foreign keys
+reference `shipments.id` and `purchase_orders.po_number`, explicitly with
+`ON DELETE NO ACTION` in migrations and ORM mappings. The reserved reference `0`
+represents warehouse stock; SO is separate. Existing non-null PO values seed links.
+There is no customer/vendor ownership on the shared reference record.
+
+All writes preserve link/display agreement transactionally. No PO association is
+required, no PO is unique to a Shipment, and soft deletion retains associations.
+SO and Product lists appear in shipment details only; no grid columns are added.

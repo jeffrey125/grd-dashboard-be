@@ -6,6 +6,7 @@ import { ShipmentTrackingSnapshotEntity } from '@modules/tracking/shipment-track
 import { TrackingAttemptEntity } from '@modules/tracking/tracking-attempt.entity.js';
 import { TrackingRunEntity } from '@modules/tracking/tracking-run.entity.js';
 import { trackingRunRecord } from '@modules/tracking/tracking.repository.js';
+import { purchaseOrderNumbersSql } from './typeorm-purchase-orders.js';
 import { ShipmentEntity } from './shipment.entity.js';
 import { shipmentRecordSchema } from './shipments.schemas.js';
 import type { ShipmentRecord } from './shipments.repository.js';
@@ -25,6 +26,7 @@ interface ReadExtras {
   shipment_external_id: string;
   lookup_run_external_id: string | null;
   latest_run_attempt_count: number;
+  po_numbers: string[];
 }
 
 function record(row: JoinedShipment, extras: ReadExtras): ShipmentRecord {
@@ -42,6 +44,9 @@ function record(row: JoinedShipment, extras: ReadExtras): ShipmentRecord {
     trackingReference: row.trackingReference,
     notes: row.notes,
     poNumber: row.poNumber,
+    poNumbers: extras.po_numbers,
+    soNumbers: row.soNumbers,
+    products: row.products,
     customer: row.customer,
     vendor: row.vendor,
     salesRep: row.salesRep
@@ -226,6 +231,7 @@ export async function readShipments(
       'latest_run.startedAt',
       'latest_run.completedAt',
     ])
+    .addSelect(purchaseOrderNumbersSql('shipment.id'), 'po_numbers')
     .addSelect('lookup_run.external_id', 'lookup_run_external_id')
     .addSelect(
       '(SELECT count(*)::integer FROM tracking_attempts counted WHERE counted.tracking_run_id = latest_run.id)',

@@ -1,3 +1,4 @@
+import { purchaseOrderNumbersSql } from '@modules/shipments/typeorm-purchase-orders.js';
 import { DataSource } from 'typeorm';
 import {
   SHIPMENT_TAB_PREDICATES,
@@ -42,6 +43,9 @@ function overviewStatement(): string {
       shipment.tracking_reference,
       shipment.notes,
       shipment.po_number,
+      ${purchaseOrderNumbersSql('shipment.id')} AS po_numbers,
+      shipment.so_numbers,
+      shipment.products,
       shipment.customer,
       shipment.vendor,
       shipment.verification_url,

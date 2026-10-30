@@ -55,6 +55,9 @@ export function shipmentJsonSql(alias: string): string {
     'trackingReference', ${alias}.tracking_reference,
     'notes', ${alias}.notes,
     'poNumber', ${alias}.po_number,
+    'poNumbers', ${alias}.po_numbers,
+    'soNumbers', ${alias}.so_numbers,
+    'products', ${alias}.products,
     'customer', ${alias}.customer,
     'vendor', ${alias}.vendor,
     'salesRep', CASE WHEN ${alias}.sales_rep_external_id IS NULL THEN NULL ELSE jsonb_build_object(

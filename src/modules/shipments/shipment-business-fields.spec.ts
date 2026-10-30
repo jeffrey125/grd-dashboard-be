@@ -32,4 +32,32 @@ describe('shipment business field validation', () => {
         );
     },
   );
+  it('normalizes bounded lists without splitting product names or accepting ambiguous PO inputs', () => {
+    expect(
+      updateShipmentSchema.parse({
+        poNumbers: [' 001 ', '001', '0'],
+        soNumbers: [],
+        products: ['Cacao, Powder'],
+      }),
+    ).toEqual({
+      poNumbers: ['0', '001'],
+      soNumbers: [],
+      products: ['Cacao, Powder'],
+    });
+    for (const value of [
+      [''],
+      ['a'.repeat(256)],
+      ['bad\0value'],
+      Array(101).fill('item'),
+      null,
+    ])
+      for (const field of ['poNumbers', 'soNumbers', 'products'])
+        expect(updateShipmentSchema.safeParse({ [field]: value }).success).toBe(
+          false,
+        );
+    expect(
+      updateShipmentSchema.safeParse({ poNumber: '1', poNumbers: ['2'] })
+        .success,
+    ).toBe(false);
+  });
 });

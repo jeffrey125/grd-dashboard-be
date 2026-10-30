@@ -69,7 +69,7 @@ describe('durable monitoring safeguards', () => {
   });
   beforeEach(async () => {
     await db.source.query(
-      'TRUNCATE tracking_attempts, shipment_tracking_snapshots, tracking_runs, shipments RESTART IDENTITY',
+      'TRUNCATE shipment_purchase_orders, tracking_attempts, shipment_tracking_snapshots, tracking_runs, shipments RESTART IDENTITY',
     );
     await db.source
       .query(`UPDATE carriers SET is_active = true, auto_disabled_reason = NULL,

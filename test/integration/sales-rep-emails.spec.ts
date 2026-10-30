@@ -51,6 +51,7 @@ it('enforces required normalized email without a fabricated default', async () =
 });
 
 it('rolls back unmatched data and safely retries with a unique full-name account match', async () => {
+  await db.source.undoLastMigration(); // Shipment order details.
   await db.source.undoLastMigration(); // Shipment business fields.
   await db.source.undoLastMigration(); // Sales Rep email.
   await db.source.query(
@@ -73,6 +74,7 @@ it('rolls back unmatched data and safely retries with a unique full-name account
     ),
   ).toEqual([{ email: 'verified@example.test', inactive: true }]);
 
+  await db.source.undoLastMigration(); // Shipment order details.
   await db.source.undoLastMigration(); // Shipment business fields.
   await db.source.undoLastMigration(); // Sales Rep email.
   expect(

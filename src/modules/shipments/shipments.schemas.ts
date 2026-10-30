@@ -30,6 +30,25 @@ const shipmentTextSchema = z
   .transform((value) => value || null)
   .nullable();
 
+const referenceListSchema = z
+  .array(
+    z
+      .string()
+      .trim()
+      .min(1)
+      .max(255)
+      .refine((value) => !value.includes('\u0000')),
+  )
+  .max(100)
+  .transform((values) => [...new Set(values)].sort());
+
+function unambiguousPurchaseOrders(value: {
+  poNumber?: string | null;
+  poNumbers?: string[];
+}) {
+  return value.poNumber === undefined || value.poNumbers === undefined;
+}
+
 const followUpOnSchema = z.iso
   .date()
   .refine((value) => !value.startsWith('0000'))
@@ -46,26 +65,39 @@ export const manualTrackingSchema = z.strictObject({
   estimatedDeliveryOn: followUpOnSchema,
 });
 
-export const createShipmentSchema = z.strictObject({
-  carrierExternalId: shipmentExternalIdSchema,
-  trackingReference: trackingReferenceSchema,
-  poNumber: shipmentTextSchema.optional(),
-  customer: shipmentTextSchema.optional(),
-  vendor: shipmentTextSchema.optional(),
-  notes: notesSchema.optional().transform((value) => value ?? null),
-  salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
-  followUpOn: followUpOnSchema.optional(),
-  manualTracking: manualTrackingSchema.optional(),
-});
+export const createShipmentSchema = z
+  .strictObject({
+    carrierExternalId: shipmentExternalIdSchema,
+    trackingReference: trackingReferenceSchema,
+    poNumber: shipmentTextSchema.optional(),
+    poNumbers: referenceListSchema.optional(),
+    soNumbers: referenceListSchema.optional(),
+    products: referenceListSchema.optional(),
+    customer: shipmentTextSchema.optional(),
+    vendor: shipmentTextSchema.optional(),
+    notes: notesSchema.optional().transform((value) => value ?? null),
+    salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
+    followUpOn: followUpOnSchema.optional(),
+    manualTracking: manualTrackingSchema.optional(),
+  })
+  .refine(unambiguousPurchaseOrders, {
+    message: 'Provide poNumber or poNumbers, not both',
+  });
 export const updateShipmentSchema = z
   .strictObject({
     poNumber: shipmentTextSchema.optional(),
+    poNumbers: referenceListSchema.optional(),
+    soNumbers: referenceListSchema.optional(),
+    products: referenceListSchema.optional(),
     customer: shipmentTextSchema.optional(),
     vendor: shipmentTextSchema.optional(),
     notes: notesSchema.optional(),
     salesRepExternalId: shipmentExternalIdSchema.nullable().optional(),
     followUpOn: followUpOnSchema.optional(),
     manualTracking: manualTrackingSchema.optional(),
+  })
+  .refine(unambiguousPurchaseOrders, {
+    message: 'Provide poNumber or poNumbers, not both',
   })
   .refine((value) => Object.values(value).some((item) => item !== undefined), {
     message: 'At least one Shipment field is required',
@@ -187,6 +219,9 @@ export const shipmentRecordSchema = z.strictObject({
   }),
   trackingReference: z.string(),
   poNumber: z.string().nullable(),
+  poNumbers: z.array(z.string()).transform((values) => values.sort()),
+  soNumbers: z.array(z.string()),
+  products: z.array(z.string()),
   customer: z.string().nullable(),
   vendor: z.string().nullable(),
   notes: z.string().nullable(),

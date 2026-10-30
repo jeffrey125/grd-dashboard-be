@@ -29,7 +29,7 @@ describe('Dashboard overview PostgreSQL repository', () => {
 
   beforeEach(async () => {
     await db.source.query(
-      `TRUNCATE tracking_attempts, shipment_tracking_snapshots, tracking_runs,
+      `TRUNCATE shipment_purchase_orders, tracking_attempts, shipment_tracking_snapshots, tracking_runs,
         shipments, carriers RESTART IDENTITY CASCADE`,
     );
     carrier = await db.source.getRepository(CarrierEntity).save({

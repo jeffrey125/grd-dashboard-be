@@ -838,3 +838,20 @@ fields. `sortBy` accepts each API field name; both directions use NULLS LAST and
 a stable shipment-ID tie-breaker. Sorting is lexical, not natural-number sorting.
 Desktop columns begin Sales Rep, PO#, Customer, Vendor, Tracking Number. Mobile
 cards show populated PO#, Customer, Vendor values in that order.
+
+## SHIP-V1-002: SO, products and multiple POs
+
+All Shipment records now return `poNumbers: string[]`, `soNumbers: string[]` and
+`products: string[]`. The existing nullable `poNumber` is a comma-separated display
+summary; use `poNumbers` for editing, never split the display summary. Legacy
+single `poNumber` POST/PATCH input remains supported, but supplying both PO input
+forms is 400. PATCH omission preserves a list; `[]` clears it; null lists are 400.
+Each list accepts at most 100 nonempty, trimmed, NUL-free entries of 255 characters,
+then deduplicates and sorts. Product names can contain commas.
+
+Details edit PO, SO and Product as multiple-value inputs. Warehouse stock keeps
+PO# `0` and its SO separately. No PO is valid; the same PO may cover multiple
+tracking records. SO/Product are not monitoring-table columns. Existing Staff/Admin
+permissions, tracking behavior and duplicate-creation semantics are unchanged.
+Deploy the migration/API before the frontend. See [the approved specification](shipment-order-details.md)
+for rollback and separately executed, read-only-by-default backfill tooling.

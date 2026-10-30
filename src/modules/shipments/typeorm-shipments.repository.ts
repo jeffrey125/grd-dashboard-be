@@ -11,6 +11,10 @@ import {
   ShipmentMonitoringStatus,
 } from './shipment.entity.js';
 import type { NewShipment } from './shipments.schemas.js';
+import {
+  ensurePurchaseOrders,
+  replacePurchaseOrders,
+} from './typeorm-purchase-orders.js';
 import { readShipmentHistory } from './typeorm-shipment-history.js';
 import { readShipments } from './typeorm-shipment-read.js';
 import { searchShipments } from './typeorm-shipment-search.js';
@@ -108,16 +112,54 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
         patch.salesRepId = salesRepId;
       if (changes.followUpOn !== undefined)
         patch.followUpOn = changes.followUpOn;
-      const metadataChanged = (
-        ['poNumber', 'customer', 'vendor'] as const
-      ).some(
+      const poNumbers =
+        changes.poNumbers ??
+        (changes.poNumber !== undefined
+          ? changes.poNumber === null
+            ? []
+            : [changes.poNumber]
+          : undefined);
+      const poNumber =
+        poNumbers === undefined
+          ? undefined
+          : [...new Set(poNumbers)].sort().join(', ') || null;
+      const [previousOrders]: Array<{ numbers: string[] }> =
+        poNumbers === undefined
+          ? [{ numbers: [] }]
+          : await manager.query(
+              `SELECT ARRAY(SELECT po_number FROM shipment_purchase_orders WHERE shipment_id = $1) AS numbers`,
+              [shipment.id],
+            );
+      const orderDetailsChanged =
+        (poNumbers !== undefined &&
+          JSON.stringify([...new Set(poNumbers)].sort()) !==
+            JSON.stringify(previousOrders.numbers.sort())) ||
+        (changes.soNumbers !== undefined &&
+          JSON.stringify(changes.soNumbers) !==
+            JSON.stringify(shipment.soNumbers)) ||
+        (changes.products !== undefined &&
+          JSON.stringify(changes.products) !==
+            JSON.stringify(shipment.products));
+
+      if (poNumber !== undefined) patch.poNumber = poNumber;
+      if (changes.soNumbers !== undefined) patch.soNumbers = changes.soNumbers;
+      if (changes.products !== undefined) patch.products = changes.products;
+      if (poNumbers !== undefined)
+        await replacePurchaseOrders(manager, shipment.id, poNumbers);
+
+      const metadataChanged = (['customer', 'vendor'] as const).some(
         (field) =>
           changes[field] !== undefined && changes[field] !== shipment[field],
       );
-      for (const field of ['poNumber', 'customer', 'vendor'] as const)
+      for (const field of ['customer', 'vendor'] as const)
         if (changes[field] !== undefined) patch[field] = changes[field];
 
-      if (salesRepChanged || followUpChanged || metadataChanged) {
+      if (
+        salesRepChanged ||
+        followUpChanged ||
+        metadataChanged ||
+        orderDetailsChanged
+      ) {
         patch.recordUpdatedAt = () => 'clock_timestamp()';
         patch.recordUpdatedById = actorId;
       }
@@ -298,8 +340,8 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
           const created: Array<{ external_id: string }> = await manager.query(
             `INSERT INTO shipments
               (carrier_id, tracking_reference, notes, sales_rep_id, follow_up_on,
-               next_check_at, created_by_id, updated_by_id, po_number, customer, vendor)
-             VALUES ($1, $2, $3, $4, $5, CASE WHEN $7 THEN NULL ELSE clock_timestamp() END, $6, $6, $8, $9, $10)
+               next_check_at, created_by_id, updated_by_id, po_number, customer, vendor, so_numbers, products)
+             VALUES ($1, $2, $3, $4, $5, CASE WHEN $7 THEN NULL ELSE clock_timestamp() END, $6, $6, $8, $9, $10, $11, $12)
              ON CONFLICT (carrier_id, tracking_reference) WHERE deleted_at IS NULL DO NOTHING
              RETURNING external_id`,
             [
@@ -312,9 +354,13 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
               item.followUpOn,
               actorId,
               carrier.code === 'other',
-              item.poNumber ?? null,
+              item.poNumbers !== undefined
+                ? [...new Set(item.poNumbers)].sort().join(', ') || null
+                : (item.poNumber ?? null),
               item.customer ?? null,
               item.vendor ?? null,
+              item.soNumbers ?? [],
+              item.products ?? [],
             ],
           );
 
@@ -356,6 +402,26 @@ export class TypeOrmShipmentsRepository implements ShipmentsRepository {
           inserted,
           externalId,
         });
+      }
+
+      const createdItems = ordered.filter(
+        (item) => results.get(item)!.inserted,
+      );
+      await ensurePurchaseOrders(
+        manager,
+        createdItems.flatMap(
+          (item) => item.poNumbers ?? (item.poNumber ? [item.poNumber] : []),
+        ),
+      );
+      for (const item of createdItems) {
+        const row = await manager
+          .getRepository(ShipmentEntity)
+          .findOneByOrFail({ externalId: results.get(item)!.externalId });
+        await replacePurchaseOrders(
+          manager,
+          row.id,
+          item.poNumbers ?? (item.poNumber ? [item.poNumber] : []),
+        );
       }
 
       // Resolve all public records in one statement after pair writes/locks.
