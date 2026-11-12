@@ -1,0 +1,39 @@
+{
+  "policy": {
+    "description": "OBS-V1-002 Delete event-day indexes eight days after creation (approximately seven to eight days per event); ingest rejects replay of earlier UTC days.",
+    "default_state": "retain",
+    "states": [
+      {
+        "name": "retain",
+        "actions": [],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": {
+              "min_index_age": "8d"
+            }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [
+          {
+            "delete": {}
+          }
+        ],
+        "transitions": []
+      }
+    ],
+    "ism_template": [
+      {
+        "index_patterns": [
+          "grd-day-api-*",
+          "grd-day-worker-*",
+          "grd-day-migrate-*"
+        ],
+        "priority": 200
+      }
+    ]
+  }
+}

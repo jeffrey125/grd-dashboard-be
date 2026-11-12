@@ -178,6 +178,12 @@ The worker has no HTTP health port; API health does not prove scheduler health.
 
 ## Managed log forwarding
 
+**2026-11-12 update (OBS-V1-002):** forwarded documents now route to their original
+UTC-day indexes, preserving IDs across retries. See [replay remediation](log-replay-remediation.md)
+for the active pipeline, date templates, retention, verification and rollback.
+The legacy rollover configuration below remains in place for source indexes;
+it no longer determines the destination of newly forwarded valid-timestamp logs.
+
 The approved logging cluster is `grd-logs-nyc1` in project
 `global-resources-direct`, NYC1, VPC `grd-nyc1`. It uses one shared 1-vCPU,
 2-GiB node with 10 GiB SSD, priced at $12.15/month before tax in the control
