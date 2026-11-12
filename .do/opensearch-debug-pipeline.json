@@ -1,5 +1,5 @@
 {
-  "description": "OBS-V1-001 Parse GRD structured logs without rejecting plain runtime output",
+  "description": "OBS-V1-002 Parse GRD logs and route stable document IDs to their original UTC event day",
   "processors": [
     {
       "json": {
@@ -12,6 +12,65 @@
       "remove": {
         "field": "grd",
         "if": "ctx.grd != null && !(ctx.grd instanceof Map)",
+        "ignore_missing": true
+      }
+    },
+    {
+      "date": {
+        "field": "@timestamp",
+        "target_field": "_grd_event_at",
+        "formats": ["ISO8601"],
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "field": "_grd_received_at",
+        "value": "{{_ingest.timestamp}}"
+      }
+    },
+    {
+      "drop": {
+        "if": "ctx['_grd_event_at'] != null && ZonedDateTime.parse(ctx['_grd_event_at']).withZoneSameInstant(ZoneId.of('UTC')).toLocalDate().isBefore(ZonedDateTime.parse(ctx['_grd_received_at']).withZoneSameInstant(ZoneId.of('UTC')).toLocalDate().minusDays(7))",
+        "ignore_failure": true
+      }
+    },
+    {
+      "date_index_name": {
+        "if": "ctx._grd_event_at != null && ctx.do_component_name == 'api'",
+        "field": "@timestamp",
+        "date_formats": ["ISO8601"],
+        "date_rounding": "d",
+        "timezone": "UTC",
+        "index_name_prefix": "grd-day-api-",
+        "ignore_failure": true
+      }
+    },
+    {
+      "date_index_name": {
+        "if": "ctx._grd_event_at != null && ctx.do_component_name == 'worker'",
+        "field": "@timestamp",
+        "date_formats": ["ISO8601"],
+        "date_rounding": "d",
+        "timezone": "UTC",
+        "index_name_prefix": "grd-day-worker-",
+        "ignore_failure": true
+      }
+    },
+    {
+      "date_index_name": {
+        "if": "ctx._grd_event_at != null && ctx.do_component_name == 'migrate'",
+        "field": "@timestamp",
+        "date_formats": ["ISO8601"],
+        "date_rounding": "d",
+        "timezone": "UTC",
+        "index_name_prefix": "grd-day-migrate-",
+        "ignore_failure": true
+      }
+    },
+    {
+      "remove": {
+        "field": ["_grd_received_at", "_grd_event_at"],
         "ignore_missing": true
       }
     }

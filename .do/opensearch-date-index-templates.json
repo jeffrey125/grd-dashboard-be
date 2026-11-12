@@ -1,0 +1,362 @@
+{
+  "grd-day-api": {
+    "index_patterns": ["grd-day-api-*"],
+    "priority": 200,
+    "template": {
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.default_pipeline": "grd-debug-v1"
+      },
+      "mappings": {
+        "properties": {
+          "grd": {
+            "type": "object",
+            "dynamic": false,
+            "properties": {
+              "level": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "runtime": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "component": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "event": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "requestId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "failedRequestId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "route": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "method": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "page": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "release": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "kind": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "errorName": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "errorCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "reasonCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "carrierCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "outcome": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "runExternalId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "shipmentExternalId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "frames": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "status": {
+                "type": "long"
+              },
+              "durationMs": {
+                "type": "long"
+              },
+              "errorStatus": {
+                "type": "long"
+              },
+              "failedCount": {
+                "type": "long"
+              },
+              "succeededCount": {
+                "type": "long"
+              }
+            }
+          },
+          "@timestamp": {
+            "type": "date"
+          }
+        }
+      },
+      "aliases": {
+        "grd-api": {
+          "is_write_index": false
+        }
+      }
+    }
+  },
+  "grd-day-worker": {
+    "index_patterns": ["grd-day-worker-*"],
+    "priority": 200,
+    "template": {
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.default_pipeline": "grd-debug-v1"
+      },
+      "mappings": {
+        "properties": {
+          "grd": {
+            "type": "object",
+            "dynamic": false,
+            "properties": {
+              "level": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "runtime": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "component": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "event": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "requestId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "failedRequestId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "route": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "method": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "page": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "release": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "kind": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "errorName": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "errorCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "reasonCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "carrierCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "outcome": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "runExternalId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "shipmentExternalId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "frames": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "status": {
+                "type": "long"
+              },
+              "durationMs": {
+                "type": "long"
+              },
+              "errorStatus": {
+                "type": "long"
+              },
+              "failedCount": {
+                "type": "long"
+              },
+              "succeededCount": {
+                "type": "long"
+              }
+            }
+          },
+          "@timestamp": {
+            "type": "date"
+          }
+        }
+      },
+      "aliases": {
+        "grd-worker": {
+          "is_write_index": false
+        }
+      }
+    }
+  },
+  "grd-day-migrate": {
+    "index_patterns": ["grd-day-migrate-*"],
+    "priority": 200,
+    "template": {
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "index.default_pipeline": "grd-debug-v1"
+      },
+      "mappings": {
+        "properties": {
+          "grd": {
+            "type": "object",
+            "dynamic": false,
+            "properties": {
+              "level": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "runtime": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "component": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "event": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "requestId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "failedRequestId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "route": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "method": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "page": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "release": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "kind": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "errorName": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "errorCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "reasonCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "carrierCode": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "outcome": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "runExternalId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "shipmentExternalId": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "frames": {
+                "type": "keyword",
+                "ignore_above": 256
+              },
+              "status": {
+                "type": "long"
+              },
+              "durationMs": {
+                "type": "long"
+              },
+              "errorStatus": {
+                "type": "long"
+              },
+              "failedCount": {
+                "type": "long"
+              },
+              "succeededCount": {
+                "type": "long"
+              }
+            }
+          },
+          "@timestamp": {
+            "type": "date"
+          }
+        }
+      },
+      "aliases": {
+        "grd-migrate": {
+          "is_write_index": false
+        }
+      }
+    }
+  }
+}

@@ -31,6 +31,12 @@ is checked again server-side. Existing JSON body limits also apply.
 
 ## OpenSearch
 
+**OBS-V1-002 update:** `grd-debug-v1` additionally routes events by their original
+UTC day to deduplicate retries across rollover boundaries. Apply the additional
+date-index templates and retention policy before updating this pipeline. See
+[log replay remediation](log-replay-remediation.md) for current setup, transitional
+retention behavior, and the investigation of the nine historical frontend reports.
+
 Configuration files are `.do/opensearch-debug-pipeline.json`,
 `.do/opensearch-debug-mapping.json`, `.do/opensearch-index-templates.json` and
 `.do/opensearch-debug-dashboards.ndjson`. Pipeline `grd-debug-v1` parses forwarded
