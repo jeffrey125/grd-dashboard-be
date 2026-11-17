@@ -31,6 +31,7 @@ Implementation is in an isolated worktree checked out on main at `e8ce7df`.
 | `src/modules/tracking/tracking.service.spec.ts`            | Align the transaction fixture with its updated contract.                                                         |
 | `test/integration/delivered-follow-up.spec.ts`             | Replace superseded date-window tests with 14 completion, one-off, race and coalescing regressions.               |
 | `test/integration/delivery-reversal.spec.ts`               | Exercise corrections through explicit manual checks after completion.                                            |
+| `test/integration/tracking-worker.spec.ts`                 | Model delivery occurring during session setup and assert known deliveries never open a session.                  |
 | `docs/v1/delivered-monitor-once.md`                        | Record approved MON-V1-005 requirements and rollout order.                                                       |
 | `docs/v1/delivered-follow-up-monitoring.md`                | Mark the old policy superseded, preserving historical context.                                                   |
 | `docs/v1/tracking-behavior.md`                             | Align completion and manual-check rules.                                                                         |
@@ -53,8 +54,9 @@ Implementation is in an isolated worktree checked out on main at `e8ce7df`.
 - `git diff --check`: passed. No secrets, production credentials or live carrier
   calls used. Original backend feature worktree restored clean; unrelated frontend
   work left intact. Dependencies installed with the unchanged main lockfile.
-- Full combined coverage, the full integration/e2e matrix, container/CI/deployment
-  checks and production rollout were not run. No packaging changes were made.
+- First production CI run `44156124420`: container lifecycle and secret scanning passed; combined tests reported 743 passed and two failures. Both failures came from worker fixtures expecting the superseded future-follow-up reactivation behavior. Publishing/deployment were skipped; production stayed unchanged.
+- Test-only correction: model delivery being confirmed during session setup for both single/batch reads, and explicitly assert an existing delivered shipment with a future follow-up never opens a session. `pnpm exec vitest run --project integration test/integration/tracking-worker.spec.ts test/integration/delivered-follow-up.spec.ts`: 30 passed. `pnpm typecheck` and `git diff --check`: passed.
+- Full combined coverage must pass in the retried CI run before production activation. No packaging changes were made.
 - Help updated in the sibling frontend with a new fictional illustration and three
   markers; desktop/mobile role visibility, image loading and markers verified.
 - Manual review API: `http://localhost:3019/api/v1/health/ready` returned HTTP 200
@@ -73,7 +75,7 @@ continue using the existing rules.
 
 ## Remaining Issues
 
-Not committed or deployed. Production behavior remains unchanged. The local preview
+The approved implementation is committed as `3261d9d`; the frontend is committed as `e5d5a4e`. Production activation remains pending the full CI gates. A test-only worker fixture correction requires a follow-up commit. Production behavior remains unchanged. The local preview
 has no carrier worker, so manual requests stay queued; execution is verified with
 fixture adapters in PostgreSQL integration tests. No live carrier verification.
 
@@ -86,3 +88,5 @@ fixture adapters in PostgreSQL integration tests. No live carrier verification.
 One backend commit containing the files above:
 `fix(tracking): MON-V1-005 complete deliveries and allow one-off checks`.
 Explicit final approval is required before staging or committing.
+
+Test-only follow-up commit: `test(tracking): MON-V1-005 align worker fixtures with delivery completion`. Files: the worker integration test and this verification summary.

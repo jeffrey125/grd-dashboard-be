@@ -149,12 +149,9 @@ describe('Tracking worker with PostgreSQL', () => {
     return module;
   }
 
-  it.each([false, true])(
-    'skips delivered lookups expiring during session setup (batch=%s)',
-    async (batch) => {
-      const item = await shipment('follow-up-session-cutoff');
-      await db.source.query(
-        `WITH snapshot AS (
+  async function confirmDelivery(externalId: string) {
+    await db.source.query(
+      `WITH snapshot AS (
       INSERT INTO shipment_tracking_snapshots (shipment_id, carrier_status, delivered_on)
       SELECT id, 'Delivered', (clock_timestamp() AT TIME ZONE 'America/New_York')::date
       FROM shipments WHERE external_id = $1 RETURNING id, shipment_id
@@ -162,8 +159,48 @@ describe('Tracking worker with PostgreSQL', () => {
       monitoring_status = 'completed', monitoring_reason = 'delivered', next_check_at = NULL,
       follow_up_on = (clock_timestamp() AT TIME ZONE 'America/New_York')::date + 1
       FROM snapshot WHERE shipments.id = snapshot.shipment_id`,
+      [externalId],
+    );
+  }
+
+  it('does not open a carrier session for existing delivery with a future follow-up', async () => {
+    const item = await shipment('delivered-future-follow-up');
+    await confirmDelivery(item.externalId);
+    const openSession = vi.fn(async () => ({
+      read: vi.fn(async (): Promise<TrackingResult> => ({
+        outcome: 'not_found',
+        sourceData: null,
+      })),
+      close: vi.fn(async () => {}),
+    }));
+    const { worker } = await fixture(openSession);
+
+    try {
+      await worker.start();
+      await worker.tick();
+
+      expect(openSession).not.toHaveBeenCalled();
+      const [stored] = await db.source.query(
+        'SELECT monitoring_status, next_check_at FROM shipments WHERE external_id = $1',
         [item.externalId],
       );
+      expect(stored).toEqual({
+        monitoring_status: 'completed',
+        next_check_at: null,
+      });
+      const [attempts] = await db.source.query(
+        'SELECT count(*)::integer AS count FROM tracking_attempts',
+      );
+      expect(attempts.count).toBe(0);
+    } finally {
+      await worker.onModuleDestroy();
+    }
+  });
+
+  it.each([false, true])(
+    'skips scheduled lookups when delivery is confirmed during session setup (batch=%s)',
+    async (batch) => {
+      const item = await shipment('delivered-during-session');
       const read = vi.fn(async (): Promise<TrackingResult> => ({
         outcome: 'not_found',
         sourceData: null,
@@ -171,10 +208,7 @@ describe('Tracking worker with PostgreSQL', () => {
       const readMany = vi.fn(async () => new Map<string, TrackingResult>());
       const close = vi.fn(async () => {});
       const { worker } = await fixture(async () => {
-        await db.source.query(
-          `UPDATE shipments SET follow_up_on = (clock_timestamp() AT TIME ZONE 'America/New_York')::date WHERE external_id = $1`,
-          [item.externalId],
-        );
+        await confirmDelivery(item.externalId);
         return { read, close, ...(batch ? { readMany } : {}) };
       });
       try {
