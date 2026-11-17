@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@modules/auth/auth.repository.js';
 import { upcomingWindow } from './upcoming.dates.js';
 import { UpcomingService } from './upcoming.service.js';
-import type { UpcomingAccess, UpcomingOrder } from './upcoming.contracts.js';
+import type {
+  UpcomingAccess,
+  UpcomingOrder,
+  UpcomingFileRecord,
+} from './upcoming.contracts.js';
 
 const a = 'recAAAAAAAAAAAAAA';
 const b = 'recBBBBBBBBBBBBBB';
@@ -42,6 +46,7 @@ function setup() {
   ];
   const source = {
     configured: true,
+    files: vi.fn(async (): Promise<UpcomingFileRecord | null> => null),
     reps: vi.fn(async () => reps),
     load: vi.fn(async () => ({
       reps,
@@ -221,4 +226,60 @@ it('does not label the old snapshot as a complete new month after midnight', asy
     status: 503,
   });
   expect(source.load).toHaveBeenCalledWith('2026-11-30', '2026-12-06');
+});
+
+describe('shipment DOCS access', () => {
+  const record = {
+    requestedShipOn: '2026-11-17',
+    test: false,
+    repIds: [a],
+    files: [
+      {
+        id: 'attExample',
+        filename: 'bol.pdf',
+        type: 'application/pdf',
+        size: 100,
+        url: 'https://v5.airtableusercontent.com/fresh',
+      },
+    ],
+  };
+  it('fetches fresh links each time without the shared shipment cache', async () => {
+    const { service, source } = setup();
+    source.files.mockResolvedValue(record);
+    expect(await service.files(principal, a)).toEqual({ files: record.files });
+    await service.files(principal, a);
+    expect(source.files).toHaveBeenCalledTimes(2);
+    expect(source.load).not.toHaveBeenCalled();
+  });
+  it.each([
+    null,
+    { ...record, repIds: [b] },
+    { ...record, test: true },
+    { ...record, requestedShipOn: null },
+    { ...record, requestedShipOn: '2026-11-16' },
+    { ...record, requestedShipOn: '2026-12-01' },
+  ])('rejects unavailable or unauthorized records', async (value) => {
+    const { service, source } = setup();
+    source.files.mockResolvedValue(value);
+    await expect(service.files(principal, a)).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+  it('rechecks assignment changes while fetching and sanitizes provider failures', async () => {
+    const { service, source, setAccess } = setup();
+    source.files.mockImplementation(async () => {
+      setAccess({ ownRepId: b, assignedRepIds: [] });
+      return record;
+    });
+    await expect(service.files(principal, a)).rejects.toMatchObject({
+      status: 404,
+    });
+    source.files.mockRejectedValue(new Error('provider secret'));
+    await expect(service.files(principal, a)).rejects.toThrow(
+      'Shipment files could not be loaded',
+    );
+    await expect(service.files(principal, "bad'formula")).rejects.toMatchObject(
+      { status: 400 },
+    );
+  });
 });

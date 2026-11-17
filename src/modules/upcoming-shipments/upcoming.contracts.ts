@@ -33,10 +33,26 @@ export interface UpcomingSnapshot {
   updatedAt: string;
 }
 
+export interface UpcomingFile {
+  id: string;
+  filename: string;
+  size: number;
+  type: string;
+  url: string;
+}
+
+export interface UpcomingFileRecord {
+  requestedShipOn: string | null;
+  test: boolean;
+  repIds: string[];
+  files: UpcomingFile[];
+}
+
 export interface UpcomingSource {
   readonly configured: boolean;
   load(from: string, through: string): Promise<UpcomingSnapshot>;
   reps(): Promise<AirtableRep[]>;
+  files(orderId: string): Promise<UpcomingFileRecord | null>;
 }
 
 export const UPCOMING_SOURCE = Symbol('UPCOMING_SOURCE');

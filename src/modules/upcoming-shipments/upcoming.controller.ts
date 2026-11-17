@@ -23,6 +23,15 @@ export class UpcomingController {
     return this.service.access(principal);
   }
 
+  @Get(':orderId/files')
+  @Header('Cache-Control', 'no-store')
+  files(
+    @CurrentPrincipal() principal: Principal,
+    @Param('orderId') orderId: string,
+  ) {
+    return this.service.files(principal, orderId);
+  }
+
   @Get()
   @Header('Cache-Control', 'no-store')
   list(@CurrentPrincipal() principal: Principal, @Query() query: unknown) {

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type {
   AirtableRep,
   UpcomingOrder,
+  UpcomingFileRecord,
   UpcomingSource,
 } from './upcoming.contracts.js';
 
@@ -75,6 +76,42 @@ export class AirtableUpcomingSource implements UpcomingSource {
         error.response?.status === 429 ||
         axiosRetry.isNetworkOrIdempotentRequestError(error),
     });
+  }
+
+  async files(orderId: string): Promise<UpcomingFileRecord | null> {
+    recordId.parse(orderId);
+    const rows = await this.records(
+      ordersTable,
+      ['REQ SHIP', 'Test', 'REP', 'DOCS'],
+      `RECORD_ID()='${orderId}'`,
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const attachment = z.object({
+      id: z.string().regex(/^att[A-Za-z0-9]+$/),
+      filename: z.string(),
+      size: z.number().nonnegative(),
+      type: z.string().default('application/octet-stream'),
+      url: z.url().refine((value) => {
+        const url = new URL(value);
+        return (
+          url.protocol === 'https:' &&
+          !url.username &&
+          !url.password &&
+          !url.port &&
+          url.hostname.endsWith('.airtableusercontent.com')
+        );
+      }),
+    });
+    return {
+      requestedShipOn:
+        row.fields['REQ SHIP'] == null
+          ? null
+          : z.iso.date().parse(row.fields['REQ SHIP']),
+      test: row.fields.Test === true,
+      repIds: ids(row.fields.REP),
+      files: z.array(attachment).parse(row.fields.DOCS ?? []),
+    };
   }
 
   private async records(table: string, selected: string[], formula?: string) {

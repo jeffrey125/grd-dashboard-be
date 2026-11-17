@@ -94,3 +94,52 @@ it('paginates bounded requested dates, resolves operational links, and preserves
   expect(calls[0]!.params.getAll('fields[]')).not.toContain('Total Revenue');
   expect(calls[1]!.params.get('offset')).toBe('next-page');
 });
+
+it('reads only DOCS and validates attachment hosts', async () => {
+  let url = 'https://v5.airtableusercontent.com/fixture';
+  const calls: URLSearchParams[] = [];
+  axios.defaults.adapter = async (config) => {
+    calls.push(config.params as URLSearchParams);
+    return {
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+      data: {
+        records: [
+          {
+            id: 'recAAAAAAAAAAAAAA',
+            fields: {
+              'REQ SHIP': '2026-11-17',
+              REP: [],
+              DOCS: [
+                {
+                  id: 'attExample',
+                  filename: 'bol.pdf',
+                  size: 10,
+                  type: 'application/pdf',
+                  url,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+  };
+  const source = new AirtableUpcomingSource('fixture');
+  expect((await source.files('recAAAAAAAAAAAAAA'))?.files[0]?.filename).toBe(
+    'bol.pdf',
+  );
+  expect(calls[0]?.getAll('fields[]')).toEqual([
+    'REQ SHIP',
+    'Test',
+    'REP',
+    'DOCS',
+  ]);
+  expect(calls[0]?.get('filterByFormula')).toBe(
+    "RECORD_ID()='recAAAAAAAAAAAAAA'",
+  );
+  url = 'https://airtableusercontent.com.attacker.example/file';
+  await expect(source.files('recAAAAAAAAAAAAAA')).rejects.toThrow();
+});

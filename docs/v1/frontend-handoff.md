@@ -889,3 +889,15 @@ The backend owns all date windows and scope; no raw Airtable token reaches the U
 Configuration: server-only `AIRTABLE_TOKEN`, with read scope for the source and
 linked operational tables. Missing token disables the feature. Apply the new
 migration before activating the API. Worker composition is unchanged.
+
+### Upcoming shipment DOCS
+
+`GET /api/v1/upcoming-shipments/:orderId/files` requires Staff/Admin authentication
+and returns `{ files: [{ id, filename, size, type, url }] }` with `Cache-Control:
+no-store`. Size is in bytes. Only DOCS attachments are included, not PDF Quote.
+The source is read on every request; current date, Test exclusion and rep access
+are checked again after the read. Unavailable or foreign orders return 404,
+unconfigured accounts 403, provider failures 503. The browser refetches this route
+on Preview/Download, then loads the HTTPS Airtable attachment directly. Links are
+temporary bearer links; file bytes are not persisted or proxied by the backend.
+PDF/image preview support depends on the browser; Download remains available.

@@ -170,6 +170,34 @@ export class UpcomingService {
     };
   }
 
+  async files(principal: Principal, orderId: string) {
+    if (!repId.safeParse(orderId).success)
+      throw new BadRequestException('Invalid shipment ID');
+    if (!(await this.access(principal)).enabled) throw new ForbiddenException();
+    let record;
+    try {
+      record = await this.source.files(orderId);
+    } catch {
+      throw new ServiceUnavailableException(
+        'Shipment files could not be loaded',
+      );
+    }
+    const access = await this.access(principal);
+    if (!access.enabled) throw new ForbiddenException();
+    if (
+      !record ||
+      record.test ||
+      !record.requestedShipOn ||
+      record.requestedShipOn < access.from ||
+      record.requestedShipOn > access.through ||
+      (!access.administrator &&
+        !record.repIds.some((id) => access.repIds.includes(id)))
+    ) {
+      throw new NotFoundException('Shipment files are not available');
+    }
+    return { files: record.files };
+  }
+
   async accountAccess(externalId: string) {
     const account = await this.repository.account(externalId);
     if (!account) throw new NotFoundException();

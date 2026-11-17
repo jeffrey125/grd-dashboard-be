@@ -23,6 +23,20 @@ const rep = 'recAAAAAAAAAAAAAA';
 const other = 'recBBBBBBBBBBBBBB';
 const source = {
   configured: true,
+  files: vi.fn(async (id: string) => ({
+    requestedShipOn: upcomingWindow().from,
+    test: false,
+    repIds: [id],
+    files: [
+      {
+        id: 'attFixture',
+        filename: 'fixture.pdf',
+        type: 'application/pdf',
+        size: 10,
+        url: 'https://v5.airtableusercontent.com/fixture',
+      },
+    ],
+  })),
   reps: async () => [
     { id: rep, name: 'Fixture rep', email: 'upcoming@example.test' },
     { id: other, name: 'Other rep', email: null },
@@ -116,6 +130,13 @@ it('authorizes and persists admin assignments, protects staff reads and rejects 
         .expect(200)
     ).body.enabled,
   ).toBe(false);
+  await request(server)
+    .get(`/api/v1/upcoming-shipments/${rep}/files`)
+    .expect(401);
+  await request(server)
+    .get(`/api/v1/upcoming-shipments/${rep}/files`)
+    .set('Cookie', staff)
+    .expect(403);
   const path = `/api/v1/admin/accounts/${accountId}/upcoming-shipments`;
   await request(server).get(path).set('Cookie', staff).expect(403);
   const suggestion = await request(server)
@@ -136,6 +157,16 @@ it('authorizes and persists admin assignments, protects staff reads and rejects 
     .set('Origin', 'http://dashboard.example.test')
     .send({ ownRepId: rep, assignedRepIds: [] })
     .expect(200);
+  const files = await request(server)
+    .get(`/api/v1/upcoming-shipments/${rep}/files`)
+    .set('Cookie', staff)
+    .expect(200);
+  expect(files.headers['cache-control']).toBe('no-store');
+  expect(files.body.files[0].filename).toBe('fixture.pdf');
+  await request(server)
+    .get(`/api/v1/upcoming-shipments/${other}/files`)
+    .set('Cookie', staff)
+    .expect(404);
   const response = await request(server)
     .get('/api/v1/upcoming-shipments?window=week')
     .set('Cookie', staff)

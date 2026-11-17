@@ -36,3 +36,7 @@ Approved conversation requirements and implementation contract.
   FullCalendar 6.1.22 packages use the same version and support React 19.
 - No production migration, deployment, Airtable writes, webhook/DB order sync or
   unrelated commit is authorized by this implementation task.
+
+- Approved DOCS extension: Files in order details, on-demand fresh links, native
+  PDF/image preview and direct browser downloads. No backend/DB file storage;
+  PDF Quote excluded. Help guide and fictional screenshot approved.
