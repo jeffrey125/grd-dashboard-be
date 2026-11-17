@@ -1,3 +1,5 @@
+import { UpcomingShipmentAccess1794873600000 } from '@infrastructure/database/migrations/1794873600000-UpcomingShipmentAccess.js';
+import { UpcomingAccessEntity } from '@modules/upcoming-shipments/upcoming-access.entity.js';
 import { ShipmentOrderDetails1793750400000 } from '@infrastructure/database/migrations/1793750400000-ShipmentOrderDetails.js';
 import { PurchaseOrderEntity } from '@modules/shipments/purchase-order.entity.js';
 import { ShipmentPurchaseOrderEntity } from '@modules/shipments/shipment-purchase-order.entity.js';
@@ -89,6 +91,7 @@ describe('production migrations and repository foundation', () => {
       ),
       entities: [
         ...AUTH_ENTITIES,
+        UpcomingAccessEntity,
         ...QUOTE_ENTITIES,
         CarrierEntity,
         SalesRepEntity,
@@ -100,6 +103,7 @@ describe('production migrations and repository foundation', () => {
         TrackingAttemptEntity,
       ],
       migrations: [
+        UpcomingShipmentAccess1794873600000,
         InitialSchema1791849600000,
         CarrierFetchMode1791936000000,
         FfeRequestMode1792022400000,
@@ -397,6 +401,7 @@ describe('production migrations and repository foundation', () => {
       }),
     );
 
+    await source.undoLastMigration(); // Upcoming shipment access.
     await source.undoLastMigration(); // Shipment order details.
     await source.undoLastMigration(); // Shipment business fields.
     await source.undoLastMigration(); // Sales Rep email.
