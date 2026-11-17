@@ -2,6 +2,7 @@ import { DataSource } from 'typeorm';
 import { TypeOrmTrackingTransaction } from './typeorm-tracking.repository.js';
 import {
   trackingRunRecord,
+  shipmentEligible,
   type TrackingRunRecord,
 } from './tracking.repository.js';
 import type {
@@ -58,16 +59,7 @@ export class TypeOrmTrackingHttpRepository implements TrackingHttpRepository {
         return { kind: 'accepted' as const, run: rows[0]! };
       }
 
-      if (
-        !shipment.monitoringWindowOpen ||
-        (shipment.monitoringStatus !== 'active' &&
-          !(
-            shipment.monitoringStatus === 'paused' &&
-            ['not_found_threshold', 'failure_threshold'].includes(
-              shipment.monitoringReason ?? '',
-            )
-          ))
-      )
+      if (!shipmentEligible('manual', shipment))
         return { kind: 'unavailable' as const };
 
       const run = await tx.insertRun(

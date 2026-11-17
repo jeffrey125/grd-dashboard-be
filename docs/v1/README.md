@@ -31,9 +31,10 @@ When documents appear to conflict, the narrowest authoritative document wins: da
 
 ## Approved monitoring extension
 
-[MON-V1-002: delivered follow-up monitoring](delivered-follow-up-monitoring.md)
-permits delivered shipments to remain active until a future follow-up date and
-adds the Staff Monitor again workflow.
+[MON-V1-005: delivery completion and one-off checks](delivered-monitor-once.md)
+completes confirmed deliveries regardless of follow-up dates. Staff can use
+Monitor again for one carrier check without reopening ongoing monitoring.
+This supersedes MON-V1-002.
 
 ## Fixed v1 scope
 

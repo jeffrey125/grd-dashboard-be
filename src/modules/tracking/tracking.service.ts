@@ -19,33 +19,14 @@ import {
   TRACKING_REPOSITORY,
   TrackingOperationError,
   trackingRunRecord,
+  shipmentEligible,
   type FinalizedSkippedAttempt,
   type LockedTrackingAttempt,
   type LockedTrackingRun,
   type TrackingAttemptCounts,
   type TrackingRepository,
-  type TrackingRunRecord,
   type TrackingTransaction,
 } from './tracking.repository.js';
-
-function shipmentEligible(
-  trigger: TrackingRunRecord['trigger'],
-  shipment: {
-    monitoringStatus: string;
-    monitoringReason: string | null;
-    monitoringWindowOpen: boolean;
-  },
-) {
-  return (
-    shipment.monitoringWindowOpen &&
-    (shipment.monitoringStatus === 'active' ||
-      (trigger === 'manual' &&
-        shipment.monitoringStatus === 'paused' &&
-        ['not_found_threshold', 'failure_threshold'].includes(
-          shipment.monitoringReason ?? '',
-        )))
-  );
-}
 
 function mergeTrackingState(
   current: NormalizedTrackingState,
@@ -147,7 +128,7 @@ export class TrackingService {
     );
   }
 
-  /** Recheck after session setup and between reads, including midnight in a long run. */
+  /** Recheck eligibility after session setup and between reads. */
   prepareLookup(
     runExternalId: string,
     target: { shipmentExternalId: string; expectedLockVersion: number },
@@ -351,13 +332,14 @@ export class TrackingService {
           );
 
         const delivered = merged.deliveredOn !== null;
-        const complete = delivered && !attempt.followUpInFuture;
+        const complete = delivered;
         const reactivate =
           attempt.runTrigger === 'manual' &&
-          attempt.monitoringStatus === 'paused' &&
-          ['not_found_threshold', 'failure_threshold'].includes(
-            attempt.monitoringReason ?? '',
-          );
+          ((attempt.monitoringStatus === 'completed' && !delivered) ||
+            (attempt.monitoringStatus === 'paused' &&
+              ['not_found_threshold', 'failure_threshold'].includes(
+                attempt.monitoringReason ?? '',
+              )));
 
         requireShipmentUpdate(
           await transaction.updateShipmentFound({
@@ -423,6 +405,7 @@ export class TrackingService {
       async (transaction, attempt, completedAt) => {
         const notFoundCount = attempt.consecutiveNotFoundCount + 1;
         const thresholdReached =
+          attempt.monitoringStatus !== 'completed' &&
           notFoundCount >= attempt.notFoundPauseThreshold;
 
         requireShipmentUpdate(

@@ -1,5 +1,8 @@
 # MON-V1-002: delivered shipments with follow-up monitoring
 
+> Superseded by [MON-V1-005](delivered-monitor-once.md). This document records
+> the former behavior; future follow-ups no longer keep delivered shipments active.
+
 Approved on 2026-10-28. This supersedes terminal-delivery behavior in the original
 tracking specification and MON-V1-001. The existing provider safeguards, pacing,
 manual pauses, immutable snapshots and single-worker architecture still apply.

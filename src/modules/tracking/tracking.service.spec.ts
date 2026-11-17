@@ -91,7 +91,6 @@ describe('TrackingService', () => {
       verificationUrl: null,
       currentTrackingSnapshotId: null,
       monitoringWindowOpen: true,
-      followUpInFuture: false,
       monitoringStatus: 'active',
       monitoringReason: null,
       consecutiveNotFoundCount: 0,

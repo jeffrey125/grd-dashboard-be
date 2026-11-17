@@ -3,8 +3,9 @@
 **MON-V1-001:** [Monitoring safeguards](monitoring-safeguards.md) supersede the
 original fresh-session and technical-retry rules below.
 
-**MON-V1-002:** [Delivered follow-up monitoring](delivered-follow-up-monitoring.md)
-supersedes terminal delivery when a future follow-up date is populated.
+**MON-V1-005:** [Delivery completion and one-off checks](delivered-monitor-once.md)
+supersedes MON-V1-002: confirmed delivery always completes monitoring.
+Monitor again requests one manual lookup without changing the follow-up date.
 
 ## Shipment management
 
@@ -33,7 +34,7 @@ Manual pause changes only active Shipments to paused/manual and clears the next
 check. Manual resume accepts only paused/manual, returns it to active, clears the
 reason, and schedules it immediately. Neither operation resets the not-found
 counter or tracking history. Invalid/repeated transitions return 409. Threshold
-pause requires a successful manual refresh; delivered completes monitoring unless its follow-up date is in the future. Carrier
+pause requires a successful manual refresh; delivered completes monitoring regardless of its follow-up date. Carrier
 disablement still prevents the future scheduler from selecting its Shipments.
 
 ## Polling
@@ -217,7 +218,7 @@ Other known dates keep the existing preservation behavior. A reversal inserts a
 new immutable snapshot and allows normal monitoring even when follow-up is due;
 historical delivery observations remain intact. A later confirmed delivery can
 complete monitoring again. This does not reopen completed shipments automatically:
-they cannot discover changes without Monitor again or a separately approved,
+they can discover changes through a one-off Monitor again lookup or a separately approved,
 evidence-based repair. See the [implementation summary](implementation-summary/MON-V1-003-implementation-summary.md).
 
 Insert a new immutable snapshot only when the complete normalized known state changes. A `found` attempt references the current snapshot whether it was newly inserted or unchanged.
@@ -243,7 +244,7 @@ Insert a new immutable snapshot only when the complete normalized known state ch
   discovers manual work on its next minute scan.
 - A manual refresh bypasses due-time/minimum-interval eligibility but still uses the rate limiter.
 - It does not shift the existing schedule for an active Shipment.
-- A successful result can reactivate a Shipment paused by not-found threshold; delivered completes monitoring unless its follow-up date is in the future.
+- A successful result can reactivate a Shipment paused by not-found threshold; delivered completes monitoring regardless of its follow-up date.
 
 By explicit V1-012 decision, refreshing one Shipment does not restart the minimum
 waiting period for its automatic checks. A refresh immediately before a scheduled

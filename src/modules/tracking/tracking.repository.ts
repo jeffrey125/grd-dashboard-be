@@ -98,7 +98,6 @@ export interface TrackingRunTarget extends TrackingShipmentCandidate {
 
 export interface LockedTrackingAttempt {
   monitoringWindowOpen: boolean;
-  followUpInFuture: boolean;
   runId: string;
   runTrigger: TrackingRunRecord['trigger'];
   runStatus: TrackingRunRecord['status'];
@@ -219,6 +218,32 @@ export interface TrackingRepository {
   transaction<T>(
     work: (transaction: TrackingTransaction) => Promise<T>,
   ): Promise<T>;
+}
+
+export function shipmentEligible(
+  trigger: TrackingRunRecord['trigger'],
+  shipment: {
+    monitoringStatus: string;
+    monitoringReason: string | null;
+    monitoringWindowOpen: boolean;
+  },
+) {
+  // A manual run checks a completed delivery once without reopening its schedule.
+  if (trigger === 'manual' && shipment.monitoringStatus === 'completed')
+    return (
+      !shipment.monitoringWindowOpen &&
+      shipment.monitoringReason === 'delivered'
+    );
+
+  return (
+    shipment.monitoringWindowOpen &&
+    (shipment.monitoringStatus === 'active' ||
+      (trigger === 'manual' &&
+        shipment.monitoringStatus === 'paused' &&
+        ['not_found_threshold', 'failure_threshold'].includes(
+          shipment.monitoringReason ?? '',
+        )))
+  );
 }
 
 export function trackingRunRecord(

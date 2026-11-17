@@ -245,7 +245,6 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     shipmentExternalId: string,
   ): Promise<LockedTrackingAttempt | null> {
     const rows: Array<{
-      follow_up_in_future: boolean;
       run_id: string;
       run_trigger: LockedTrackingAttempt['runTrigger'];
       run_status: LockedTrackingAttempt['runStatus'];
@@ -277,7 +276,6 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
               shipment.external_id AS shipment_external_id,
               shipment.tracking_reference,
               shipment.verification_url,
-              COALESCE(shipment.follow_up_on > (clock_timestamp() AT TIME ZONE 'America/New_York')::date, false) AS follow_up_in_future,
               shipment.current_tracking_snapshot_id,
               shipment.monitoring_status,
               ${monitoringWindowOpenSql('shipment')} AS monitoring_window_open,
@@ -303,7 +301,6 @@ export class TypeOrmTrackingTransaction implements TrackingTransaction {
     if (!row) return null;
 
     return {
-      followUpInFuture: row.follow_up_in_future,
       runId: row.run_id,
       runTrigger: row.run_trigger,
       runStatus: row.run_status,

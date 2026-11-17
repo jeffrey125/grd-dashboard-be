@@ -153,9 +153,11 @@ describe('MON-V1-003 carrier delivery reversals through executor and PostgreSQL'
 
     async function observe(result: TrackingResult, crossCutoff = false) {
       response = result;
+      const current = await shipments.find(shipment.externalId);
       const run = await tracking.createRun({
         carrierExternalId: carrier.externalId,
-        trigger: 'scheduled',
+        trigger:
+          current?.monitoringStatus === 'completed' ? 'manual' : 'scheduled',
         shipmentExternalIds: [shipment.externalId],
         requestedById: null,
       });
@@ -299,7 +301,7 @@ describe('MON-V1-003 carrier delivery reversals through executor and PostgreSQL'
         mapped(code, reference, 'Delivered', null),
       ] satisfies TrackingResult[]) {
         expect(await observe(result)).toMatchObject({
-          monitoringStatus: 'active',
+          monitoringStatus: 'completed',
           currentTracking: { deliveredOn: today },
         });
       }

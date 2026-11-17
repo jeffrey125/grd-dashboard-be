@@ -326,7 +326,7 @@ Creation errors use `{ message, code: 'shipment_validation_failed', details:
 
 `verificationUrl` remains null until a successful lookup populates it. Open
 external links with `noopener noreferrer`. A disabled Carrier prevents creation
-and refresh; existing Shipments remain visible. Delivered Shipments can remain active until a future follow-up date; see [MON-V1-002](delivered-follow-up-monitoring.md).
+and refresh; existing Shipments remain visible. Confirmed deliveries complete monitoring regardless of follow-up dates; see [MON-V1-005](delivered-monitor-once.md).
 Manual pause and threshold pause are distinct: threshold-paused Shipments can
 be refreshed and reactivate on found, but cannot use manual `resume`.
 
@@ -742,22 +742,30 @@ changes; frontend Carrier queries now reconcile on those events as well as edits
 resync and focus. No new SSE event or provider HTTP call is introduced by refresh.
 See [monitoring safeguards](monitoring-safeguards.md) for the approved rules.
 
-## Delivered follow-up monitoring (MON-V1-002)
+## Delivery completion and one-off checks (MON-V1-005)
 
-`PATCH /shipments/:externalId` with a future `followUpOn` atomically reactivates a
-completed Shipment. Clearing the date or setting today stops monitoring when
-delivery is known. Manual and safeguard pauses remain paused for future date
-edits. No new response fields or endpoint are introduced. Staff/Admin **Monitor
-again** uses this PATCH and requires a future date, defaulting to tomorrow.
+Confirmed delivery (`currentTracking.deliveredOn` non-null) completes monitoring
+regardless of `followUpOn`. Date edits never reopen a delivered shipment. Existing
+active/paused delivered rows reconcile on the next worker scan, including when a
+carrier is disabled. Delivery history and follow-up dates remain intact.
 
-Automatic checks stop at the start of that date in `America/New_York`. Repeated
-delivery results keep the future-dated Shipment active. Existing completed rows
-with future dates reactivate on the first worker scan. Expiry state reconciles
-on a worker scan, with independent pre-lookup guards enforcing the deadline.
-Active rows retain carrier Delivered status; completed rows return to Delivered,
-and due follow-ups also remain in Attention. Undelivered-only and Upcoming
-filters exclude known delivery independently of monitoring state. See the
-[complete rules](delivered-follow-up-monitoring.md).
+Staff/Admin **Monitor again** opens a confirmation with **Check once**. It uses
+`POST /shipments/:externalId/refresh` with `{}` and the existing 202 run response.
+The shipment remains Completed while queued/running; repeat requests join the
+same pending manual run. No new endpoint, body field, response field or migration.
+The detail page shows the requested run using the existing refresh progress UI.
+Disabled/deleted carriers and manual Other shipments cannot request this lookup.
+
+Repeated delivery, unknown/missing status, failures and not-found results retain
+known delivery and do not schedule further checks. An explicitly recognized
+carrier correction to an undelivered status clears the delivery date and resumes
+normal active monitoring; historical snapshots remain immutable. A concurrent
+staff edit or deletion invalidates the old lookup through existing version checks.
+
+Completed deliveries appear in Delivered. Due follow-ups can also put them in
+Attention. Undelivered-only and Upcoming filters exclude known delivery. See the
+[complete rules](delivered-monitor-once.md). Deploy the API and worker together,
+then the frontend; older APIs reject the one-off refresh of completed shipments.
 
 ## Authenticated frontend diagnostics
 
