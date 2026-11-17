@@ -13,6 +13,7 @@ export function createConfiguration(environment: Record<string, unknown>) {
 
   return {
     environment: env.NODE_ENV,
+    upcomingShipments: { token: env.AIRTABLE_TOKEN },
     quoteComparisonEnabled: env.QUOTE_COMPARISON_ENABLED === 'true',
     quoteDemo: env.QUOTE_DEMO_MODE === 'true',
     quoteScenarios: {

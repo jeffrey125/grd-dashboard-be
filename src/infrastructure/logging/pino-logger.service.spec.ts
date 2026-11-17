@@ -17,6 +17,7 @@ describe('PinoLoggerService', () => {
   });
   const configuration: RuntimeConfiguration = {
     environment: 'production',
+    upcomingShipments: { token: undefined },
     quoteComparisonEnabled: true,
     quoteDemo: false,
     quoteScenarios: { amazon: 'success', unishippers: 'success' },

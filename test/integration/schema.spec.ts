@@ -213,6 +213,7 @@ describe('initial application schema', () => {
       'shipping_quotes',
       'tracking_attempts',
       'tracking_runs',
+      'upcoming_shipment_rep_access',
     ]);
 
     const changes = await source.driver.createSchemaBuilder().log();
@@ -747,6 +748,7 @@ describe('initial application schema', () => {
         'fk_shipments_carrier',
         'fk_shipments_current_snapshot',
         'fk_snapshots_shipment',
+        'fk_upcoming_access_account',
       ]
         .sort()
         .map((conname) => ({
@@ -833,6 +835,7 @@ describe('initial application schema', () => {
     const audit =
       'id external_id created_at updated_at deleted_at created_by_id updated_by_id deleted_by_id';
     const expected = {
+      upcoming_shipment_rep_access: 'account_id rep_id kind',
       shipping_providers:
         'id code name enabled maintenance_message execution_mode stale_hours created_at updated_at used_internationally revision updated_by_id max_package_weight_lb',
       shipping_accounts:

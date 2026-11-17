@@ -30,6 +30,11 @@ const environmentSchema = z
     QUOTE_DEMO_MODE: z.enum(['true', 'false']).default('false'),
     QUOTE_DEMO_AMAZON: quoteScenario.default('success'),
     QUOTE_DEMO_UNISHIPPERS: quoteScenario.default('validation_failed'),
+    AIRTABLE_TOKEN: z
+      .string()
+      .trim()
+      .transform((value) => value || undefined)
+      .optional(),
     PORT: port.default(3000),
     DB_HOST: requiredText,
     DB_PORT: port.default(5432),
@@ -60,6 +65,7 @@ const guidance: Record<keyof z.infer<typeof environmentSchema>, string> = {
     'must be true or false; demo execution is forbidden in production',
   QUOTE_DEMO_AMAZON: 'must be a supported fixture scenario',
   QUOTE_DEMO_UNISHIPPERS: 'must be a supported fixture scenario',
+  AIRTABLE_TOKEN: 'must be a string when provided',
   PORT: 'must be an integer from 1 to 65535',
   DB_HOST: 'is required and must not be blank',
   DB_PORT: 'must be an integer from 1 to 65535',

@@ -1,3 +1,4 @@
+import { UpcomingModule } from '@modules/upcoming-shipments/upcoming.module.js';
 import { FrontendTelemetryModule } from '@modules/frontend-telemetry/frontend-telemetry.module.js';
 import { QuoteModule } from '@modules/shipping-quotes/quote.module.js';
 import { Module } from '@nestjs/common';
@@ -32,6 +33,7 @@ import { RuntimeFeaturesHttpModule } from '@runtime/runtime-features-http.module
     SalesRepsModule,
     QuoteModule,
     FrontendTelemetryModule,
+    UpcomingModule,
   ],
 })
 export class AppModule {}

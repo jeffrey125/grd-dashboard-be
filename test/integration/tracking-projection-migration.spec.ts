@@ -13,6 +13,7 @@ afterAll(async () => {
 });
 
 it('backfills unique immutable public identities without changing populated history or ownership', async () => {
+  await db.source.undoLastMigration(); // Upcoming shipment access.
   await db.source.undoLastMigration(); // Shipment order details.
   await db.source.undoLastMigration(); // Shipment business fields.
   await db.source.undoLastMigration(); // Sales Rep email.
@@ -135,6 +136,7 @@ it('backfills unique immutable public identities without changing populated hist
     )[0].external_id,
   ).toBe(after[0].external_id);
 
+  await db.source.undoLastMigration(); // Upcoming shipment access.
   await db.source.undoLastMigration(); // Shipment order details.
   await db.source.undoLastMigration(); // Shipment business fields.
   await db.source.undoLastMigration(); // Sales Rep email.
