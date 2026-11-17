@@ -5,6 +5,14 @@ import { shipmentDatabase } from '@test/support/shipment-database.js';
 let db: Awaited<ReturnType<typeof shipmentDatabase>>;
 beforeAll(async () => {
   db = await shipmentDatabase();
+  // This suite targets the historical shipment-order migration, not later additions.
+  await db.source.undoLastMigration();
+  const accessMigration = db.source.migrations.findIndex(
+    (migration) =>
+      migration.constructor.name === 'UpcomingShipmentAccess1794873600000',
+  );
+  expect(accessMigration).toBeGreaterThanOrEqual(0);
+  db.source.migrations.splice(accessMigration, 1);
 });
 afterAll(async () => {
   await db?.close();
