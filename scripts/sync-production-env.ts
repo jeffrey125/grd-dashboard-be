@@ -7,6 +7,7 @@ const repository = 'jeffrey125/grd-dashboard-be';
 const environment = 'production';
 const required = [
   'AUTH_SECRET',
+  'AIRTABLE_TOKEN',
   'UPS_CLIENT_ID',
   'UPS_CLIENT_SECRET',
   'ECHOSHIP_URL',

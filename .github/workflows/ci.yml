@@ -156,6 +156,7 @@ jobs:
           GHCR_CREDENTIALS: ${{ secrets.GHCR_CREDENTIALS }}
           DIGITALOCEAN_PROJECT_ID: ${{ vars.DIGITALOCEAN_PROJECT_ID }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
           UPS_CLIENT_ID: ${{ secrets.UPS_CLIENT_ID }}
           UPS_CLIENT_SECRET: ${{ secrets.UPS_CLIENT_SECRET }}
           ECHOSHIP_URL: ${{ secrets.ECHOSHIP_URL }}
@@ -166,7 +167,7 @@ jobs:
           FFE_PASSWORD: ${{ secrets.FFE_PASSWORD }}
         run: |
           set -euo pipefail
-          for key in DIGITALOCEAN_ACCESS_TOKEN GHCR_CREDENTIALS DIGITALOCEAN_PROJECT_ID AUTH_SECRET UPS_CLIENT_ID UPS_CLIENT_SECRET ECHOSHIP_URL ECHOSHIP_USERNAME ECHOSHIP_PASSWORD FFE_URL FFE_USERNAME FFE_PASSWORD; do
+          for key in DIGITALOCEAN_ACCESS_TOKEN GHCR_CREDENTIALS DIGITALOCEAN_PROJECT_ID AUTH_SECRET AIRTABLE_TOKEN UPS_CLIENT_ID UPS_CLIENT_SECRET ECHOSHIP_URL ECHOSHIP_USERNAME ECHOSHIP_PASSWORD FFE_URL FFE_USERNAME FFE_PASSWORD; do
             [[ -n "${!key}" ]] || { echo "::error::Missing production setting: $key"; exit 1; }
           done
       - name: Deploy the verified digest and wait for completion
@@ -177,6 +178,7 @@ jobs:
           RELEASE_DIGEST: ${{ needs.publish.outputs.digest }}
           GHCR_CREDENTIALS: ${{ secrets.GHCR_CREDENTIALS }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
           UPS_CLIENT_ID: ${{ secrets.UPS_CLIENT_ID }}
           UPS_CLIENT_SECRET: ${{ secrets.UPS_CLIENT_SECRET }}
           ECHOSHIP_URL: ${{ secrets.ECHOSHIP_URL }}

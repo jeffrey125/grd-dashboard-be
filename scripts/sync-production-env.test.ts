@@ -24,6 +24,7 @@ function fixture() {
   const file = join(directory, '.env.production');
   const values = {
     AUTH_SECRET: 'fixture-auth-value-with-at-least-32-characters',
+    AIRTABLE_TOKEN: 'fixture-airtable-token',
     UPS_CLIENT_ID: 'fixture-id',
     UPS_CLIENT_SECRET: `literal-$(touch ${directory}/executed)-value`,
     ECHOSHIP_URL: 'https://example.test/#tracking',
@@ -81,7 +82,7 @@ test('uploads exact values via stdin to fixed production target without exposing
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line));
-    assert.equal(records.length, 9);
+    assert.equal(records.length, 10);
     for (const [key, value] of Object.entries(f.values)) {
       const record = records.find((record) => record.args[2] === key);
       assert.deepEqual(record.args, [
@@ -131,7 +132,7 @@ test('optional tokens upload only when populated and failed uploads suppress CLI
         '\nDIGITALOCEAN_ACCESS_TOKEN=fixture-token\nGHCR_CREDENTIALS=',
     );
     assert.equal(f.run().status, 0);
-    assert.equal(readFileSync(f.capture, 'utf8').trim().split('\n').length, 10);
+    assert.equal(readFileSync(f.capture, 'utf8').trim().split('\n').length, 11);
     const result = f.run([], { FAIL_UPLOAD: '1' });
     assert.notEqual(result.status, 0);
     assert.ok(!(result.stdout + result.stderr).includes(f.values.AUTH_SECRET));
