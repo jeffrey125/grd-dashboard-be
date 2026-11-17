@@ -179,7 +179,15 @@ describe('Tracking worker with PostgreSQL', () => {
       });
       try {
         await worker.start();
-        await worker.tick();
+        // Startup reconciliation makes the record due. Wait for a scheduler pass
+        // to process it rather than assuming the first pass observes that update.
+        await vi.waitFor(
+          async () => {
+            await worker.tick();
+            expect(close, logLines.join('\n')).toHaveBeenCalledOnce();
+          },
+          { timeout: 5_000 },
+        );
         expect(read).not.toHaveBeenCalled();
         expect(readMany).not.toHaveBeenCalled();
         expect(close).toHaveBeenCalledOnce();
