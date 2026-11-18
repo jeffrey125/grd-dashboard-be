@@ -874,7 +874,11 @@ of tracked Shipment ETA-based Upcoming deliveries and Personal/Team creator scop
   `through`, `timezone: America/Chicago`. Unconfigured Staff are hidden.
 - `GET /api/v1/upcoming-shipments?window=week|month&repId=rec…|unassigned&refresh=true`
   (Staff/Admin): access fields plus `window`, inclusive `through`, `updatedAt`,
-  `stale`, permitted `{id,name}` reps, `total`, and scoped `orders`. Unknown query
+  `stale`, permitted `{id,name}` reps, `repFilterOptions`, `total`, and scoped
+  `orders`. Use `repFilterOptions` for the Sales rep dropdown. These `{id,name}`
+  entries contain the approved display labels in roster order, limited to the
+  caller's permitted Airtable records. The full `reps` directory continues to
+  support dispatch grouping, including orders linked to former reps. Unknown query
   keys/future month inputs are rejected. `unassigned` is Admin-only. Each order
   includes `id`, `requestedShipOn`, `salesOrders`, `customer`, `customerPo`,
   `repIds`, `reps`, `tracking`, `notes`, `pallets`, `airtableUrl`, and `lines`
