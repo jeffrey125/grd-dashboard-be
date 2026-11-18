@@ -1,5 +1,16 @@
 # UPC-V1-001: Airtable Upcoming Shipments
 
+## GRD purchase orders, November 19, 2026
+
+The provider batches linked product records and resolves the GRD PO within each
+order. It uses product and vendor record IDs to distinguish repeated products.
+Unmatched POs retain their linked product and vendor. Header-only orders still
+use their numbered PO fields. A read-only comparison of 28 orders verified all
+25 linked POs, including 13 warehouse zeros and one PO on a different product.
+The provider regression and all 404 backend unit tests passed. The combined
+unit, PostgreSQL and HTTP/browser suite passed all 767 tests. The disposable
+container lifecycle check passed all six checks.
+
 ## Sales rep filter update, November 18, 2026
 
 The list endpoint now returns `repFilterOptions` for the weekly overview, monthly

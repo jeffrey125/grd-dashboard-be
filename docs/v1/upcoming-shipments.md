@@ -28,6 +28,11 @@ Approved conversation requirements and implementation contract.
 - Read-only operational details: customer, SO, PO, product/vendor, requested date,
   rep, pounds/units, origin, pallets, tracking, notes, and Open in Airtable.
   Preserve PO 0; request no pricing/profit/commission fields.
+- Read GRD POs from the order's linked `Product Price` rows in
+  `GRD SALES ORDERS - Line Items`. Match product record IDs and, when a product
+  repeats, vendor record IDs. A unique match supplies the line PO. A numbered
+  header PO remains available as a fallback. Show any other linked PO with its
+  own product and vendor in order details and include it on the calendar card.
 - Overview mobile and desktop: date navigator above a stable-height order list.
 - Monthly mobile: date navigator, inline day orders, centered details modal.
   Monthly desktop: compact calendar with three events plus more, date opens the

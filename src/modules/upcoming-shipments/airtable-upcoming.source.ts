@@ -12,6 +12,8 @@ import type {
 const base = 'appxyP3yY5YF9plDO';
 const ordersTable = 'tbl7X5ROha1PzgGZt';
 const repsTable = 'tblMqeGvgg4McO2hB';
+const lineItemsTable = 'tblmLuTuX1RkziFOH';
+const lineItemsField = 'GRD SALES ORDERS - Line Items';
 const recordId = z.string().regex(/^rec[A-Za-z0-9]{14}$/);
 const pageSchema = z.object({
   records: z.array(
@@ -45,6 +47,7 @@ const fields = [
   'Notes',
   'Tracking#',
   'Pallets',
+  lineItemsField,
   ...lineNumbers.flatMap((i) => [
     `Product ${i}`,
     `Vendor ${i}`,
@@ -54,6 +57,59 @@ const fields = [
     `FOB ${i}`,
   ]),
 ];
+
+type ProductLinks = { productIds: string[]; vendorIds: string[] };
+
+type LinkedProduct = ProductLinks & {
+  lineItemId: string;
+  orderIds: string[];
+  purchaseOrder: string | null;
+};
+
+const productLinks = (
+  fields: RecordRow['fields'],
+  suffix = '',
+): ProductLinks => ({
+  productIds: ids(fields[`Product${suffix}`]),
+  vendorIds: ids(fields[`Vendor${suffix}`]),
+});
+
+const sameLinks = (left: string[], right: string[]) =>
+  left.length === right.length && left.every((id) => right.includes(id));
+
+function matchPurchaseOrders(
+  slots: Array<ProductLinks & { lineNumber: number }>,
+  linked: LinkedProduct[],
+) {
+  const bySlot = new Map<number, string>();
+  const additional: Array<LinkedProduct & { purchaseOrder: string }> = [];
+
+  for (const line of linked) {
+    if (line.purchaseOrder === null) continue;
+
+    const sameProduct = (other: ProductLinks) =>
+      line.productIds.length > 0 &&
+      sameLinks(line.productIds, other.productIds);
+    let candidates = slots.filter(sameProduct);
+    let peers = linked.filter(sameProduct);
+
+    // Airtable has no slot ID on the linked row. A repeated product needs
+    // a unique vendor on both sides before its PO can be assigned to a slot.
+    if (candidates.length !== 1 || peers.length !== 1) {
+      const sameVendor = (other: ProductLinks) =>
+        line.vendorIds.length > 0 && sameLinks(line.vendorIds, other.vendorIds);
+      candidates = candidates.filter(sameVendor);
+      peers = peers.filter(sameVendor);
+    }
+
+    if (candidates.length === 1 && peers.length === 1) {
+      bySlot.set(candidates[0]!.lineNumber, line.purchaseOrder);
+    } else {
+      additional.push({ ...line, purchaseOrder: line.purchaseOrder });
+    }
+  }
+  return { bySlot, additional };
+}
 
 export class AirtableUpcomingSource implements UpcomingSource {
   readonly configured: boolean;
@@ -148,18 +204,26 @@ export class AirtableUpcomingSource implements UpcomingSource {
       .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   }
 
-  private async names(table: string, field: string, requested: string[]) {
+  private async linkedRecords(
+    table: string,
+    selected: string[],
+    requested: string[],
+  ) {
     const unique = [...new Set(requested)];
-    const result = new Map<string, string>();
+    const result: RecordRow[] = [];
     for (let i = 0; i < unique.length; i += 50) {
       const formula = `OR(${unique
         .slice(i, i + 50)
         .map((id) => `RECORD_ID()='${recordId.parse(id)}'`)
         .join(',')})`;
-      for (const row of await this.records(table, [field], formula))
-        result.set(row.id, text(row.fields[field]));
+      result.push(...(await this.records(table, selected, formula)));
     }
     return result;
+  }
+
+  private async names(table: string, field: string, requested: string[]) {
+    const rows = await this.linkedRecords(table, [field], requested);
+    return new Map(rows.map((row) => [row.id, text(row.fields[field])]));
   }
 
   async load(from: string, through: string) {
@@ -170,29 +234,66 @@ export class AirtableUpcomingSource implements UpcomingSource {
     const rows = await this.records(ordersTable, fields, formula);
     const reps = await this.reps();
     const repNames = new Map(reps.map((rep) => [rep.id, rep.name]));
+    const linkedRows = await this.linkedRecords(
+      lineItemsTable,
+      ['Type', 'GRD SALES ORDER', 'Product', 'Vendor', 'GRD PO'],
+      rows.flatMap((row) => ids(row.fields[lineItemsField])),
+    );
+    const linkedProducts = new Map<string, LinkedProduct>();
+    for (const { id, fields } of linkedRows) {
+      if (fields.Type === 'Product Price') {
+        linkedProducts.set(id, {
+          lineItemId: id,
+          ...productLinks(fields),
+          orderIds: ids(fields['GRD SALES ORDER']),
+          purchaseOrder: text(fields['GRD PO']) || null,
+        });
+      }
+    }
+    const linked = [...linkedProducts.values()];
     const products = await this.names(
       'tblN8r5UQEIBkXjqj',
       'Name',
-      rows.flatMap(({ fields: f }) =>
-        lineNumbers.flatMap((i) => ids(f[`Product ${i}`])),
-      ),
+      rows
+        .flatMap(({ fields: f }) =>
+          lineNumbers.flatMap((i) => ids(f[`Product ${i}`])),
+        )
+        .concat(linked.flatMap((line) => line.productIds)),
     );
     const vendors = await this.names(
       'tblBdoQM9R1D3XDhQ',
       'Vendor Name',
-      rows.flatMap(({ fields: f }) =>
-        lineNumbers.flatMap((i) => ids(f[`Vendor ${i}`])),
-      ),
+      rows
+        .flatMap(({ fields: f }) =>
+          lineNumbers.flatMap((i) => ids(f[`Vendor ${i}`])),
+        )
+        .concat(linked.flatMap((line) => line.vendorIds)),
     );
     const salesOrders = await this.names(
       'tblEbvMDHU0ThW0Yj',
       'GRD INVOICE',
       rows.flatMap(({ fields: f }) => ids(f.SO)),
     );
+    const productName = (ids: string[]) =>
+      ids.map((id) => products.get(id) || 'Unavailable product').join(', ') ||
+      'Product unavailable';
+    const vendorName = (ids: string[]) =>
+      ids.map((id) => vendors.get(id) || 'Unavailable vendor').join(', ') ||
+      'Vendor unavailable';
+
     const orders: UpcomingOrder[] = rows.flatMap(({ id, fields: f }) => {
       const date = z.iso.date().parse(f['REQ SHIP']);
       if (date < from || date > through || f.Test === true) return [];
       const repIds = ids(f.REP);
+      const slots = lineNumbers.map((lineNumber) => ({
+        lineNumber,
+        ...productLinks(f, ` ${lineNumber}`),
+      }));
+      const ownLines = ids(f[lineItemsField]).flatMap((lineId) => {
+        const line = linkedProducts.get(lineId);
+        return line?.orderIds.includes(id) ? [line] : [];
+      });
+      const { bySlot, additional } = matchPurchaseOrders(slots, ownLines);
       return [
         {
           id,
@@ -207,10 +308,15 @@ export class AirtableUpcomingSource implements UpcomingSource {
           tracking: text(f['Tracking#']) || null,
           notes: text(f.Notes) || null,
           pallets: number(f.Pallets),
-          lines: lineNumbers.flatMap((i) => {
-            const productIds = ids(f[`Product ${i}`]);
-            const vendorIds = ids(f[`Vendor ${i}`]);
-            const purchaseOrder = text(f[`GRD PO ${i}`]) || null;
+          additionalPurchaseOrders: additional.map((line) => ({
+            lineItemId: line.lineItemId,
+            product: productName(line.productIds),
+            vendor: vendorName(line.vendorIds),
+            purchaseOrder: line.purchaseOrder,
+          })),
+          lines: slots.flatMap(({ lineNumber: i, productIds, vendorIds }) => {
+            const purchaseOrder =
+              bySlot.get(i) ?? (text(f[`GRD PO ${i}`]) || null);
             const pounds = number(f[`1. LBS ${i}`]);
             const units = number(f[`1. Units ${i}`]);
             const origin = text(f[`FOB ${i}`]) || null;
@@ -223,14 +329,8 @@ export class AirtableUpcomingSource implements UpcomingSource {
               ? [
                   {
                     lineNumber: i,
-                    product:
-                      productIds
-                        .map((id) => products.get(id) || 'Unavailable product')
-                        .join(', ') || 'Product unavailable',
-                    vendor:
-                      vendorIds
-                        .map((id) => vendors.get(id) || 'Unavailable vendor')
-                        .join(', ') || 'Vendor unavailable',
+                    product: productName(productIds),
+                    vendor: vendorName(vendorIds),
                     purchaseOrder,
                     pounds,
                     units,

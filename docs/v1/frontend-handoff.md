@@ -883,6 +883,10 @@ of tracked Shipment ETA-based Upcoming deliveries and Personal/Team creator scop
   includes `id`, `requestedShipOn`, `salesOrders`, `customer`, `customerPo`,
   `repIds`, `reps`, `tracking`, `notes`, `pallets`, `airtableUrl`, and `lines`
   (`lineNumber`, `product`, `vendor`, `purchaseOrder`, `pounds`, `units`, `origin`).
+  `additionalPurchaseOrders` contains linked GRD POs whose product line could
+  not be uniquely matched to a numbered line on that order. Each entry supplies
+  `lineItemId`, `product`, `vendor` and `purchaseOrder`. Treat an omitted list
+  as empty. Calendar cards display distinct POs from both lists, including `0`.
 - `GET /api/v1/admin/accounts/:externalId/upcoming-shipments` (Admin):
   `configured`, `directoryUnavailable`, `ownRepId`, `assignedRepIds`, `reps`
   (`id,name,email`), and `suggestedRepIds`. Suggestions require an explicit save.

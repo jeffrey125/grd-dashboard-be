@@ -15,6 +15,12 @@ export interface UpcomingOrder {
   tracking: string | null;
   notes: string | null;
   pallets: number | null;
+  additionalPurchaseOrders?: Array<{
+    lineItemId: string;
+    product: string;
+    vendor: string;
+    purchaseOrder: string;
+  }>;
   lines: Array<{
     lineNumber: number;
     product: string;
