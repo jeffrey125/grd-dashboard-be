@@ -19,6 +19,7 @@ import {
   type UpcomingSource,
 } from './upcoming.contracts.js';
 import { upcomingWindow } from './upcoming.dates.js';
+import { upcomingRepFilterOptions } from './upcoming.rep-filter.js';
 
 const repId = z.string().regex(/^rec[A-Za-z0-9]{14}$/);
 const querySchema = z
@@ -145,6 +146,9 @@ export class UpcomingService {
     // Permissions are read on every request, including cache hits and stale fallback.
     const permitted = new Set(access.repIds);
     const through = query.window === 'week' ? access.weekEnd : access.monthEnd;
+    const reps = snapshot.reps
+      .filter((rep) => access.administrator || permitted.has(rep.id))
+      .map(({ id, name }) => ({ id, name }));
     const orders = snapshot.orders.filter(
       (order) =>
         order.requestedShipOn >= access.from &&
@@ -162,9 +166,8 @@ export class UpcomingService {
       through,
       updatedAt: snapshot.updatedAt,
       stale: snapshot.stale,
-      reps: snapshot.reps
-        .filter((rep) => access.administrator || permitted.has(rep.id))
-        .map(({ id, name }) => ({ id, name })),
+      reps,
+      repFilterOptions: upcomingRepFilterOptions(reps),
       total: orders.length,
       orders,
     };

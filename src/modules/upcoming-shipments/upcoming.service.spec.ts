@@ -107,6 +107,42 @@ describe('upcoming shipment scope and cache', () => {
       service.list(principal, { repId: 'unassigned' }),
     ).rejects.toMatchObject({ status: 403 });
   });
+
+  it('offers the active roster in order within current permissions, including reps with no orders', async () => {
+    const { service, source, setAccess } = setup();
+    const ryan = 'rec2hIQlfPlBP0hKP';
+    const milly = 'recXaDIHj1barJOUj';
+    const ryanAli = 'recUtiyyBYSLybnhT';
+    const inactiveOrder = order(a, [b]);
+    source.load.mockResolvedValueOnce({
+      reps: [
+        { id: ryanAli, name: 'Ryan-Ali', email: null },
+        { id: b, name: 'Ryan', email: null },
+        { id: milly, name: 'Milly', email: null },
+        { id: ryan, name: 'Renamed in Airtable', email: null },
+      ],
+      orders: [inactiveOrder],
+      updatedAt: new Date().toISOString(),
+    });
+
+    const result = await service.list({ ...principal, role: 'admin' }, {});
+    expect(result.repFilterOptions).toEqual([
+      { id: ryan, name: 'Ryan' },
+      { id: milly, name: 'Milly' },
+      { id: ryanAli, name: 'Ryan - Ali' },
+    ]);
+    expect(result.reps).toContainEqual({ id: b, name: 'Ryan' });
+    expect(result.orders).toEqual([inactiveOrder]);
+
+    setAccess({ ownRepId: b, assignedRepIds: [ryanAli] });
+    const staff = await service.list(principal, { window: 'week' });
+    expect(staff.repFilterOptions).toEqual([
+      { id: ryanAli, name: 'Ryan - Ali' },
+    ]);
+    expect(staff.orders).toEqual([inactiveOrder]);
+    expect(source.load).toHaveBeenCalledTimes(1);
+  });
+
   it('deduplicates concurrent refreshes and warns on stale fallback without widening permissions', async () => {
     const { service, source, setAccess } = setup();
     await Promise.all([

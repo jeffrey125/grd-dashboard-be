@@ -16,6 +16,12 @@ Approved conversation requirements and implementation contract.
   including unassigned; staff scope is the union of own and assigned reps.
 - Admin → Accounts manages access. Assignments are many-to-many and may be cleared.
   All server reads, counts and details are scoped before sending to the browser.
+- The weekly, calendar and dispatch Sales rep dropdowns show Vinnie, Ryan, Tom,
+  Brendan, Daniel, Andrew, Don, Jake, Heidi, Milly and Ryan - Ali in that order.
+  Each account sees only its permitted reps, matched by Airtable record ID.
+  **All permitted reps** includes authorized orders for former reps. Admins can
+  also choose **Unassigned**. Account assignments and order details use the full
+  permitted directory.
 - Existing five-minute Nest cache, explicit refresh, last-updated timestamp and
   warning with last-successful data on failures. No initial-data failure as empty
   results. Reads recheck assignment permissions even on cached/stale data.

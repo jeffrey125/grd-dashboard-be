@@ -1,5 +1,18 @@
 # UPC-V1-001: Airtable Upcoming Shipments
 
+## Sales rep filter update, November 18, 2026
+
+The list endpoint now returns `repFilterOptions` for the weekly overview, monthly
+calendar and Admin dispatch. It intersects the eleven approved Airtable record
+IDs with the caller's permitted directory and supplies the requested labels in
+order. An order for a former rep remains visible under **All permitted reps**
+when the caller has access to it. The roster is in `upcoming.rep-filter.ts`.
+
+`pnpm check` passed, including 403 unit tests and the build. The authenticated
+Upcoming Shipments HTTP test also passed on disposable PostgreSQL. A local
+browser check against Airtable verified all eleven names and separate order
+counts for Ryan and Ryan - Ali in all three views on desktop and mobile.
+
 ## Summary
 
 Implemented the approved read-only Upcoming Shipments feature in the API and
