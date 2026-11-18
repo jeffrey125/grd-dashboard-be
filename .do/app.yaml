@@ -104,6 +104,10 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${AUTH_SECRET}
+      - key: AIRTABLE_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        value: ${AIRTABLE_TOKEN}
       - key: AUTH_TRUST_PROXY
         scope: RUN_TIME
         type: GENERAL

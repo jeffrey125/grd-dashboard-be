@@ -72,6 +72,7 @@
     "bottleneck": "2.19.5",
     "cache-manager": "7.2.9",
     "cheerio": "1.2.0",
+    "dayjs": "1.11.23",
     "decimal.js": "10.6.0",
     "libphonenumber-js": "1.13.15",
     "mathjs": "15.2.0",

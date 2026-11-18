@@ -17,6 +17,16 @@ Obtain explicit approval before adding any production dependency, then use the
 project's package manager and update its lockfile. Review the final diff for
 remaining custom replacements and report any exceptions and their approvals.
 
+# Frontend motion
+
+For new or revised frontend designs, use subtle, interaction-driven animations
+with a default duration of **320 ms**. Apply motion to meaningful state changes,
+such as opening or closing drawers, expanding content, and switching views.
+Honor `prefers-reduced-motion: reduce` by removing nonessential animation while
+preserving the interaction and keyboard focus. Reuse the approved UI library's
+transitions or browser-native animation; new dependencies still require approval.
+Verify motion, dismissal, and reduced-motion behavior on desktop and mobile.
+
 # Database foreign keys
 
 For every new foreign key, explicitly use `ON DELETE NO ACTION` in migrations

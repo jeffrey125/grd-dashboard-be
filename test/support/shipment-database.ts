@@ -1,3 +1,5 @@
+import { UpcomingShipmentAccess1794873600000 } from '@infrastructure/database/migrations/1794873600000-UpcomingShipmentAccess.js';
+import { UpcomingAccessEntity } from '@modules/upcoming-shipments/upcoming-access.entity.js';
 import { ShipmentOrderDetails1793750400000 } from '@infrastructure/database/migrations/1793750400000-ShipmentOrderDetails.js';
 import { PurchaseOrderEntity } from '@modules/shipments/purchase-order.entity.js';
 import { ShipmentPurchaseOrderEntity } from '@modules/shipments/shipment-purchase-order.entity.js';
@@ -51,6 +53,7 @@ export async function shipmentDatabase() {
     entities: [
       ...AUTH_ENTITIES,
       ...QUOTE_ENTITIES,
+      UpcomingAccessEntity,
       CarrierEntity,
       SalesRepEntity,
       ShipmentEntity,
@@ -61,6 +64,7 @@ export async function shipmentDatabase() {
       TrackingAttemptEntity,
     ],
     migrations: [
+      UpcomingShipmentAccess1794873600000,
       InitialSchema1791849600000,
       CarrierFetchMode1791936000000,
       FfeRequestMode1792022400000,

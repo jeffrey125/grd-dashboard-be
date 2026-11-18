@@ -47,6 +47,7 @@ describe('runtime configuration', () => {
       }),
     ).toEqual({
       environment: 'test',
+      upcomingShipments: { token: undefined },
       quoteComparisonEnabled: false,
       quoteDemo: false,
       quoteScenarios: { amazon: 'success', unishippers: 'validation_failed' },

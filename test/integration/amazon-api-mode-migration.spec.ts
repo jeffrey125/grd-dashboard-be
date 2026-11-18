@@ -12,6 +12,7 @@ afterAll(async () => {
 });
 
 it('migrates populated Amazon state to API mode without rewriting history', async () => {
+  await db.source.undoLastMigration(); // Upcoming shipment access.
   await db.source.undoLastMigration(); // Shipment order details.
   await db.source.undoLastMigration(); // Shipment business fields.
   await db.source.undoLastMigration(); // Sales Rep email.

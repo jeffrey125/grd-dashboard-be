@@ -772,3 +772,19 @@ There is no customer/vendor ownership on the shared reference record.
 All writes preserve link/display agreement transactionally. No PO association is
 required, no PO is unique to a Shipment, and soft deletion retains associations.
 SO and Product lists appear in shipment details only; no grid columns are added.
+
+## UPC-V1-001: Upcoming shipment access
+
+Migration `1794873600000-UpcomingShipmentAccess` adds
+`upcoming_shipment_rep_access(account_id integer, rep_id varchar(17), kind varchar(8))`.
+The primary key is `(account_id, rep_id)`; `kind` is `own` or `assigned`. A partial
+unique index permits at most one `own` link per account. The account foreign key
+uses `ON DELETE NO ACTION` in SQL and ORM metadata; the composite primary key
+covers account lookups. Airtable rep IDs match `rec[A-Za-z0-9]{14}` and are not local
+Sales Rep UUIDs. Multiple assistants can share a rep; one assistant can have
+multiple reps. Complete replacements lock the target account row transactionally.
+
+The migration stores permissions only. Orders and rep names/emails remain in
+Airtable. Email matching is a suggestion, never an automatic access grant. New
+rep grants are checked against Airtable; local removals remain possible during an
+Airtable outage. No shipment-order backfill or Airtable write is performed.

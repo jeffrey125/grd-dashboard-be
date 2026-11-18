@@ -863,3 +863,49 @@ tracking records. SO/Product are not monitoring-table columns. Existing Staff/Ad
 permissions, tracking behavior and duplicate-creation semantics are unchanged.
 Deploy the migration/API before the frontend. See [the approved specification](shipment-order-details.md)
 for rollback and separately executed, read-only-by-default backfill tooling.
+
+## UPC-V1-001: Airtable upcoming shipments
+
+See [approved requirements](upcoming-shipments.md). These endpoints are independent
+of tracked Shipment ETA-based Upcoming deliveries and Personal/Team creator scope.
+
+- `GET /api/v1/upcoming-shipments/access` (Staff/Admin): `enabled`,
+  `administrator`, allowed Airtable `repIds`, `from`, `month`, `monthEnd`, `weekEnd`,
+  `through`, `timezone: America/Chicago`. Unconfigured Staff are hidden.
+- `GET /api/v1/upcoming-shipments?window=week|month&repId=rec…|unassigned&refresh=true`
+  (Staff/Admin): access fields plus `window`, inclusive `through`, `updatedAt`,
+  `stale`, permitted `{id,name}` reps, `total`, and scoped `orders`. Unknown query
+  keys/future month inputs are rejected. `unassigned` is Admin-only. Each order
+  includes `id`, `requestedShipOn`, `salesOrders`, `customer`, `customerPo`,
+  `repIds`, `reps`, `tracking`, `notes`, `pallets`, `airtableUrl`, and `lines`
+  (`lineNumber`, `product`, `vendor`, `purchaseOrder`, `pounds`, `units`, `origin`).
+- `GET /api/v1/admin/accounts/:externalId/upcoming-shipments` (Admin):
+  `configured`, `directoryUnavailable`, `ownRepId`, `assignedRepIds`, `reps`
+  (`id,name,email`), and `suggestedRepIds`. Suggestions require an explicit save.
+  Stored access remains readable if the Airtable directory is unavailable.
+- `PATCH` on the same Admin path replaces assignments using exactly
+  `{ownRepId: string|null, assignedRepIds: string[]}`. Empty clears Staff access.
+  Response is the persisted assignment pair. Staff cannot access either method.
+
+All responses use no-store. Cached server data lasts five minutes with bounded
+same-window last-successful fallback. Refresh attempts coalesce, apply a ten-second
+cooldown after provider failure, and retain stale warnings until a successful read.
+No stale data bypasses account authorization. Initial upstream failure is 503;
+a date rollover during loading returns a retryable error instead of partial data.
+The backend owns all date windows and scope; no raw Airtable token reaches the UI.
+
+Configuration: server-only `AIRTABLE_TOKEN`, with read scope for the source and
+linked operational tables. Missing token disables the feature. Apply the new
+migration before activating the API. Worker composition is unchanged.
+
+### Upcoming shipment DOCS
+
+`GET /api/v1/upcoming-shipments/:orderId/files` requires Staff/Admin authentication
+and returns `{ files: [{ id, filename, size, type, url }] }` with `Cache-Control:
+no-store`. Size is in bytes. Only DOCS attachments are included, not PDF Quote.
+The source is read on every request; current date, Test exclusion and rep access
+are checked again after the read. Unavailable or foreign orders return 404,
+unconfigured accounts 403, provider failures 503. The browser refetches this route
+on Preview/Download, then loads the HTTPS Airtable attachment directly. Links are
+temporary bearer links; file bytes are not persisted or proxied by the backend.
+PDF/image preview support depends on the browser; Download remains available.
