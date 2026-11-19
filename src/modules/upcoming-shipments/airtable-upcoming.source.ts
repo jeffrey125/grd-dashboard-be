@@ -236,7 +236,15 @@ export class AirtableUpcomingSource implements UpcomingSource {
     const repNames = new Map(reps.map((rep) => [rep.id, rep.name]));
     const linkedRows = await this.linkedRecords(
       lineItemsTable,
-      ['Type', 'GRD SALES ORDER', 'Product', 'Vendor', 'GRD PO'],
+      [
+        'Type',
+        'GRD SALES ORDER',
+        'Product',
+        'Vendor',
+        'GRD PO',
+        'SO',
+        'Tracking#',
+      ],
       rows.flatMap((row) => ids(row.fields[lineItemsField])),
     );
     const linkedProducts = new Map<string, LinkedProduct>();
@@ -269,10 +277,31 @@ export class AirtableUpcomingSource implements UpcomingSource {
         )
         .concat(linked.flatMap((line) => line.vendorIds)),
     );
+    const linesById = new Map(linkedRows.map((line) => [line.id, line.fields]));
+    const ordersWithReferences = rows.map((row) => {
+      const salesOrderIds = new Set(ids(row.fields.SO));
+      const tracking = new Set<string>();
+      const headerTracking = text(row.fields['Tracking#']).trim();
+      if (headerTracking) tracking.add(headerTracking);
+
+      for (const lineId of ids(row.fields[lineItemsField])) {
+        const line = linesById.get(lineId);
+        if (!line || !ids(line['GRD SALES ORDER']).includes(row.id)) continue;
+
+        for (const so of ids(line.SO)) salesOrderIds.add(so);
+        const reference = text(line['Tracking#']).trim();
+        if (reference) tracking.add(reference);
+      }
+      return {
+        ...row,
+        salesOrderIds: [...salesOrderIds],
+        tracking: [...tracking].join(', ') || null,
+      };
+    });
     const salesOrders = await this.names(
       'tblEbvMDHU0ThW0Yj',
       'GRD INVOICE',
-      rows.flatMap(({ fields: f }) => ids(f.SO)),
+      ordersWithReferences.flatMap((row) => row.salesOrderIds),
     );
     const productName = (ids: string[]) =>
       ids.map((id) => products.get(id) || 'Unavailable product').join(', ') ||
@@ -281,68 +310,70 @@ export class AirtableUpcomingSource implements UpcomingSource {
       ids.map((id) => vendors.get(id) || 'Unavailable vendor').join(', ') ||
       'Vendor unavailable';
 
-    const orders: UpcomingOrder[] = rows.flatMap(({ id, fields: f }) => {
-      const date = z.iso.date().parse(f['REQ SHIP']);
-      if (date < from || date > through || f.Test === true) return [];
-      const repIds = ids(f.REP);
-      const slots = lineNumbers.map((lineNumber) => ({
-        lineNumber,
-        ...productLinks(f, ` ${lineNumber}`),
-      }));
-      const ownLines = ids(f[lineItemsField]).flatMap((lineId) => {
-        const line = linkedProducts.get(lineId);
-        return line?.orderIds.includes(id) ? [line] : [];
-      });
-      const { bySlot, additional } = matchPurchaseOrders(slots, ownLines);
-      return [
-        {
-          id,
-          requestedShipOn: date,
-          salesOrders: ids(f.SO).map(
-            (id) => salesOrders.get(id) || 'Unavailable SO',
-          ),
-          customer: text(f['Customer - Name']) || 'Customer unavailable',
-          customerPo: text(f['Customer PO']) || null,
-          repIds,
-          reps: repIds.map((id) => repNames.get(id) || 'Unavailable rep'),
-          tracking: text(f['Tracking#']) || null,
-          notes: text(f.Notes) || null,
-          pallets: number(f.Pallets),
-          additionalPurchaseOrders: additional.map((line) => ({
-            lineItemId: line.lineItemId,
-            product: productName(line.productIds),
-            vendor: vendorName(line.vendorIds),
-            purchaseOrder: line.purchaseOrder,
-          })),
-          lines: slots.flatMap(({ lineNumber: i, productIds, vendorIds }) => {
-            const purchaseOrder =
-              bySlot.get(i) ?? (text(f[`GRD PO ${i}`]) || null);
-            const pounds = number(f[`1. LBS ${i}`]);
-            const units = number(f[`1. Units ${i}`]);
-            const origin = text(f[`FOB ${i}`]) || null;
-            return productIds.length ||
-              vendorIds.length ||
-              purchaseOrder !== null ||
-              pounds !== null ||
-              units !== null ||
-              origin
-              ? [
-                  {
-                    lineNumber: i,
-                    product: productName(productIds),
-                    vendor: vendorName(vendorIds),
-                    purchaseOrder,
-                    pounds,
-                    units,
-                    origin,
-                  },
-                ]
-              : [];
-          }),
-          airtableUrl: `https://airtable.com/${base}/${ordersTable}/${id}`,
-        },
-      ];
-    });
+    const orders: UpcomingOrder[] = ordersWithReferences.flatMap(
+      ({ id, fields: f, salesOrderIds, tracking }) => {
+        const date = z.iso.date().parse(f['REQ SHIP']);
+        if (date < from || date > through || f.Test === true) return [];
+        const repIds = ids(f.REP);
+        const slots = lineNumbers.map((lineNumber) => ({
+          lineNumber,
+          ...productLinks(f, ` ${lineNumber}`),
+        }));
+        const ownLines = ids(f[lineItemsField]).flatMap((lineId) => {
+          const line = linkedProducts.get(lineId);
+          return line?.orderIds.includes(id) ? [line] : [];
+        });
+        const { bySlot, additional } = matchPurchaseOrders(slots, ownLines);
+        return [
+          {
+            id,
+            requestedShipOn: date,
+            salesOrders: salesOrderIds.map(
+              (id) => salesOrders.get(id) || 'Unavailable SO',
+            ),
+            customer: text(f['Customer - Name']) || 'Customer unavailable',
+            customerPo: text(f['Customer PO']) || null,
+            repIds,
+            reps: repIds.map((id) => repNames.get(id) || 'Unavailable rep'),
+            tracking,
+            notes: text(f.Notes) || null,
+            pallets: number(f.Pallets),
+            additionalPurchaseOrders: additional.map((line) => ({
+              lineItemId: line.lineItemId,
+              product: productName(line.productIds),
+              vendor: vendorName(line.vendorIds),
+              purchaseOrder: line.purchaseOrder,
+            })),
+            lines: slots.flatMap(({ lineNumber: i, productIds, vendorIds }) => {
+              const purchaseOrder =
+                bySlot.get(i) ?? (text(f[`GRD PO ${i}`]) || null);
+              const pounds = number(f[`1. LBS ${i}`]);
+              const units = number(f[`1. Units ${i}`]);
+              const origin = text(f[`FOB ${i}`]) || null;
+              return productIds.length ||
+                vendorIds.length ||
+                purchaseOrder !== null ||
+                pounds !== null ||
+                units !== null ||
+                origin
+                ? [
+                    {
+                      lineNumber: i,
+                      product: productName(productIds),
+                      vendor: vendorName(vendorIds),
+                      purchaseOrder,
+                      pounds,
+                      units,
+                      origin,
+                    },
+                  ]
+                : [];
+            }),
+            airtableUrl: `https://airtable.com/${base}/${ordersTable}/${id}`,
+          },
+        ];
+      },
+    );
     orders.sort(
       (a, b) =>
         a.requestedShipOn.localeCompare(b.requestedShipOn) ||
