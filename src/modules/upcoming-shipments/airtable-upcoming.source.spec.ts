@@ -207,7 +207,15 @@ it('resolves POs by linked product and vendor without borrowing a PO from anothe
   expect(actual).toHaveProperty('additionalPurchaseOrders.length', 2);
   expect(lineQueries).toHaveLength(1);
   expect(lineQueries[0]!.getAll('fields[]').sort()).toEqual(
-    ['Type', 'GRD SALES ORDER', 'Product', 'Vendor', 'GRD PO'].sort(),
+    [
+      'Type',
+      'GRD SALES ORDER',
+      'Product',
+      'Vendor',
+      'GRD PO',
+      'SO',
+      'Tracking#',
+    ].sort(),
   );
 });
 
@@ -258,4 +266,57 @@ it('reads only DOCS and validates attachment hosts', async () => {
   );
   url = 'https://airtableusercontent.com.attacker.example/file';
   await expect(source.files('recAAAAAAAAAAAAAA')).rejects.toThrow();
+});
+
+it('merges distinct header and owned line references in order, including shipping rows', async () => {
+  const id = (n: number) => `rec${String(n).padStart(14, '0')}`;
+  const lineLink = 'GRD SALES ORDERS - Line Items';
+  const header = (n: number, links: number[], fields = {}) => ({
+    id: id(n),
+    fields: { 'REQ SHIP': '2026-11-18', [lineLink]: links.map(id), ...fields },
+  });
+  const line = (n: number, parent: number, so: number, tracking: string) => ({
+    id: id(n),
+    fields: {
+      Type: 'Shipping',
+      'GRD SALES ORDER': [id(parent)],
+      SO: [id(so)],
+      'Tracking#': tracking,
+    },
+  });
+  const tables: Record<string, unknown[]> = {
+    tbl7X5ROha1PzgGZt: [
+      header(1, [10, 11, 12], { SO: [id(20)], 'Tracking#': '001' }),
+      header(2, [12]),
+      header(3, []),
+    ],
+    tblmLuTuX1RkziFOH: [
+      line(12, 2, 22, '003'),
+      line(11, 1, 21, '002'),
+      line(10, 1, 20, '001'),
+    ],
+    tblEbvMDHU0ThW0Yj: [20, 21, 22].map((n) => ({
+      id: id(n),
+      fields: { 'GRD INVOICE': `SO-${n}` },
+    })),
+  };
+  axios.defaults.adapter = async (config) => ({
+    data: { records: tables[config.url ?? ''] ?? [] },
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config,
+  });
+
+  const { orders } = await new AirtableUpcomingSource('fixture').load(
+    '2026-11-01',
+    '2026-11-30',
+  );
+  expect(
+    orders.map(({ salesOrders, tracking }) => ({ salesOrders, tracking })),
+  ).toEqual([
+    { salesOrders: ['SO-20', 'SO-21'], tracking: '001, 002' },
+    { salesOrders: ['SO-22'], tracking: '003' },
+    { salesOrders: [], tracking: null },
+  ]);
 });

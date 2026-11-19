@@ -28,6 +28,9 @@ Approved conversation requirements and implementation contract.
 - Read-only operational details: customer, SO, PO, product/vendor, requested date,
   rep, pounds/units, origin, pallets, tracking, notes, and Open in Airtable.
   Preserve PO 0; request no pricing/profit/commission fields.
+- Sales orders and tracking references include distinct values from the order header
+  followed by its linked line items in Airtable order. Each line must link back to
+  the same order. Tracking references display together, separated by commas.
 - Read GRD POs from the order's linked `Product Price` rows in
   `GRD SALES ORDERS - Line Items`. Match product record IDs and, when a product
   repeats, vendor record IDs. A unique match supplies the line PO. A numbered
