@@ -4,10 +4,10 @@ Approved conversation requirements and implementation contract.
 
 - Source is Airtable `GRD SALES ORDERS` in base `appxyP3yY5YF9plDO`, table
   `tbl7X5ROha1PzgGZt`; `REP` links to `Reps` (`tblMqeGvgg4McO2hB`). Read only.
-- Include nonblank `REQ SHIP >= today`; exclude `Test`. Actual ship dates do not
+- Include nonblank `REQ SHIP` within the selected period; exclude `Test`. Actual ship dates do not
   determine eligibility. Use America/Chicago for today; preserve date-only values.
-- Overview: today through Sunday inclusive, total plus first five orders. The week
-  may cross a month boundary. Calendar/dispatch: today through current month end.
+- Overview: Monday through Sunday inclusive, total plus first five orders. The week
+  may cross a month boundary. Calendar/dispatch: first through last day of the current month.
   No previous/future month browsing. Airtable request covers only the union of
   those two windows, with pagination and no silent partial results.
 - Staff own rep link and sales-assistant multiple rep assignments use Airtable
@@ -33,7 +33,7 @@ Approved conversation requirements and implementation contract.
   repeats, vendor record IDs. A unique match supplies the line PO. A numbered
   header PO remains available as a fallback. Show any other linked PO with its
   own product and vendor in order details and include it on the calendar card.
-- Overview mobile and desktop: date navigator above a stable-height order list.
+- Overview mobile and desktop: date navigator above a stable-height order list. Chicago today is selected on entry. All dates shows the full week.
 - Monthly mobile: date navigator, inline day orders, centered details modal.
   Monthly desktop: compact calendar with three events plus more, date opens the
   right drawer with every order for that day. Events open the day list, not direct

@@ -873,7 +873,8 @@ of tracked Shipment ETA-based Upcoming deliveries and Personal/Team creator scop
   `administrator`, allowed Airtable `repIds`, `from`, `month`, `monthEnd`, `weekEnd`,
   `through`, `timezone: America/Chicago`. Unconfigured Staff are hidden.
 - `GET /api/v1/upcoming-shipments?window=week|month&repId=rec…|unassigned&refresh=true`
-  (Staff/Admin): access fields plus `window`, inclusive `through`, `updatedAt`,
+  (Staff/Admin): access reports Chicago today in `from`. The list reports the selected
+  period in `from` and inclusive `through` (Monday–Sunday or the full month), plus `window`, `updatedAt`,
   `stale`, permitted `{id,name}` reps, `repFilterOptions`, `total`, and scoped
   `orders`. Use `repFilterOptions` for the Sales rep dropdown. These `{id,name}`
   entries contain the approved display labels in roster order, limited to the

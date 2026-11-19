@@ -75,7 +75,7 @@ export class UpcomingService {
     refresh: boolean,
     window: ReturnType<typeof upcomingWindow>,
   ) {
-    const key = `upcoming:${window.from}:${window.through}`;
+    const key = `upcoming:${window.snapshotStart}:${window.through}`;
     const previous = await this.cache.get<UpcomingSnapshot>(key);
     const age = previous
       ? Date.now() - Date.parse(previous.updatedAt)
@@ -91,7 +91,7 @@ export class UpcomingService {
     try {
       if (this.inFlight?.key !== key) {
         const promise = this.source
-          .load(window.from, window.through)
+          .load(window.snapshotStart, window.through)
           .then(async (snapshot) => {
             await this.cache.set(key, snapshot, 24 * 60 * 60_000);
             if (this.failedWindow === key) this.failedWindow = undefined;
@@ -129,10 +129,10 @@ export class UpcomingService {
       !access.repIds.includes(query.repId)
     )
       throw new ForbiddenException();
-    const from = access.from;
+    const today = access.from;
     const snapshot = await this.snapshot(query.refresh === 'true', access);
     access = await this.access(principal);
-    if (access.from !== from)
+    if (access.from !== today)
       throw new ServiceUnavailableException(
         'The shipment date window changed. Refresh to load the new day.',
       );
@@ -145,13 +145,14 @@ export class UpcomingService {
       throw new ForbiddenException();
     // Permissions are read on every request, including cache hits and stale fallback.
     const permitted = new Set(access.repIds);
+    const from = query.window === 'week' ? access.weekStart : access.monthStart;
     const through = query.window === 'week' ? access.weekEnd : access.monthEnd;
     const reps = snapshot.reps
       .filter((rep) => access.administrator || permitted.has(rep.id))
       .map(({ id, name }) => ({ id, name }));
     const orders = snapshot.orders.filter(
       (order) =>
-        order.requestedShipOn >= access.from &&
+        order.requestedShipOn >= from &&
         order.requestedShipOn <= through &&
         (access.administrator ||
           order.repIds.some((id) => permitted.has(id))) &&
@@ -162,6 +163,7 @@ export class UpcomingService {
     );
     return {
       ...access,
+      from,
       window: query.window,
       through,
       updatedAt: snapshot.updatedAt,
@@ -191,7 +193,7 @@ export class UpcomingService {
       !record ||
       record.test ||
       !record.requestedShipOn ||
-      record.requestedShipOn < access.from ||
+      record.requestedShipOn < access.snapshotStart ||
       record.requestedShipOn > access.through ||
       (!access.administrator &&
         !record.repIds.some((id) => access.repIds.includes(id)))

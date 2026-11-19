@@ -79,6 +79,28 @@ function setup() {
 afterEach(() => vi.useRealTimers());
 
 describe('upcoming shipment scope and cache', () => {
+  it('includes earlier days only within the selected period', async () => {
+    const { service, source } = setup();
+    const earlierMonth = order(a, [a], '2026-11-01');
+    const earlierWeek = order(b, [a], '2026-11-16');
+    source.load.mockResolvedValueOnce({
+      reps: [],
+      orders: [earlierMonth, earlierWeek],
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(await service.list(principal, { window: 'week' })).toMatchObject({
+      from: '2026-11-16',
+      through: '2026-11-22',
+      orders: [earlierWeek],
+    });
+    expect(await service.list(principal, { window: 'month' })).toMatchObject({
+      from: '2026-11-01',
+      through: '2026-11-30',
+      orders: [earlierMonth, earlierWeek],
+    });
+  });
+
   it('enforces own, multiple assistant, admin and unassigned scope on cache hits', async () => {
     const { service, source, setAccess } = setup();
     expect(
@@ -215,6 +237,7 @@ it('uses Chicago today, inclusive Sunday, and crosses the month only for the wee
   });
   expect(upcomingWindow(new Date('2026-11-01T07:30:00Z'))).toMatchObject({
     from: '2026-11-01',
+    snapshotStart: '2026-10-26',
     weekEnd: '2026-11-01',
   });
 });
@@ -261,12 +284,12 @@ it('does not label the old snapshot as a complete new month after midnight', asy
   await expect(service.list(principal, {})).rejects.toMatchObject({
     status: 503,
   });
-  expect(source.load).toHaveBeenCalledWith('2026-11-30', '2026-12-06');
+  expect(source.load).toHaveBeenCalledWith('2026-11-01', '2026-12-06');
 });
 
 describe('shipment DOCS access', () => {
   const record = {
-    requestedShipOn: '2026-11-17',
+    requestedShipOn: '2026-11-03',
     test: false,
     repIds: [a],
     files: [
@@ -292,7 +315,7 @@ describe('shipment DOCS access', () => {
     { ...record, repIds: [b] },
     { ...record, test: true },
     { ...record, requestedShipOn: null },
-    { ...record, requestedShipOn: '2026-11-16' },
+    { ...record, requestedShipOn: '2026-10-31' },
     { ...record, requestedShipOn: '2026-12-01' },
   ])('rejects unavailable or unauthorized records', async (value) => {
     const { service, source } = setup();
